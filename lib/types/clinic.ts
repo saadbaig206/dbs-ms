@@ -131,9 +131,16 @@ export interface ExpenseItem {
   status: 'Paid' | 'Pending';
   paymentMethod: 'Bank Transfer' | 'Cash' | 'Card' | 'Cheque';
   notes?: string;
+  staffId?: string;
 }
 
 export type PaymentMethod = 'Cash' | 'Card' | 'Bank' | 'Online';
+
+export interface InvoiceLineItem {
+  name: string;
+  price: number;
+  quantity: number;
+}
 
 export interface FinancialTransaction {
   id: string;
@@ -143,10 +150,12 @@ export interface FinancialTransaction {
   amount: number;
   discount: number;
   tax: number;
+  taxPercent?: number;
   grandTotal: number;
   date: string;
   paymentMethod: PaymentMethod;
   status: 'Paid' | 'Refunded' | 'Pending';
+  items?: InvoiceLineItem[];
 }
 
 export type AttendanceStatus = 'Present' | 'Late' | 'Leave' | 'Absent';

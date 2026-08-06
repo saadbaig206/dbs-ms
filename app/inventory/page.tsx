@@ -2,9 +2,10 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Package, Plus, Search, AlertTriangle, RefreshCw, CheckCircle2, ArrowUpRight } from 'lucide-react';
+import { Package, Plus, Search, Minus } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
-import { InventoryCategory, InventoryItem } from '../../lib/types/clinic';
+import { InventoryCategory } from '../../lib/types/clinic';
+import { formatPKR } from '../../lib/utils/currency';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
@@ -17,6 +18,8 @@ export default function InventoryPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [reduceModalItemId, setReduceModalItemId] = useState<string | null>(null);
+  const [reduceAmount, setReduceAmount] = useState<number>(1);
 
   // Form State
   const [itemName, setItemName] = useState('');
@@ -49,6 +52,16 @@ export default function InventoryPage() {
     setIsAddModalOpen(false);
     setItemName('');
   };
+
+  const handleReduceStock = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reduceModalItemId || reduceAmount <= 0) return;
+    updateInventoryQuantity(reduceModalItemId, -reduceAmount);
+    setReduceModalItemId(null);
+    setReduceAmount(1);
+  };
+
+  const reduceItem = inventory.find(i => i.id === reduceModalItemId);
 
   return (
     <div className="space-y-6 pb-10">
@@ -106,7 +119,7 @@ export default function InventoryPage() {
                 <th className="py-3.5 px-4">Supplier</th>
                 <th className="py-3.5 px-4">Unit Price</th>
                 <th className="py-3.5 px-4">Status</th>
-                <th className="py-3.5 px-4 text-right rounded-r-xl">Quick Restock</th>
+                <th className="py-3.5 px-4 text-right rounded-r-xl">Stock Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
@@ -145,7 +158,7 @@ export default function InventoryPage() {
                       {item.supplier}
                     </td>
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-slate-100">
-                      ${item.price}
+                      {formatPKR(item.price, { decimals: false })}
                     </td>
                     <td className="py-3.5 px-4">
                       <Badge
@@ -160,13 +173,21 @@ export default function InventoryPage() {
                         {item.status}
                       </Badge>
                     </td>
-                    <td className="py-3.5 px-4 text-right space-x-1">
-                      <button
-                        onClick={() => updateInventoryQuantity(item.id, 10)}
-                        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300 hover:bg-blue-100 transition-colors"
-                      >
-                        +10 Restock
-                      </button>
+                    <td className="py-3.5 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1 flex-wrap">
+                        <button
+                          onClick={() => updateInventoryQuantity(item.id, 10)}
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 hover:bg-emerald-100 transition-colors"
+                        >
+                          +10 Add
+                        </button>
+                        <button
+                          onClick={() => { setReduceModalItemId(item.id); setReduceAmount(1); }}
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 hover:bg-rose-100 transition-colors"
+                        >
+                          − Reduce
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -233,7 +254,7 @@ export default function InventoryPage() {
               required
             />
             <Input
-              label="Unit Price ($)"
+              label="Unit Price (Rs)"
               type="number"
               value={price}
               onChange={(e) => setPrice(Number(e.target.value))}
@@ -247,6 +268,38 @@ export default function InventoryPage() {
             </Button>
             <Button type="submit" variant="primary">
               Save Inventory Item
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Reduce Stock Modal */}
+      <Modal
+        isOpen={!!reduceModalItemId}
+        onClose={() => setReduceModalItemId(null)}
+        title="Reduce Stock Quantity"
+        description={reduceItem ? `Current stock: ${reduceItem.quantity} units — ${reduceItem.itemName}` : ''}
+        maxWidth="sm"
+      >
+        <form onSubmit={handleReduceStock} className="space-y-4">
+          <Input
+            label="Quantity to Remove"
+            type="number"
+            min={1}
+            max={reduceItem?.quantity ?? 1}
+            value={reduceAmount}
+            onChange={(e) => setReduceAmount(Math.max(1, Number(e.target.value)))}
+            required
+          />
+          <p className="text-xs text-slate-500">
+            Use this when stock is used during treatments or disposed. Stock cannot go below zero.
+          </p>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <Button type="button" variant="outline" onClick={() => setReduceModalItemId(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" icon={<Minus className="w-4 h-4" />}>
+              Confirm Reduction
             </Button>
           </div>
         </form>

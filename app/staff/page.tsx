@@ -17,6 +17,7 @@ import {
   Award
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
+import { formatPKR } from '../../lib/utils/currency';
 import { Staff, StaffRole } from '../../lib/types/clinic';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -161,7 +162,7 @@ export default function StaffPage() {
                 {role === 'admin' && (
                   <div className="flex items-center justify-between font-bold text-slate-900 dark:text-slate-100 pt-2 border-t border-slate-100 dark:border-slate-800/60">
                     <span>Monthly Salary:</span>
-                    <span className="font-mono text-emerald-600 dark:text-emerald-400">${member.salary.toLocaleString()}</span>
+                    <span className="font-mono text-emerald-600 dark:text-emerald-400">{formatPKR(member.salary, { decimals: false })}</span>
                   </div>
                 )}
               </div>
@@ -220,7 +221,7 @@ export default function StaffPage() {
               onChange={(e) => setStaffRole(e.target.value as any)}
             />
             <Input
-              label="Monthly Salary ($)"
+              label="Monthly Salary (Rs)"
               type="number"
               value={salary}
               onChange={(e) => setSalary(Number(e.target.value))}
@@ -239,7 +240,7 @@ export default function StaffPage() {
             <Input
               label="Email Address"
               type="email"
-              placeholder="doctor@auraluxuryclinic.com"
+              placeholder="staff@dbsaesthetic.pk"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required

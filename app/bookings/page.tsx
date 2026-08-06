@@ -16,6 +16,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
+import { formatPKR } from '../../lib/utils/currency';
 import { Appointment } from '../../lib/types/clinic';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -197,7 +198,7 @@ export default function BookingsPage() {
                       <div className="text-[11px] text-slate-400 font-mono">{apt.time}</div>
                     </td>
                     <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-slate-100 font-mono">
-                      ${apt.price}
+                      {formatPKR(apt.price, { decimals: false })}
                     </td>
                     <td className="py-3.5 px-4">
                       <Select
@@ -265,7 +266,7 @@ export default function BookingsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
               label="Treatment Service"
-              options={services.map((s) => ({ label: `${s.name} ($${s.price})`, value: s.id }))}
+              options={services.map((s) => ({ label: `${s.name} (${formatPKR(s.price, { decimals: false })})`, value: s.id }))}
               value={selectedServiceId}
               onChange={(e) => setSelectedServiceId(e.target.value)}
             />

@@ -16,6 +16,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
+import { formatPKR } from '../../lib/utils/currency';
 import { Client } from '../../lib/types/clinic';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -143,7 +144,7 @@ export default function ClientsPage() {
                     <Badge variant="primary">{client.visitsCount} visits</Badge>
                   </td>
                   <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-slate-100 font-mono">
-                    ${client.totalSpent.toLocaleString()}
+                    {formatPKR(client.totalSpent, { decimals: false })}
                   </td>
                   <td className="py-3.5 px-4 text-right space-x-1">
                     <button
@@ -274,7 +275,7 @@ export default function ClientsPage() {
             <div className="grid grid-cols-3 gap-3 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl">
               <div>
                 <span className="text-[11px] font-semibold text-slate-400 uppercase block">Total Lifetime Spend</span>
-                <span className="text-lg font-black text-slate-900 dark:text-slate-100 font-mono">${selectedClient.totalSpent.toLocaleString()}</span>
+                <span className="text-lg font-black text-slate-900 dark:text-slate-100 font-mono">{formatPKR(selectedClient.totalSpent, { decimals: false })}</span>
               </div>
               <div>
                 <span className="text-[11px] font-semibold text-slate-400 uppercase block">Total Visits</span>
@@ -305,7 +306,7 @@ export default function ClientsPage() {
                         <div className="font-bold text-slate-900 dark:text-slate-100">{h.serviceName}</div>
                         <div className="text-slate-400">{h.date} • {h.staffName}</div>
                       </div>
-                      <span className="font-bold font-mono text-slate-900 dark:text-slate-100">${h.amount}</span>
+                      <span className="font-bold font-mono text-slate-900 dark:text-slate-100">{formatPKR(h.amount, { decimals: false })}</span>
                     </div>
                   ))}
                 </div>

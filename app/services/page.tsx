@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Sparkles, Plus, Search, Clock, DollarSign, Users, Edit, CheckCircle2 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
+import { formatPKR } from '../../lib/utils/currency';
 import { ServiceCategory, ServiceItem } from '../../lib/types/clinic';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -118,7 +119,7 @@ export default function ServicesPage() {
                   <Badge variant="primary">{srv.category}</Badge>
                 </div>
                 <div className="absolute top-3 right-3 bg-slate-950/70 backdrop-blur-md text-white px-2.5 py-1 rounded-full text-xs font-bold font-mono">
-                  ${srv.price}
+                  {formatPKR(srv.price, { decimals: false })}
                 </div>
               </div>
 
@@ -194,7 +195,7 @@ export default function ServicesPage() {
               onChange={(e) => setCategory(e.target.value as any)}
             />
             <Input
-              label="Price ($)"
+              label="Price (Rs)"
               type="number"
               value={price}
               onChange={(e) => setPrice(Number(e.target.value))}

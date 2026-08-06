@@ -26,6 +26,25 @@ import {
   INITIAL_NOTIFICATIONS,
   INITIAL_ATTENDANCE
 } from '../dummy-data';
+import { formatPKR } from '../utils/currency';
+
+function buildStaffSalaryExpenses(staffList: Staff[]): ExpenseItem[] {
+  const monthLabel = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  const today = new Date().toISOString().split('T')[0];
+  return staffList
+    .filter(s => s.status === 'Active')
+    .map(member => ({
+      id: `EXP-SAL-${member.id}`,
+      title: `Salary - ${member.name} (${monthLabel})`,
+      category: 'Salary' as const,
+      amount: member.salary,
+      date: today,
+      status: 'Pending' as const,
+      paymentMethod: 'Bank Transfer' as const,
+      notes: `Monthly salary for ${member.role}`,
+      staffId: member.id,
+    }));
+}
 
 interface ClinicContextType {
   // Role & User
@@ -72,6 +91,7 @@ interface ClinicContextType {
 
   expenses: ExpenseItem[];
   addExpense: (expense: Omit<ExpenseItem, 'id'>) => void;
+  removeExpensesByStaffId: (staffId: string) => void;
 
   transactions: FinancialTransaction[];
   addTransaction: (txn: Omit<FinancialTransaction, 'id'>) => void;
@@ -107,7 +127,10 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [clients, setClients] = useState<Client[]>(INITIAL_CLIENTS);
   const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
   const [inventory, setInventory] = useState<InventoryItem[]>(INITIAL_INVENTORY);
-  const [expenses, setExpenses] = useState<ExpenseItem[]>(INITIAL_EXPENSES);
+  const [expenses, setExpenses] = useState<ExpenseItem[]>([
+    ...buildStaffSalaryExpenses(INITIAL_STAFF),
+    ...INITIAL_EXPENSES,
+  ]);
   const [transactions, setTransactions] = useState<FinancialTransaction[]>(INITIAL_TRANSACTIONS);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>(INITIAL_ATTENDANCE);
   const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
@@ -126,18 +149,93 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
   const toggleRole = () => setRole(prev => prev === 'admin' ? 'staff' : 'admin');
 
+  const getCurrentMonthLabel = () => {
+    const now = new Date();
+    return now.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  };
+
+  const syncStaffSalaryExpense = (member: Staff) => {
+    if (member.status !== 'Active') return;
+    const monthLabel = getCurrentMonthLabel();
+    setExpenses(prev => {
+      const existingIdx = prev.findIndex(e => e.staffId === member.id && e.category === 'Salary');
+      const salaryExpense: ExpenseItem = {
+        id: existingIdx >= 0 ? prev[existingIdx].id : `EXP-SAL-${member.id}`,
+        title: `Salary - ${member.name} (${monthLabel})`,
+        category: 'Salary',
+        amount: member.salary,
+        date: new Date().toISOString().split('T')[0],
+        status: 'Pending',
+        paymentMethod: 'Bank Transfer',
+        notes: `Monthly salary for ${member.role}`,
+        staffId: member.id,
+      };
+      if (existingIdx >= 0) {
+        const list = [...prev];
+        list[existingIdx] = salaryExpense;
+        return list;
+      }
+      return [salaryExpense, ...prev];
+    });
+  };
+
+  // Sync salary expenses for all active staff on initial load — handled via buildStaffSalaryExpenses in useState
+
   // Staff CRUD
   const addStaff = (newStaff: Omit<Staff, 'id'>) => {
     const id = `STF-${100 + staff.length + 1}`;
-    setStaff(prev => [ { id, ...newStaff }, ...prev ]);
+    const member = { id, ...newStaff };
+    setStaff(prev => [member, ...prev]);
+    if (member.status === 'Active') {
+      syncStaffSalaryExpense(member);
+    }
+    setNotifications(prev => [{
+      id: `NOT-${Date.now()}`,
+      title: 'New Staff Added',
+      message: `${member.name} joined as ${member.role}. Salary expense auto-tracked.`,
+      time: 'Just now',
+      type: 'staff',
+      read: false,
+    }, ...prev]);
   };
 
   const updateStaff = (id: string, updated: Partial<Staff>) => {
-    setStaff(prev => prev.map(s => s.id === id ? { ...s, ...updated } : s));
+    let updatedMember: Staff | undefined;
+    setStaff(prev => prev.map(s => {
+      if (s.id === id) {
+        updatedMember = { ...s, ...updated };
+        return updatedMember;
+      }
+      return s;
+    }));
+    if (updatedMember) {
+      if (updatedMember.status === 'Active') {
+        syncStaffSalaryExpense(updatedMember);
+      } else {
+        removeExpensesByStaffId(id);
+      }
+    }
+  };
+
+  const removeExpensesByStaffId = (staffId: string) => {
+    setExpenses(prev => prev.filter(e => !(e.staffId === staffId && e.category === 'Salary')));
   };
 
   const deleteStaff = (id: string) => {
+    const member = staff.find(s => s.id === id);
     setStaff(prev => prev.filter(s => s.id !== id));
+    removeExpensesByStaffId(id);
+    setAttendance(prev => prev.filter(a => a.staffId !== id));
+    if (member) {
+      setNotifications(prev => [{
+        id: `NOT-${Date.now()}`,
+        title: 'Staff Terminated',
+        message: `${member.name} removed. Salary expense automatically cleared from records.`,
+        time: 'Just now',
+        type: 'staff',
+        read: false,
+      }, ...prev]);
+    }
   };
 
   // Services CRUD
@@ -304,6 +402,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const grandTotal = Math.round((taxable + tax) * 100) / 100;
 
     const invoiceId = `INV-${new Date().getFullYear()}-${String(transactions.length + 1).padStart(3, '0')}`;
+    const cartItems = posCart.map(c => ({ name: c.name, price: c.price, quantity: c.quantity }));
     const txn: FinancialTransaction = {
       id: `TXN-${900 + transactions.length + 1}`,
       invoiceId,
@@ -312,10 +411,12 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       amount: subtotal,
       discount,
       tax,
+      taxPercent,
       grandTotal,
       date: new Date().toISOString().split('T')[0],
       paymentMethod,
-      status: 'Paid'
+      status: 'Paid',
+      items: cartItems,
     };
 
     setTransactions(prev => [txn, ...prev]);
@@ -324,7 +425,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setNotifications(prev => [
       {
         id: `NOT-${Date.now()}`,
-        title: `Payment Received ($${grandTotal.toFixed(2)})`,
+        title: `Payment Received (${formatPKR(grandTotal)})`,
         message: `Invoice ${invoiceId} processed via ${paymentMethod} for ${clientName}.`,
         time: 'Just now',
         type: 'payment',
@@ -376,6 +477,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         expenses,
         addExpense,
+        removeExpensesByStaffId,
 
         transactions,
         addTransaction,

@@ -20,6 +20,7 @@ import {
   Plus
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
+import { CLINIC_INFO } from '../../lib/constants/clinic';
 
 export const CommandPalette: React.FC = () => {
   const router = useRouter();
@@ -155,7 +156,7 @@ export const CommandPalette: React.FC = () => {
           </div>
 
           <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-400">
-            <span>Aura Luxury Clinic Command Palette</span>
+            <span>{CLINIC_INFO.name} Command Palette</span>
             <span>Use ↑ ↓ to navigate, ↵ to select</span>
           </div>
         </motion.div>

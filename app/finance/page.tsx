@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { DollarSign, TrendingUp, CreditCard, Lock, ArrowUpRight, Search, Printer } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
+import { formatPKR } from '../../lib/utils/currency';
 import { StatCard } from '../../components/cards/StatCard';
 import { RevenueChart } from '../../components/charts/ClinicCharts';
 import { Button } from '../../components/ui/Button';
@@ -60,7 +61,7 @@ export default function FinancePage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard
           title="Gross Revenue (POS & Appointments)"
-          value={`$${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+          value={formatPKR(totalRevenue)}
           trend="+18.4%"
           trendDirection="up"
           colorVariant="emerald"
@@ -69,7 +70,7 @@ export default function FinancePage() {
         />
         <StatCard
           title="Discounts & Promotions Given"
-          value={`$${totalDiscounts.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+          value={formatPKR(totalDiscounts)}
           trend="-2.1%"
           trendDirection="down"
           colorVariant="amber"
@@ -149,7 +150,7 @@ export default function FinancePage() {
                     <Badge variant="neutral">{txn.paymentMethod}</Badge>
                   </td>
                   <td className="py-3.5 px-4 font-mono font-black text-slate-900 dark:text-slate-100">
-                    ${txn.grandTotal.toFixed(2)}
+                    {formatPKR(txn.grandTotal)}
                   </td>
                   <td className="py-3.5 px-4">
                     <Badge variant="success">{txn.status}</Badge>

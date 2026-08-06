@@ -16,6 +16,7 @@ import {
   ResponsiveContainer,
   Legend
 } from 'recharts';
+import { formatPKRCompact } from '../../lib/utils/currency';
 
 const revenueData = [
   { month: 'Jan', revenue: 42000, profit: 26000, expenses: 16000 },
@@ -72,9 +73,9 @@ export const RevenueChart: React.FC = () => {
           </defs>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
           <XAxis dataKey="month" stroke="#64748B" fontSize={12} tickLine={false} />
-          <YAxis stroke="#64748B" fontSize={12} tickLine={false} tickFormatter={(v) => `$${v / 1000}k`} />
+          <YAxis stroke="#64748B" fontSize={12} tickLine={false} tickFormatter={(v) => formatPKRCompact(v)} />
           <Tooltip 
-            formatter={(value: any) => [`$${Number(value).toLocaleString()}`, '']}
+            formatter={(value: any) => [formatPKRCompact(Number(value)), '']}
             contentStyle={{ backgroundColor: '#0F172A', borderRadius: '12px', border: 'none', color: '#FFF', fontSize: '12px' }}
           />
           <Area type="monotone" dataKey="revenue" stroke="#2563EB" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" name="Total Revenue" />
@@ -135,9 +136,9 @@ export const ExpenseBreakdownChart: React.FC = () => {
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={expenseBreakdownData} layout="vertical" margin={{ top: 10, right: 10, left: 30, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
-          <XAxis type="number" stroke="#64748B" fontSize={12} tickFormatter={(v) => `$${v / 1000}k`} />
+          <XAxis type="number" stroke="#64748B" fontSize={12} tickFormatter={(v) => formatPKRCompact(v)} />
           <YAxis type="category" dataKey="category" stroke="#64748B" fontSize={11} tickLine={false} />
-          <Tooltip formatter={(value: any) => [`$${Number(value).toLocaleString()}`, 'Amount']} contentStyle={{ backgroundColor: '#0F172A', borderRadius: '12px', border: 'none', color: '#FFF', fontSize: '12px' }} />
+          <Tooltip formatter={(value: any) => [formatPKRCompact(Number(value)), 'Amount']} contentStyle={{ backgroundColor: '#0F172A', borderRadius: '12px', border: 'none', color: '#FFF', fontSize: '12px' }} />
           <Bar dataKey="amount" fill="#F59E0B" radius={[0, 8, 8, 0]} />
         </BarChart>
       </ResponsiveContainer>

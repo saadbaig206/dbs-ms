@@ -1,14 +1,11 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { ClinicProvider } from '../lib/context/ClinicContext';
-import { Sidebar } from '../components/layout/Sidebar';
-import { Navbar } from '../components/layout/Navbar';
-import { CommandPalette } from '../components/ui/CommandPalette';
-import { PrintModal } from '../components/ui/PrintModal';
+import { Providers } from '../components/layout/AppShell';
+import { CLINIC_INFO } from '../lib/constants/clinic';
 
 export const metadata: Metadata = {
-  title: 'Aura Luxury Clinic & Med Spa - Executive Dashboard',
-  description: 'Ultra-luxury aesthetic clinic SaaS dashboard inspired by Stripe, Linear, Notion & Vercel.',
+  title: `${CLINIC_INFO.name} - POS & Management System`,
+  description: 'Point of sale, bookings, inventory, staff and finance management for DBS Aesthetic Clinic and Salon.',
 };
 
 export default function RootLayout({
@@ -18,20 +15,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="antialiased bg-[#F8FAFC] dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 min-h-screen">
-        <ClinicProvider>
-          <div className="flex min-h-screen">
-            <Sidebar />
-            <div className="flex-1 flex flex-col min-w-0">
-              <Navbar />
-              <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-                {children}
-              </main>
-            </div>
-          </div>
-          <CommandPalette />
-          <PrintModal />
-        </ClinicProvider>
+      <body className="antialiased bg-[var(--bg-main)] text-[var(--text-primary)] min-h-screen">
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

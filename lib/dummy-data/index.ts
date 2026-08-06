@@ -1151,24 +1151,14 @@ export const INITIAL_INVENTORY: InventoryItem[] = [
 
 export const INITIAL_EXPENSES: ExpenseItem[] = [
   {
-    id: 'EXP-401',
-    title: 'Staff Salaries (July 2026)',
-    category: 'Salary',
-    amount: 148000,
-    date: '2026-08-01',
-    status: 'Paid',
-    paymentMethod: 'Bank Transfer',
-    notes: 'Monthly payroll for 15 clinic team members.'
-  },
-  {
     id: 'EXP-402',
-    title: 'Clinic Prime Rent (Beverly Hills)',
+    title: 'Clinic Rent (Karachi Phase 7)',
     category: 'Rent',
-    amount: 28000,
+    amount: 280000,
     date: '2026-08-01',
     status: 'Paid',
     paymentMethod: 'Bank Transfer',
-    notes: 'Monthly lease for 4,500 sq ft luxury premises.'
+    notes: 'Monthly lease for DBS Aesthetic Clinic premises.'
   },
   {
     id: 'EXP-403',
@@ -1591,7 +1581,7 @@ export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
   },
   {
     id: 'NOT-2',
-    title: 'Payment Received ($495.00)',
+    title: 'Payment Received (Rs 49,500)',
     message: 'Invoice INV-2026-001 paid via Card by Victoria Beckham.',
     time: '35 mins ago',
     type: 'payment',
@@ -1616,7 +1606,7 @@ export const INITIAL_NOTIFICATIONS: NotificationItem[] = [
   {
     id: 'NOT-5',
     title: 'Today Schedule Summary',
-    message: '14 high-value treatments scheduled for today. Estimated revenue: $8,450.00.',
+    message: '14 high-value treatments scheduled for today. Estimated revenue: Rs 845,000.',
     time: '4 hours ago',
     type: 'schedule',
     read: true

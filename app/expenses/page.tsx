@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Receipt, Plus, Search, Filter, Lock } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
+import { formatPKR } from '../../lib/utils/currency';
 import { ExpenseCategory, ExpenseItem } from '../../lib/types/clinic';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -89,7 +90,7 @@ export default function ExpensesPage() {
         <div>
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Recorded Operational Expenses</span>
           <h2 className="text-3xl font-black text-slate-900 dark:text-slate-100 font-mono mt-1">
-            ${totalExpenseAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            {formatPKR(totalExpenseAmount)}
           </h2>
         </div>
         <Badge variant="primary" size="md">15 Active Entries</Badge>
@@ -154,7 +155,7 @@ export default function ExpensesPage() {
                     {exp.paymentMethod}
                   </td>
                   <td className="py-3.5 px-4 font-mono font-black text-rose-600 dark:text-rose-400">
-                    -${exp.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    -{formatPKR(exp.amount)}
                   </td>
                   <td className="py-3.5 px-4 text-right">
                     <Badge variant="success">{exp.status}</Badge>
@@ -200,7 +201,7 @@ export default function ExpensesPage() {
               onChange={(e) => setCategory(e.target.value as any)}
             />
             <Input
-              label="Amount ($)"
+              label="Amount (Rs)"
               type="number"
               value={amount}
               onChange={(e) => setAmount(Number(e.target.value))}

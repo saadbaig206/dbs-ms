@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Settings as SettingsIcon, Sparkles, Save, Download, Upload, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
+import { CLINIC_INFO } from '../../lib/constants/clinic';
 import { Button } from '../../components/ui/Button';
 import { Input, Select } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
@@ -12,10 +13,10 @@ import { Breadcrumb } from '../../components/ui/Breadcrumb';
 export default function SettingsPage() {
   const { theme, toggleTheme, role } = useClinic();
 
-  const [clinicName, setClinicName] = useState('DBS Aesthetics Clinic and Salon');
-  const [phone, setPhone] = useState('+92 321 1112337');
-  const [email, setEmail] = useState('dbs@gmail.com');
-  const [address, setAddress] = useState('13-C Khayaban-e-Saadi, phase 7, opposite to TM roots pharmacy, Phase 7 Ext Karachi, 75500, Pakistan');
+  const [clinicName, setClinicName] = useState(CLINIC_INFO.name);
+  const [phone, setPhone] = useState(CLINIC_INFO.phone);
+  const [email, setEmail] = useState(CLINIC_INFO.email);
+  const [address, setAddress] = useState(CLINIC_INFO.address);
   const [currency, setCurrency] = useState('PKR (Rs)');
   const [language, setLanguage] = useState('English (US), Urdu (Ur)');
   const [isSaved, setIsSaved] = useState(true);

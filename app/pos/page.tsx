@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { ServiceItem, PaymentMethod } from '../../lib/types/clinic';
+import { formatPKR } from '../../lib/utils/currency';
 import { Button } from '../../components/ui/Button';
 import { Input, Select } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
@@ -139,7 +140,7 @@ export default function POSPage() {
 
                 <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
                   <span className="text-base font-black text-slate-900 dark:text-slate-100 font-mono">
-                    ${srv.price}
+                    {formatPKR(srv.price, { decimals: false })}
                   </span>
                   <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 group-hover:bg-blue-600 group-hover:text-white transition-colors">
                     <Plus className="w-4 h-4" />
@@ -191,7 +192,7 @@ export default function POSPage() {
                   <div key={item.serviceId} className="pt-2 flex items-center justify-between">
                     <div>
                       <h5 className="text-xs font-bold text-slate-900 dark:text-slate-100">{item.name}</h5>
-                      <span className="text-xs font-mono text-slate-400">${item.price} x {item.quantity}</span>
+                      <span className="text-xs font-mono text-slate-500 dark:text-slate-400">{formatPKR(item.price, { decimals: false })} x {item.quantity}</span>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -226,7 +227,7 @@ export default function POSPage() {
             <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-4 text-xs">
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>Subtotal</span>
-                <span className="font-mono font-bold text-slate-900 dark:text-slate-100">${subtotal.toFixed(2)}</span>
+                <span className="font-mono font-bold text-slate-900 dark:text-slate-100">{formatPKR(subtotal)}</span>
               </div>
 
               <div className="flex items-center justify-between">
@@ -255,7 +256,7 @@ export default function POSPage() {
 
               <div className="flex justify-between text-base font-black text-slate-900 dark:text-slate-100 border-t border-slate-200 dark:border-slate-800 pt-3">
                 <span>Grand Total</span>
-                <span className="font-mono text-blue-600 dark:text-blue-400">${grandTotal.toFixed(2)}</span>
+                <span className="font-mono text-blue-600 dark:text-blue-400">{formatPKR(grandTotal)}</span>
               </div>
             </div>
 
@@ -291,7 +292,7 @@ export default function POSPage() {
                 className="w-full"
                 icon={<CheckCircle2 className="w-5 h-5" />}
               >
-                {isPaidSuccess ? 'Payment Processed!' : `Complete Payment ($${grandTotal.toFixed(2)})`}
+                {isPaidSuccess ? 'Payment Processed!' : `Complete Payment (${formatPKR(grandTotal)})`}
               </Button>
             </div>
           </div>

@@ -2,7 +2,7 @@
 
 @layer base {
   :root {
-    --bg-main: #F8FAFC;
+    --bg-main: #F1F5F9;
     --card-bg: #FFFFFF;
     --primary: #2563EB;
     --primary-hover: #1D4ED8;
@@ -10,8 +10,10 @@
     --danger: #DC2626;
     --warning: #F59E0B;
     --sidebar-bg: #0F172A;
-    --text-primary: #111827;
-    --border-color: #E5E7EB;
+    --text-primary: #0F172A;
+    --text-secondary: #334155;
+    --text-muted: #64748B;
+    --border-color: #CBD5E1;
     --radius-main: 20px;
   }
 
@@ -24,7 +26,9 @@
     --danger: #EF4444;
     --warning: #F59E0B;
     --sidebar-bg: #0B1120;
-    --text-primary: #F9FAFB;
+    --text-primary: #F1F5F9;
+    --text-secondary: #CBD5E1;
+    --text-muted: #94A3B8;
     --border-color: #1E293B;
   }
 
@@ -39,22 +43,40 @@
 /* Custom Utilities for Luxury Aesthetic */
 .luxury-card {
   background-color: var(--card-bg);
+  color: var(--text-primary);
   border-radius: var(--radius-main);
   border: 1px solid var(--border-color);
-  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.04), 0 2px 6px -1px rgba(15, 23, 42, 0.02);
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .luxury-card:hover {
-  box-shadow: 0 12px 30px -4px rgba(15, 23, 42, 0.08), 0 4px 12px -2px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 12px 30px -4px rgba(15, 23, 42, 0.1), 0 4px 12px -2px rgba(15, 23, 42, 0.06);
+}
+
+.luxury-card h1,
+.luxury-card h2,
+.luxury-card h3,
+.luxury-card h4,
+.luxury-card h5,
+.luxury-card h6 {
+  color: var(--text-primary);
+}
+
+.luxury-card p,
+.luxury-card span,
+.luxury-card td,
+.luxury-card th {
+  color: inherit;
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(229, 231, 235, 0.7);
+  border: 1px solid rgba(203, 213, 225, 0.8);
   border-radius: var(--radius-main);
+  color: var(--text-primary);
 }
 
 .dark .glass-card {
@@ -71,24 +93,51 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
+  background: #94A3B8;
   border-radius: 9999px;
 }
 .dark ::-webkit-scrollbar-thumb {
   background: #334155;
 }
 
+/* Print styles — only show the dedicated print portal */
 @media print {
+  @page {
+    margin: 12mm;
+    size: A4;
+  }
+
+  body {
+    background: white !important;
+    color: #0f172a !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
   body * {
-    visibility: hidden;
+    visibility: hidden !important;
   }
-  #printable-area, #printable-area * {
-    visibility: visible;
+
+  #print-portal,
+  #print-portal * {
+    visibility: visible !important;
   }
-  #printable-area {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
+
+  #print-portal {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    background: white !important;
+    color: #0f172a !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    z-index: 99999 !important;
+    display: block !important;
+  }
+
+  .no-print {
+    display: none !important;
   }
 }

@@ -4,6 +4,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
+import { CLINIC_INFO } from '../lib/constants/clinic'
 
 export default function HomePage() {
   const router = useRouter()
@@ -25,7 +26,7 @@ export default function HomePage() {
           <span className="text-4xl">⚕</span>
         </div>
         <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
-          Glow Aesthetic Clinic
+          {CLINIC_INFO.name}
         </h1>
         <p className="text-slate-500 dark:text-slate-400 mb-6">
           Loading your dashboard...

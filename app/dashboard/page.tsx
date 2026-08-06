@@ -19,6 +19,8 @@ import {
   Clock
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
+import { formatPKR } from '../../lib/utils/currency';
+import { CLINIC_INFO } from '../../lib/constants/clinic';
 import { StatCard } from '../../components/cards/StatCard';
 import { RevenueChart, AppointmentsChart, ServiceDistributionChart, ExpenseBreakdownChart } from '../../components/charts/ClinicCharts';
 import { Button } from '../../components/ui/Button';
@@ -26,9 +28,33 @@ import { Badge } from '../../components/ui/Badge';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 
 export default function DashboardPage() {
-  const { appointments, clients, staff, inventory, role, setPrintData } = useClinic();
+  const { appointments, clients, staff, inventory, transactions, expenses, role, setPrintData } = useClinic();
 
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayAppointments = appointments.filter(a => a.date === todayStr);
   const lowStockCount = inventory.filter(i => i.status === 'Low Stock' || i.status === 'Out of Stock').length;
+
+  const totalRevenue = transactions.reduce((acc, t) => acc + t.grandTotal, 0);
+  const todayRevenue = transactions.filter(t => t.date === todayStr).reduce((acc, t) => acc + t.grandTotal, 0);
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  const monthlyRevenue = transactions
+    .filter(t => {
+      const d = new Date(t.date);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    })
+    .reduce((acc, t) => acc + t.grandTotal, 0);
+  const totalExpenses = expenses.reduce((acc, e) => acc + e.amount, 0);
+  const monthlyExpenses = expenses
+    .filter(e => {
+      const d = new Date(e.date);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    })
+    .reduce((acc, e) => acc + e.amount, 0);
+  const netProfit = totalRevenue - totalExpenses;
+  const pendingPayments = transactions.filter(t => t.status === 'Pending').reduce((acc, t) => acc + t.grandTotal, 0);
+  const pendingCount = transactions.filter(t => t.status === 'Pending').length;
+  const activeStaff = staff.filter(s => s.status === 'Active').length;
 
   return (
     <div className="space-y-8 pb-10">
@@ -40,7 +66,7 @@ export default function DashboardPage() {
             Clinic Executive Dashboard
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Real-time performance analytics, revenue insights, and today's schedule for Aura Luxury Clinic.
+            Real-time performance analytics, revenue insights, and today's schedule for {CLINIC_INFO.name}.
           </p>
         </div>
 
@@ -62,53 +88,53 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           title="Today's Revenue"
-          value="$8,450.00"
-          trend="+18.4%"
-          trendDirection="up"
+          value={formatPKR(todayRevenue)}
+          trend={`${todayAppointments.length} appointments`}
+          trendDirection="neutral"
           colorVariant="blue"
           icon={<DollarSign className="w-5 h-5" />}
-          subtitle="vs yesterday"
+          subtitle="from POS & bookings"
         />
         <StatCard
           title="Monthly Revenue"
-          value="$112,000.00"
-          trend="+12.5%"
+          value={formatPKR(monthlyRevenue)}
+          trend={new Date().toLocaleString('en-US', { month: 'long' })}
           trendDirection="up"
           colorVariant="emerald"
           icon={<TrendingUp className="w-5 h-5" />}
-          subtitle="August 2026"
+          subtitle="current month"
         />
         <StatCard
           title="Total Revenue"
-          value="$784,500.00"
-          trend="+24.1%"
+          value={formatPKR(totalRevenue)}
+          trend="All-time gross"
           trendDirection="up"
           colorVariant="indigo"
           icon={<Sparkles className="w-5 h-5" />}
-          subtitle="All-time gross"
+          subtitle="from all transactions"
         />
         <StatCard
           title="Total Profit"
-          value="$75,000.00"
-          trend="+9.2%"
-          trendDirection="up"
+          value={formatPKR(netProfit)}
+          trend="Net after expenses"
+          trendDirection={netProfit >= 0 ? 'up' : 'down'}
           colorVariant="purple"
           icon={<DollarSign className="w-5 h-5" />}
-          subtitle="Net after expense"
+          subtitle="revenue minus costs"
         />
         <StatCard
           title="Total Expenses"
-          value="$37,000.00"
-          trend="-3.5%"
+          value={formatPKR(monthlyExpenses)}
+          trend="Current month"
           trendDirection="down"
           colorVariant="rose"
           icon={<CreditCard className="w-5 h-5" />}
-          subtitle="Current month"
+          subtitle="including salaries"
         />
         <StatCard
           title="Appointments Today"
-          value="14"
-          trend="10 Confirmed"
+          value={todayAppointments.length}
+          trend={`${todayAppointments.filter(a => a.status === 'Confirmed').length} Confirmed`}
           trendDirection="neutral"
           colorVariant="blue"
           icon={<Calendar className="w-5 h-5" />}
@@ -117,29 +143,29 @@ export default function DashboardPage() {
         <StatCard
           title="Total Clients"
           value={clients.length}
-          trend="+4 new"
+          trend="Registered"
           trendDirection="up"
           colorVariant="emerald"
           icon={<Users className="w-5 h-5" />}
-          subtitle="Registered VIPs"
+          subtitle="Client database"
         />
         <StatCard
-          title="Total Staff"
-          value={staff.length}
-          trend="100% active"
+          title="Active Staff"
+          value={activeStaff}
+          trend={`${staff.length} total`}
           trendDirection="neutral"
           colorVariant="indigo"
           icon={<UserCheck className="w-5 h-5" />}
-          subtitle="Doctors & Technicians"
+          subtitle="Doctors & technicians"
         />
         <StatCard
           title="Pending Payments"
-          value="$1,850.00"
-          trend="3 Invoices"
+          value={formatPKR(pendingPayments)}
+          trend={`${pendingCount} Invoices`}
           trendDirection="neutral"
           colorVariant="amber"
           icon={<Clock className="w-5 h-5" />}
-          subtitle="Due this week"
+          subtitle="Awaiting collection"
         />
         <StatCard
           title="Inventory Alerts"
@@ -240,7 +266,7 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-              {appointments.slice(0, 5).map((apt) => (
+              {todayAppointments.slice(0, 5).map((apt) => (
                 <tr key={apt.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                   <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-slate-100">
                     {apt.time}

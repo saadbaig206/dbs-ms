@@ -27,6 +27,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
+import { CLINIC_INFO } from '../../lib/constants/clinic';
 import { Badge } from '../ui/Badge';
 
 export const Sidebar: React.FC = () => {
@@ -62,10 +63,10 @@ export const Sidebar: React.FC = () => {
           {!isCollapsed && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <h1 className="text-base font-extrabold text-white tracking-wider uppercase font-sans">
-                DBS
+                {CLINIC_INFO.shortName}
               </h1>
               <p className="text-[10px] text-blue-400 font-semibold tracking-widest uppercase">
-                Aesthetics Clinic & Salon
+                {CLINIC_INFO.tagline}
               </p>
             </motion.div>
           )}

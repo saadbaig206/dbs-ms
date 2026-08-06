@@ -5,13 +5,14 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Sparkles, Mail, Lock, ShieldCheck, UserCheck, ArrowRight } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
+import { CLINIC_INFO } from '../../lib/constants/clinic';
 import { Button } from '../../components/ui/Button';
 
 export default function LoginPage() {
   const router = useRouter();
   const { setRole } = useClinic();
 
-  const [email, setEmail] = useState('elena.rostova@auraluxuryclinic.com');
+  const [email, setEmail] = useState('dbs@gmail.com');
   const [password, setPassword] = useState('••••••••••••');
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -42,11 +43,11 @@ export default function LoginPage() {
           <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-xl shadow-blue-500/30 mb-4">
             <Sparkles className="w-7 h-7" />
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-white uppercase font-sans">
-            Aura Clinic
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white uppercase font-sans leading-tight">
+            {CLINIC_INFO.name}
           </h1>
           <p className="text-xs font-semibold text-blue-400 uppercase tracking-widest mt-1">
-            Executive Med Spa Dashboard
+            POS & Management System
           </p>
         </div>
 
