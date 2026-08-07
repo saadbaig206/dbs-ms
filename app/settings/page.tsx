@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Settings as SettingsIcon, Sparkles, Save, Download, Upload, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
@@ -13,18 +13,34 @@ import { Breadcrumb } from '../../components/ui/Breadcrumb';
 export default function SettingsPage() {
   const { theme, toggleTheme, role } = useClinic();
 
-  const [clinicName, setClinicName] = useState(CLINIC_INFO.name);
-  const [phone, setPhone] = useState(CLINIC_INFO.phone);
-  const [email, setEmail] = useState(CLINIC_INFO.email);
-  const [address, setAddress] = useState(CLINIC_INFO.address);
-  const [currency, setCurrency] = useState('PKR (Rs)');
-  const [language, setLanguage] = useState('English (US), Urdu (Ur)');
-  const [isSaved, setIsSaved] = useState(true);
+  const [clinicName, setClinicName] = useState<string>(CLINIC_INFO.name || '');
+  const [phone, setPhone] = useState<string>(CLINIC_INFO.phone || '');
+  const [email, setEmail] = useState<string>(CLINIC_INFO.email || '');
+  const [address, setAddress] = useState<string>(CLINIC_INFO.address || '');
+  const [currency, setCurrency] = useState<string>('PKR (Rs)');
+  const [language, setLanguage] = useState<string>('English (US)');
+  const [isSaved, setIsSaved] = useState<boolean>(false);
+
+  // Reset save state after 3 seconds
+  useEffect(() => {
+    if (isSaved) {
+      const timer = setTimeout(() => {
+        setIsSaved(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [isSaved]);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 3000);
+    // Here you would typically save the data to your backend
+    console.log('Saving settings:', { clinicName, phone, email, address, currency, language });
+  };
+
+  const handleFieldChange = (setter: React.Dispatch<React.SetStateAction<string>>, value: string) => {
+    setter(value);
+    setIsSaved(false);
   };
 
   return (
@@ -57,13 +73,13 @@ export default function SettingsPage() {
             <Input
               label="Clinic Official Name"
               value={clinicName}
-              onChange={(e) => setClinicName(e.target.value)}
+              onChange={(e) => handleFieldChange(setClinicName, e.target.value)}
               required
             />
             <Input
               label="Contact Phone"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => handleFieldChange(setPhone, e.target.value)}
               required
             />
           </div>
@@ -73,13 +89,13 @@ export default function SettingsPage() {
               label="Official Email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => handleFieldChange(setEmail, e.target.value)}
               required
             />
             <Input
               label="Address"
               value={address}
-              onChange={(e) => setAddress(e.target.value)}
+              onChange={(e) => handleFieldChange(setAddress, e.target.value)}
               required
             />
           </div>
@@ -98,7 +114,7 @@ export default function SettingsPage() {
                 { label: 'PKR (Rs) - Pak Rupee', value: 'PKR (Rs)' },
               ]}
               value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
+              onChange={(e) => handleFieldChange(setCurrency, e.target.value)}
             />
 
             <Select
@@ -108,7 +124,7 @@ export default function SettingsPage() {
                 { label: 'Urdu (Ur)', value: 'Urdu (Ur)' },
               ]}
               value={language}
-              onChange={(e) => setLanguage(e.target.value)}
+              onChange={(e) => handleFieldChange(setLanguage, e.target.value)}
             />
           </div>
         </div>

@@ -23,7 +23,6 @@ import { Badge } from '../ui/Badge';
 export const Navbar: React.FC = () => {
   const {
     role,
-    toggleRole,
     theme,
     toggleTheme,
     setIsCommandPaletteOpen,
@@ -54,7 +53,7 @@ export const Navbar: React.FC = () => {
           <Search className="w-4 h-4 text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" />
           <span className="truncate text-xs sm:text-sm">Search services, clients...</span>
           <div className="ml-auto hidden sm:flex items-center gap-1 text-[10px] font-mono bg-white dark:bg-slate-900 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 text-slate-400">
-            <Command className="w-3 h-3" /> K
+            <Command className="w-3 h-3" /> 
           </div>
         </button>
       </div>
@@ -66,15 +65,6 @@ export const Navbar: React.FC = () => {
           <Calendar className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
           <span>{currentDate}</span>
         </div>
-
-        {/* Role Toggle Pill */}
-        <button
-          onClick={toggleRole}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 hover:bg-blue-100 transition-colors"
-        >
-          <ShieldCheck className="w-3.5 h-3.5" />
-          <span className="uppercase">{role}</span>
-        </button>
 
         {/* Dark Mode Toggle */}
         <button
@@ -192,16 +182,6 @@ export const Navbar: React.FC = () => {
                 >
                   <User className="w-3.5 h-3.5" /> Clinic Profile Settings
                 </Link>
-
-                <button
-                  onClick={() => {
-                    toggleRole();
-                    setIsProfileOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600" /> Switch to {role === 'admin' ? 'Staff' : 'Admin'} Mode
-                </button>
 
                 <div className="border-t border-slate-100 dark:border-slate-800 my-1 pt-1">
                   <Link

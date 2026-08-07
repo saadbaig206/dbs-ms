@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Sparkles, Mail, Lock, ShieldCheck, UserCheck, ArrowRight } from 'lucide-react';
+import { Sparkles, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { CLINIC_INFO } from '../../lib/constants/clinic';
 import { Button } from '../../components/ui/Button';
@@ -12,18 +12,42 @@ export default function LoginPage() {
   const router = useRouter();
   const { setRole } = useClinic();
 
-  const [email, setEmail] = useState('dbs@gmail.com');
-  const [password, setPassword] = useState('••••••••••••');
-  const [rememberMe, setRememberMe] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (selectedRole: 'admin' | 'staff') => {
+  const validateCredentials = (email: string, password: string): 'admin' | 'staff' | null => {
+    // Admin credentials
+    if (email === 'admin@gmail.com' && password === 'admin') {
+      return 'admin';
+    }
+    // Staff credentials
+    if (email === 'staff@gmail.com' && password === 'staff') {
+      return 'staff';
+    }
+    return null;
+  };
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
     setIsLoading(true);
-    setRole(selectedRole);
-    setTimeout(() => {
-      setIsLoading(false);
-      router.push('/dashboard');
-    }, 600);
+
+    const role = validateCredentials(email, password);
+
+    if (role) {
+      setRole(role);
+      setTimeout(() => {
+        setIsLoading(false);
+        router.push('/dashboard');
+      }, 600);
+    } else {
+      setTimeout(() => {
+        setIsLoading(false);
+        setError('Invalid email or password. Please try again.');
+      }, 600);
+    }
   };
 
   return (
@@ -51,8 +75,20 @@ export default function LoginPage() {
           </p>
         </div>
 
+        {/* Error Message */}
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-2"
+          >
+            <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-red-400">{error}</p>
+          </motion.div>
+        )}
+
         {/* Credentials Form */}
-        <form onSubmit={(e) => { e.preventDefault(); handleLogin('admin'); }} className="space-y-4">
+        <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
               Email Address
@@ -62,9 +98,13 @@ export default function LoginPage() {
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setError('');
+                }}
                 required
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
+                placeholder="Enter your email"
               />
             </div>
           </div>
@@ -78,26 +118,15 @@ export default function LoginPage() {
               <input
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setError('');
+                }}
                 required
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
+                placeholder="Enter your password"
               />
             </div>
-          </div>
-
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500/40"
-              />
-              <span>Remember Me</span>
-            </label>
-            <a href="#" onClick={(e) => e.preventDefault()} className="hover:text-blue-400 transition-colors">
-              Forgot Password?
-            </a>
           </div>
 
           <Button
@@ -112,22 +141,15 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        {/* Quick Demo Switcher Buttons */}
-        <div className="mt-8 pt-6 border-t border-slate-800 text-center">
-          <p className="text-xs text-slate-400 mb-3 font-medium">Quick Demo Role Access:</p>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => handleLogin('admin')}
-              className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 text-xs font-bold transition-all"
-            >
-              <ShieldCheck className="w-4 h-4" /> Login as Admin
-            </button>
-            <button
-              onClick={() => handleLogin('staff')}
-              className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold transition-all"
-            >
-              <UserCheck className="w-4 h-4" /> Login as Staff
-            </button>
+        {/* Credentials Helper */}
+        <div className="mt-6 pt-4 border-t border-slate-800/50">
+          <div className="text-center space-y-1">
+            <p className="text-[10px] text-slate-500 font-medium">Demo Credentials</p>
+            <div className="flex flex-col sm:flex-row justify-center gap-2 text-[10px] text-slate-400">
+              <span>Admin: <span className="text-blue-400">admin@gmail.com</span> / <span className="text-blue-400">admin</span></span>
+              <span className="hidden sm:inline text-slate-600">|</span>
+              <span>Staff: <span className="text-indigo-400">staff@gmail.com</span> / <span className="text-indigo-400">staff</span></span>
+            </div>
           </div>
         </div>
       </motion.div>
