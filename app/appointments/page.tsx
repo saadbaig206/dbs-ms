@@ -64,6 +64,14 @@ export default function AppointmentsPage() {
   const [aptTime, setAptTime] = useState('11:00 AM');
   const [aptNotes, setAptNotes] = useState('');
 
+  // Check for staff double-booking collisions
+  const hasCollision = useMemo(() => {
+    if (!selectedStaffId || !aptDate || !aptTime) return false;
+    return appointments.some(
+      (a) => a.staffId === selectedStaffId && a.date === aptDate && a.time === aptTime
+    );
+  }, [appointments, selectedStaffId, aptDate, aptTime]);
+
   const { paddingDays, monthDays, trailingDays, monthLabel } = useMemo(
     () => getMonthData(viewYear, viewMonth),
     [viewYear, viewMonth]
@@ -155,10 +163,10 @@ export default function AppointmentsPage() {
         <div>
           <Breadcrumb />
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-            Clinic Appointments
+            Appointments
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Manage client appointments, status tracking, and schedule visualizer.
+            Book and manage client appointments.
           </p>
         </div>
 
@@ -515,6 +523,13 @@ export default function AppointmentsPage() {
             value={aptNotes}
             onChange={(e) => setAptNotes(e.target.value)}
           />
+
+          {hasCollision && (
+            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 text-amber-700 dark:text-amber-300 text-xs font-semibold flex items-center gap-2">
+              <span className="text-sm font-bold">⚠️ Warning:</span>
+              This specialist is already booked for an appointment at this date and time slot.
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
             <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>

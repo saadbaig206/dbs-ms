@@ -93,6 +93,26 @@ export default function StaffPage() {
     setAttNotes('');
   };
 
+  const handleBulkCheckIn = async () => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayRecords = attendance.filter(a => a.date === todayStr);
+    const unmarkedStaff = staff.filter(s => !todayRecords.some(r => r.staffId === s.id));
+
+    if (unmarkedStaff.length === 0) {
+      alert("All staff members have already been marked for today!");
+      return;
+    }
+
+    try {
+      await Promise.all(
+        unmarkedStaff.map(s => markAttendance(s.id, 'Present', 'Bulk Check-In'))
+      );
+      alert(`Successfully checked in ${unmarkedStaff.length} staff members!`);
+    } catch (err: any) {
+      alert("Failed to mark bulk attendance: " + err.message);
+    }
+  };
+
   return (
     <div className="space-y-6 pb-10">
       {/* Top Header */}
@@ -100,10 +120,10 @@ export default function StaffPage() {
         <div>
           <Breadcrumb />
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-            Staff & Attendance Hub
+            Staff & Attendance
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Manage practitioners, clinic directories, and track daily attendance records.
+            Manage clinic staff and track attendance.
           </p>
         </div>
 
@@ -139,9 +159,14 @@ export default function StaffPage() {
           )}
 
           {activeTab === 'attendance' && (
-            <Button onClick={() => setIsMarkModalOpen(true)} variant="primary" icon={<Plus className="w-4 h-4" />}>
-              Mark Attendance
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={handleBulkCheckIn} variant="outline" icon={<UserCheck className="w-4 h-4" />}>
+                Bulk Check-In
+              </Button>
+              <Button onClick={() => setIsMarkModalOpen(true)} variant="primary" icon={<Plus className="w-4 h-4" />}>
+                Mark Attendance
+              </Button>
+            </div>
           )}
         </div>
       </div>

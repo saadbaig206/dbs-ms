@@ -73,10 +73,10 @@ export default function ServicesPage() {
         <div>
           <Breadcrumb />
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-            Treatment Services Directory
+            Services
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Configure premium aesthetic treatments, pricing details, session durations, and staff assignments.
+            View and manage clinic services and pricing.
           </p>
         </div>
 

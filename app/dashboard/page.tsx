@@ -60,17 +60,17 @@ export default function DashboardPage() {
         <div>
           <Breadcrumb />
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-            Clinic Executive Dashboard
+            Clinic Dashboard
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Real-time performance analytics, revenue insights, and today's schedule for {CLINIC_INFO.name}.
+            Today's schedule and basic reports for {CLINIC_INFO.name}.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <Link href="/pos">
             <Button variant="primary" icon={<CreditCard className="w-4 h-4" />}>
-              Open POS Billing
+              Open Billing
             </Button>
           </Link>
           <Link href="/appointments">
@@ -80,6 +80,21 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Low Stock Warning Banner */}
+      {lowStockCount > 0 && (
+        <div className="p-4 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60 rounded-[20px] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-rose-800 dark:text-rose-200">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 shrink-0 text-rose-600 dark:text-rose-400" />
+            <span>
+              <strong>Inventory Alert:</strong> There are <strong>{lowStockCount}</strong> product items currently low or out of stock.
+            </span>
+          </div>
+          <Link href="/inventory" className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:underline shrink-0">
+            View Inventory →
+          </Link>
+        </div>
+      )}
 
       {/* Streamlined 4 KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

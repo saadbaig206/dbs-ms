@@ -51,7 +51,6 @@ export default function POSPage() {
   const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
   const [quickClientName, setQuickClientName] = useState('');
   const [quickClientPhone, setQuickClientPhone] = useState('');
-  const [quickClientEmail, setQuickClientEmail] = useState('');
 
   const handleQuickAddClient = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,15 +59,16 @@ export default function POSPage() {
       await addClient({
         name: quickClientName,
         phone: quickClientPhone,
-        email: quickClientEmail || `${quickClientName.toLowerCase().replace(/\s+/g, '')}@dbs.pk`,
+        cnic: 'N/A',
         gender: 'Female',
-        cnic: 'N/A'
+        age: 30,
+        address: 'N/A',
+        notes: 'Quick POS Register'
       });
       setClientName(quickClientName);
       setIsAddClientModalOpen(false);
       setQuickClientName('');
       setQuickClientPhone('');
-      setQuickClientEmail('');
     } catch (err: any) {
       alert("Failed to register client: " + err.message);
     }
@@ -109,10 +109,10 @@ export default function POSPage() {
         <div>
           <Breadcrumb />
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-            Point-of-Sale Billing Terminal
+            Billing
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Instant invoice checkout, service billing, and payment processing.
+            Create and print client receipts.
           </p>
         </div>
 
@@ -282,16 +282,34 @@ export default function POSPage() {
                 <span className="font-mono font-bold text-slate-900 dark:text-slate-100">{formatPKR(subtotal)}</span>
               </div>
 
-              <div className="flex items-center justify-between">
-                <span className="text-slate-600 dark:text-slate-400">Discount (%)</span>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={discountPercent}
-                  onChange={(e) => setDiscountPercent(Number(e.target.value))}
-                  className="w-16 text-right px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-mono text-xs"
-                />
+              <div className="flex flex-col gap-1.5 py-1 border-b border-slate-100 dark:border-slate-800/60">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600 dark:text-slate-400">Discount (%)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={discountPercent}
+                    onChange={(e) => setDiscountPercent(Number(e.target.value))}
+                    className="w-16 text-right px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-mono text-xs"
+                  />
+                </div>
+                <div className="flex justify-end gap-1">
+                  {[0, 5, 10, 15, 20].map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => setDiscountPercent(pct)}
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+                        discountPercent === pct
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100'
+                      }`}
+                    >
+                      {pct === 0 ? 'None' : `${pct}%`}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="flex items-center justify-between">
@@ -347,6 +365,8 @@ export default function POSPage() {
                 {isPaidSuccess ? 'Payment Processed!' : `Complete Payment (${formatPKR(grandTotal)})`}
               </Button>
             </div>
+          </div>
+        </div>
       </div>
 
       {/* Quick Client Add Modal */}
@@ -371,13 +391,6 @@ export default function POSPage() {
             value={quickClientPhone}
             onChange={(e) => setQuickClientPhone(e.target.value)}
             required
-          />
-          <Input
-            label="Email Address"
-            type="email"
-            placeholder="e.g. amanda@example.com"
-            value={quickClientEmail}
-            onChange={(e) => setQuickClientEmail(e.target.value)}
           />
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
             <Button type="button" variant="outline" onClick={() => setIsAddClientModalOpen(false)}>

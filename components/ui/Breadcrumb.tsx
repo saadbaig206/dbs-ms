@@ -24,7 +24,12 @@ export const Breadcrumb: React.FC = () => {
       {segments.map((segment, idx) => {
         const url = `/${segments.slice(0, idx + 1).join('/')}`;
         const isLast = idx === segments.length - 1;
-        const formatted = segment.charAt(0).toUpperCase() + segment.slice(1).replace('-', ' ');
+        
+        const labelMap: Record<string, string> = {
+          pos: 'Billing',
+          'finance-reports': 'Finance & Reports'
+        };
+        const formatted = labelMap[segment.toLowerCase()] || (segment.charAt(0).toUpperCase() + segment.slice(1).replace('-', ' '));
 
         return (
           <React.Fragment key={url}>

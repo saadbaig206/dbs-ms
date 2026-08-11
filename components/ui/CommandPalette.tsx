@@ -44,7 +44,7 @@ export const CommandPalette: React.FC = () => {
     { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, category: 'Navigation', adminOnly: false },
     { title: 'Bookings & Schedule', href: '/bookings', icon: Calendar, category: 'Navigation', adminOnly: false },
     { title: 'Calendar Register', href: '/calendar', icon: Calendar, category: 'Navigation', adminOnly: false },
-    { title: 'POS Billing System', href: '/pos', icon: CreditCard, category: 'Navigation', adminOnly: false },
+    { title: 'Billing', href: '/pos', icon: CreditCard, category: 'Navigation', adminOnly: false },
     { title: 'Client Directory', href: '/clients', icon: Users, category: 'Navigation', adminOnly: false },
     { title: 'Services Catalog', href: '/services', icon: Sparkles, category: 'Navigation', adminOnly: false },
     { title: 'Inventory Management', href: '/inventory', icon: Package, category: 'Navigation', adminOnly: false },

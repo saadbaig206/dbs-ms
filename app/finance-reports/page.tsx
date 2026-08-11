@@ -179,10 +179,10 @@ export default function FinanceReportsPage() {
         <div>
           <Breadcrumb />
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-            Finance & Reports Dashboard
+            Finance & Reports
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Monitor financial performance, log operational expenses, and view business intelligence audits.
+            Track revenue, expenses, and view basic reports.
           </p>
         </div>
 

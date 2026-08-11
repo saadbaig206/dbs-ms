@@ -29,6 +29,7 @@ import {
 import { useClinic } from '../../lib/context/ClinicContext';
 import { CLINIC_INFO } from '../../lib/constants/clinic';
 import { Badge } from '../ui/Badge';
+import { authClient } from '../../lib/api/client';
 
 export const Sidebar: React.FC = () => {
   const pathname = usePathname();
@@ -36,11 +37,22 @@ export const Sidebar: React.FC = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
+  const handleLogout = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    try {
+      await authClient.logout();
+      window.location.href = '/login';
+    } catch (err) {
+      console.error('Logout failed:', err);
+      window.location.href = '/login';
+    }
+  };
+
   const menuItems = [
     { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, adminOnly: false },
     { title: 'Appointments', href: '/appointments', icon: Calendar, adminOnly: false },
     { title: 'Clients', href: '/clients', icon: Users, adminOnly: false },
-    { title: 'POS Billing', href: '/pos', icon: CreditCard, adminOnly: false },
+    { title: 'Billing', href: '/pos', icon: CreditCard, adminOnly: false },
     { title: 'Services', href: '/services', icon: Sparkles, adminOnly: false },
     { title: 'Inventory', href: '/inventory', icon: Package, adminOnly: false },
     { title: 'Finance & Reports', href: '/finance-reports', icon: DollarSign, adminOnly: true },
@@ -142,6 +154,7 @@ export const Sidebar: React.FC = () => {
 
         <Link
           href="/login"
+          onClick={handleLogout}
           className="flex items-center gap-3.5 px-3.5 py-3 rounded-2xl text-sm font-medium text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-colors"
         >
           <LogOut className="w-5 h-5 shrink-0" />

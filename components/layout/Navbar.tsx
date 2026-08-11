@@ -19,6 +19,7 @@ import {
 import { useClinic } from '../../lib/context/ClinicContext';
 import { Avatar } from '../ui/Avatar';
 import { Badge } from '../ui/Badge';
+import { authClient } from '../../lib/api/client';
 
 export const Navbar: React.FC = () => {
   const {
@@ -41,6 +42,17 @@ export const Navbar: React.FC = () => {
     day: 'numeric',
     year: 'numeric'
   });
+
+  const handleLogout = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    try {
+      await authClient.logout();
+      window.location.href = '/login';
+    } catch (err) {
+      console.error('Logout failed:', err);
+      window.location.href = '/login';
+    }
+  };
 
   return (
     <header className="sticky top-0 z-20 w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 px-4 sm:px-8 py-3.5 flex items-center justify-between transition-colors">
@@ -176,7 +188,7 @@ export const Navbar: React.FC = () => {
                 <div className="border-t border-slate-100 dark:border-slate-800 my-1 pt-1">
                   <Link
                     href="/login"
-                    onClick={() => setIsProfileOpen(false)}
+                    onClick={handleLogout}
                     className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
                   >
                     <LogOut className="w-3.5 h-3.5" /> Logout
