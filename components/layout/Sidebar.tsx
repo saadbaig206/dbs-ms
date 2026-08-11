@@ -38,17 +38,13 @@ export const Sidebar: React.FC = () => {
 
   const menuItems = [
     { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, adminOnly: false },
-    { title: 'Bookings', href: '/bookings', icon: Calendar, adminOnly: false },
-    { title: 'Calendar', href: '/calendar', icon: CalendarCheck, adminOnly: false },
+    { title: 'Appointments', href: '/appointments', icon: Calendar, adminOnly: false },
     { title: 'Clients', href: '/clients', icon: Users, adminOnly: false },
     { title: 'POS Billing', href: '/pos', icon: CreditCard, adminOnly: false },
     { title: 'Services', href: '/services', icon: Sparkles, adminOnly: false },
     { title: 'Inventory', href: '/inventory', icon: Package, adminOnly: false },
-    { title: 'Finance', href: '/finance', icon: DollarSign, adminOnly: true },
-    { title: 'Expenses', href: '/expenses', icon: Receipt, adminOnly: true },
-    { title: 'Attendance', href: '/attendance', icon: UserCheck, adminOnly: false },
+    { title: 'Finance & Reports', href: '/finance-reports', icon: DollarSign, adminOnly: true },
     { title: 'Staff', href: '/staff', icon: Users2, adminOnly: true },
-    { title: 'Reports', href: '/reports', icon: BarChart3, adminOnly: true },
     { title: 'Settings', href: '/settings', icon: Settings, adminOnly: true },
   ];
 

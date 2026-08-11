@@ -102,7 +102,8 @@ export default function InventoryPage() {
             ]}
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-48"
+            className="w-full md:w-60"
+            style={{ minWidth: '240px' }}
           />
         </div>
       </div>

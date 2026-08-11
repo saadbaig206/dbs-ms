@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Aura Luxury Clinic Management & POS System
 
-## Getting Started
+This repository contains the full stack application for **Aura Luxury Clinic** management and Point-of-Sale billing.
 
-First, run the development server:
+The project features a modern **Next.js 16** frontend integrated with a secure, asynchronous **FastAPI** backend, and is backed by a **Neon Postgres** database.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+---
+
+## Architecture Overview
+
+```mermaid
+graph TD
+  Client[Next.js 16 Web App] <-->|HttpOnly Cookies / API| Proxy[Next.js Edge Proxy proxy.ts]
+  Proxy <-->|HTTP Request| Backend[FastAPI Server backend/]
+  Backend <-->|SQLAlchemy Asyncpg| Database[Neon Postgres]
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **Frontend (`/DBS-System`)**: Next.js 16, React 19, Tailwind CSS, Lucide React, and Framer Motion. Uses cookies for secure sessions, and Zod for client-side form validation.
+- **Backend (`/backend`)**: FastAPI (Python 3.12+), SQLAlchemy 2.0 (async), and Pydantic v2. Business logic (POS transactions, salary expense matching, inventory tracking, analytics) is executed server-side.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Folder Structure
 
-## Learn More
+```text
+DBS-System/
+├── app/                  # Next.js pages & route handlers (auth login/logout/me)
+├── components/           # Reusable UI elements (Buttons, Skeletons, Print Modal)
+├── lib/                  # Shared utilities
+│   ├── api/client.ts     # Central API client
+│   ├── context/          # ClinicContext state engine
+│   └── validation/       # Zod validation schemas
+├── backend/              # Python FastAPI Application
+│   ├── app/
+│   │   ├── core/         # Security, config, and dependencies
+│   │   ├── db/           # Database sessions and seed scripts
+│   │   ├── models/       # SQLAlchemy models
+│   │   ├── schemas/      # Pydantic validation schemas
+│   │   └── routers/      # API endpoints (Auth, Clients, Staff, POS, etc.)
+│   ├── tests/            # Test suite (pytest + httpx)
+│   └── requirements.txt  # Python packages
+├── docker-compose.yml    # Local dev orchestration
+└── SETUP.md              # Database installation & run guide
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## How to Run
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Docker Compose (Recommended)
+You can launch both frontend and backend servers concurrently:
+```bash
+docker-compose up --build
+```
+- Frontend will be available at: `http://localhost:3000`
+- Backend Swagger documentation will be available at: `http://localhost:8000/docs`
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Manual Setup
+For detailed setup instructions, including database creation, running the test suites, and JWT credentials configuration, please refer to:
+👉 **[SETUP.md](file:///c:/Users/amtul/Desktop/DBS-System/SETUP.md)**
+👉 **[SYSTEM_GUIDE.md](file:///c:/Users/amtul/Desktop/DBS-System/SYSTEM_GUIDE.md)**

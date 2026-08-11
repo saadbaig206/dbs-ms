@@ -23,6 +23,7 @@ import { Button } from '../../components/ui/Button';
 import { Input, Select } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
+import { Modal } from '../../components/ui/Modal';
 
 export default function POSPage() {
   const {
@@ -34,7 +35,8 @@ export default function POSPage() {
     updatePosQuantity,
     clearPosCart,
     completePosCheckout,
-    setPrintData
+    setPrintData,
+    addClient
   } = useClinic();
 
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -44,6 +46,33 @@ export default function POSPage() {
   const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [taxPercent, setTaxPercent] = useState<number>(10);
   const [isPaidSuccess, setIsPaidSuccess] = useState(false);
+
+  // Quick Client Registration State
+  const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
+  const [quickClientName, setQuickClientName] = useState('');
+  const [quickClientPhone, setQuickClientPhone] = useState('');
+  const [quickClientEmail, setQuickClientEmail] = useState('');
+
+  const handleQuickAddClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickClientName || !quickClientPhone) return;
+    try {
+      await addClient({
+        name: quickClientName,
+        phone: quickClientPhone,
+        email: quickClientEmail || `${quickClientName.toLowerCase().replace(/\s+/g, '')}@dbs.pk`,
+        gender: 'Female',
+        cnic: 'N/A'
+      });
+      setClientName(quickClientName);
+      setIsAddClientModalOpen(false);
+      setQuickClientName('');
+      setQuickClientPhone('');
+      setQuickClientEmail('');
+    } catch (err: any) {
+      alert("Failed to register client: " + err.message);
+    }
+  };
 
   const categories = ['All', 'Facial & Skin Care', 'Laser Treatments', 'Injectables & Anti-Aging', 'Body Contouring', 'IV Therapy', 'Rejuvenation'];
 
@@ -59,14 +88,18 @@ export default function POSPage() {
   const taxAmount = (taxableAmount * taxPercent) / 100;
   const grandTotal = Math.round((taxableAmount + taxAmount) * 100) / 100;
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (posCart.length === 0) return;
-    const txn = completePosCheckout(clientName, paymentMethod, discountPercent, taxPercent);
-    setIsPaidSuccess(true);
-    setTimeout(() => {
-      setIsPaidSuccess(false);
-      setPrintData({ title: `Invoice ${txn.invoiceId}`, type: 'invoice', data: txn });
-    }, 800);
+    try {
+      const txn = await completePosCheckout(clientName, paymentMethod, discountPercent, taxPercent);
+      setIsPaidSuccess(true);
+      setTimeout(() => {
+        setIsPaidSuccess(false);
+        setPrintData({ title: `Invoice ${txn.invoiceId}`, type: 'invoice', data: txn });
+      }, 800);
+    } catch (e: any) {
+      alert("Checkout failed: " + e.message);
+    }
   };
 
   return (
@@ -118,36 +151,45 @@ export default function POSPage() {
             </div>
           </div>
 
-          {/* Service Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[600px] overflow-y-auto pr-1">
-            {filteredServices.map((srv) => (
-              <motion.div
-                key={srv.id}
-                whileHover={{ scale: 1.02 }}
-                onClick={() => addToPosCart(srv)}
-                className="luxury-card p-4 flex flex-col justify-between cursor-pointer group hover:border-blue-500 dark:hover:border-blue-500 transition-all"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <Badge variant="primary" size="sm">{srv.category}</Badge>
-                    <span className="text-xs font-mono font-bold text-slate-400">{srv.durationMinutes} min</span>
-                  </div>
-                  <h4 className="text-sm font-extrabold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                    {srv.name}
-                  </h4>
-                  <p className="text-xs text-slate-500 line-clamp-2 mt-1">{srv.description}</p>
-                </div>
-
-                <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
-                  <span className="text-base font-black text-slate-900 dark:text-slate-100 font-mono">
-                    {formatPKR(srv.price, { decimals: false })}
-                  </span>
-                  <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                    <Plus className="w-4 h-4" />
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+          {/* Service High Density Table */}
+          <div className="luxury-card p-4 max-h-[600px] overflow-y-auto pr-1">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[10px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
+                  <tr>
+                    <th className="py-2 px-3 rounded-l-xl">Name</th>
+                    <th className="py-2 px-3">Category</th>
+                    <th className="py-2 px-3">Price</th>
+                    <th className="py-2 px-3 text-right rounded-r-xl">Add</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-semibold">
+                  {filteredServices.map((srv) => (
+                    <tr
+                      key={srv.id}
+                      onClick={() => addToPosCart(srv)}
+                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
+                    >
+                      <td className="py-2.5 px-3">
+                        <div className="font-bold text-slate-900 dark:text-slate-100">{srv.name}</div>
+                        <div className="text-[10px] text-slate-400 font-normal">{srv.durationMinutes} min</div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <Badge variant="primary" size="sm">{srv.category}</Badge>
+                      </td>
+                      <td className="py-2.5 px-3 font-mono font-black text-slate-900 dark:text-slate-100">
+                        {formatPKR(srv.price, { decimals: false })}
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        <button className="p-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white transition-colors">
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
@@ -169,16 +211,26 @@ export default function POSPage() {
               )}
             </div>
 
-            {/* Client Picker */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                Client Name
-              </label>
-              <Select
-                options={clients.map((c) => ({ label: `${c.name} (${c.phone})`, value: c.name }))}
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-              />
+            {/* Client Picker & Quick Add */}
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  Client Name
+                </label>
+                <Select
+                  options={clients.map((c) => ({ label: `${c.name} (${c.phone})`, value: c.name }))}
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                />
+              </div>
+              <button
+                onClick={() => setIsAddClientModalOpen(true)}
+                className="p-3 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white rounded-[14px] border border-slate-200 dark:border-slate-800 transition-colors"
+                title="Register New Client Quickly"
+                type="button"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
             </div>
 
             {/* Cart Items List */}
@@ -295,9 +347,48 @@ export default function POSPage() {
                 {isPaidSuccess ? 'Payment Processed!' : `Complete Payment (${formatPKR(grandTotal)})`}
               </Button>
             </div>
-          </div>
-        </div>
       </div>
+
+      {/* Quick Client Add Modal */}
+      <Modal
+        isOpen={isAddClientModalOpen}
+        onClose={() => setIsAddClientModalOpen(false)}
+        title="Quick Register Client"
+        description="Create a client profile immediately without leaving the checkout page"
+        maxWidth="md"
+      >
+        <form onSubmit={handleQuickAddClient} className="space-y-4">
+          <Input
+            label="Client Full Name"
+            placeholder="e.g. Amanda Seyfried"
+            value={quickClientName}
+            onChange={(e) => setQuickClientName(e.target.value)}
+            required
+          />
+          <Input
+            label="Phone Number"
+            placeholder="e.g. +92 (300) 123-4567"
+            value={quickClientPhone}
+            onChange={(e) => setQuickClientPhone(e.target.value)}
+            required
+          />
+          <Input
+            label="Email Address"
+            type="email"
+            placeholder="e.g. amanda@example.com"
+            value={quickClientEmail}
+            onChange={(e) => setQuickClientEmail(e.target.value)}
+          />
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <Button type="button" variant="outline" onClick={() => setIsAddClientModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary">
+              Register & Select Client
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

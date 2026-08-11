@@ -13,7 +13,7 @@ import { Input, Select } from '../../components/ui/Input';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 
 export default function ServicesPage() {
-  const { services, addService, updateService, staff } = useClinic();
+  const { services, addService, updateService, role } = useClinic();
 
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -27,7 +27,7 @@ export default function ServicesPage() {
   const [description, setDescription] = useState('');
   const [image, setImage] = useState('https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&q=80&w=500');
 
-  const categories = ['All', 'Facial & Skin Care', 'Laser Treatments', 'Injectables & Anti-Aging', 'Body Contouring', 'IV Therapy', 'Rejuvenation'];
+  const categories = ['All', 'Facial & Skin Care', 'Laser Treatments', 'Injectables & Anti-Aging', 'Body Contouring', 'IV Therapy', 'Rejuvenation', 'Packages'];
 
   const filteredServices = services.filter((s) => {
     const matchesCat = selectedCategory === 'All' || s.category === selectedCategory;
@@ -54,6 +54,18 @@ export default function ServicesPage() {
     setDescription('');
   };
 
+  const handleEditPrice = (srv: ServiceItem) => {
+    const newPriceStr = prompt(`Enter new price for ${srv.name}:`, String(srv.price));
+    if (newPriceStr !== null) {
+      const newPrice = Number(newPriceStr);
+      if (!isNaN(newPrice) && newPrice >= 0) {
+        updateService(srv.id, { price: newPrice });
+      } else {
+        alert("Please enter a valid positive number.");
+      }
+    }
+  };
+
   return (
     <div className="space-y-6 pb-10">
       {/* Top Header */}
@@ -61,16 +73,18 @@ export default function ServicesPage() {
         <div>
           <Breadcrumb />
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-            Treatment Services Catalog
+            Treatment Services Directory
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Curated list of premium aesthetic medical treatments, injectables, and therapies.
+            Configure premium aesthetic treatments, pricing details, session durations, and staff assignments.
           </p>
         </div>
 
-        <Button onClick={() => setIsAddModalOpen(true)} variant="primary" icon={<Plus className="w-4 h-4" />}>
-          Add New Treatment
-        </Button>
+        {role === 'admin' && (
+          <Button onClick={() => setIsAddModalOpen(true)} variant="primary" icon={<Plus className="w-4 h-4" />}>
+            Add New Service
+          </Button>
+        )}
       </div>
 
       {/* Filter Tabs & Search */}
@@ -100,67 +114,80 @@ export default function ServicesPage() {
         </div>
       </div>
 
-      {/* Services Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredServices.map((srv) => (
-          <motion.div
-            key={srv.id}
-            whileHover={{ y: -4 }}
-            className="luxury-card overflow-hidden flex flex-col justify-between"
-          >
-            <div>
-              <div className="h-44 relative overflow-hidden bg-slate-100 dark:bg-slate-800">
-                <img
-                  src={srv.image}
-                  alt={srv.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-                <div className="absolute top-3 left-3">
-                  <Badge variant="primary">{srv.category}</Badge>
-                </div>
-                <div className="absolute top-3 right-3 bg-slate-950/70 backdrop-blur-md text-white px-2.5 py-1 rounded-full text-xs font-bold font-mono">
-                  {formatPKR(srv.price, { decimals: false })}
-                </div>
-              </div>
-
-              <div className="p-5 space-y-2">
-                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-                  {srv.name}
-                </h3>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  {srv.description}
-                </p>
-
-                <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5 text-xs text-slate-600 dark:text-slate-300">
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-slate-400">
-                      <Clock className="w-3.5 h-3.5" /> Duration:
-                    </span>
-                    <span className="font-semibold font-mono">{srv.durationMinutes} mins</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-slate-400">
-                      <Users className="w-3.5 h-3.5" /> Practitioners:
-                    </span>
-                    <span className="font-semibold truncate max-w-[150px]">{srv.assignedStaffNames.join(', ')}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4 bg-slate-50/50 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <Badge variant={srv.status === 'Active' ? 'success' : 'neutral'}>
-                {srv.status}
-              </Badge>
-              <button
-                onClick={() => updateService(srv.id, { status: srv.status === 'Active' ? 'Inactive' : 'Active' })}
-                className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
-              >
-                Toggle Status
-              </button>
-            </div>
-          </motion.div>
-        ))}
+      {/* Services Table View */}
+      <div className="luxury-card p-6">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs sm:text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[11px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
+              <tr>
+                <th className="py-3.5 px-4 rounded-l-xl">ID</th>
+                <th className="py-3.5 px-4">Service Name</th>
+                <th className="py-3.5 px-4">Category</th>
+                <th className="py-3.5 px-4">Duration</th>
+                <th className="py-3.5 px-4">Price</th>
+                <th className="py-3.5 px-4">Assigned Specialists</th>
+                <th className="py-3.5 px-4">Status</th>
+                <th className="py-3.5 px-4 text-right rounded-r-xl">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
+              {filteredServices.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-slate-400 text-sm">
+                    No services found matching your search.
+                  </td>
+                </tr>
+              ) : (
+                filteredServices.map((srv) => (
+                  <tr key={srv.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                    <td className="py-3.5 px-4 font-mono font-bold text-slate-500">
+                      {srv.id}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <div className="font-bold text-slate-900 dark:text-slate-100">{srv.name}</div>
+                      <div className="text-[11px] text-slate-400 font-normal leading-relaxed">{srv.description}</div>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <Badge variant="primary">{srv.category}</Badge>
+                    </td>
+                    <td className="py-3.5 px-4 font-mono font-semibold text-slate-700 dark:text-slate-300">
+                      {srv.durationMinutes} mins
+                    </td>
+                    <td className="py-3.5 px-4 font-mono font-black text-slate-900 dark:text-slate-100">
+                      {formatPKR(srv.price, { decimals: false })}
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
+                      {srv.assignedStaffNames.join(', ')}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <Badge variant={srv.status === 'Active' ? 'success' : 'neutral'}>
+                        {srv.status}
+                      </Badge>
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      {role === 'admin' && (
+                        <div className="inline-flex items-center gap-3">
+                          <button
+                            onClick={() => handleEditPrice(srv)}
+                            className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            Edit Price
+                          </button>
+                          <button
+                            onClick={() => updateService(srv.id, { status: srv.status === 'Active' ? 'Inactive' : 'Active' })}
+                            className="text-xs font-semibold text-slate-500 dark:text-slate-400 hover:underline"
+                          >
+                            Toggle Status
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Add Service Modal */}
@@ -189,7 +216,8 @@ export default function ServicesPage() {
                 { label: 'Injectables & Anti-Aging', value: 'Injectables & Anti-Aging' },
                 { label: 'Body Contouring', value: 'Body Contouring' },
                 { label: 'IV Therapy', value: 'IV Therapy' },
-                { label: 'Rejuvenation', value: 'Rejuvenation' }
+                { label: 'Rejuvenation', value: 'Rejuvenation' },
+                { label: 'Packages', value: 'Packages' }
               ]}
               value={category}
               onChange={(e) => setCategory(e.target.value as any)}

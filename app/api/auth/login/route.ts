@@ -1,0 +1,54 @@
+import { NextResponse } from 'next/server';
+
+export async function POST(request: Request) {
+  try {
+    const { email, password } = await request.json();
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+    const res = await fetch(`${apiUrl}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      return NextResponse.json(
+        { error: errData.detail || 'Invalid email or password' },
+        { status: res.status }
+      );
+    }
+
+    const data = await res.json();
+    const response = NextResponse.json({ success: true, role: data.role });
+
+    // Set HTTP-only cookies
+    response.cookies.set('access_token', data.access_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 8, // 8 days
+    });
+
+    response.cookies.set('refresh_token', data.refresh_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 8, // 8 days
+    });
+
+    // Also store user role in a non-httpOnly cookie for the client if needed
+    response.cookies.set('user_role', data.role, {
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 8,
+    });
+
+    return response;
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
+  }
+}

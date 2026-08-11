@@ -8,45 +8,40 @@ import { useClinic } from '../../lib/context/ClinicContext';
 import { CLINIC_INFO } from '../../lib/constants/clinic';
 import { Button } from '../../components/ui/Button';
 
+import { authClient } from '../../lib/api/client';
+
 export default function LoginPage() {
   const router = useRouter();
-  const { setRole } = useClinic();
+  const { setRole, refreshData } = useClinic();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const validateCredentials = (email: string, password: string): 'admin' | 'staff' | null => {
-    // Admin credentials
-    if (email === 'admin@gmail.com' && password === 'admin') {
-      return 'admin';
-    }
-    // Staff credentials
-    if (email === 'staff@gmail.com' && password === 'staff') {
-      return 'staff';
-    }
-    return null;
-  };
-
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
-    const role = validateCredentials(email, password);
+    try {
+      const data = await authClient.login(email, password);
+      setRole(data.role);
+      
+      // Force refreshing the context data now that we are logged in
+      await refreshData();
 
-    if (role) {
-      setRole(role);
       setTimeout(() => {
         setIsLoading(false);
-        router.push('/dashboard');
+        if (data.role === 'staff') {
+          router.push('/pos');
+        } else {
+          router.push('/dashboard');
+        }
       }, 600);
-    } else {
-      setTimeout(() => {
-        setIsLoading(false);
-        setError('Invalid email or password. Please try again.');
-      }, 600);
+    } catch (err: any) {
+      setIsLoading(false);
+      setError(err.message || 'Invalid email or password. Please try again.');
     }
   };
 

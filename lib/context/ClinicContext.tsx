@@ -14,37 +14,7 @@ import {
   NotificationItem,
   POSCartItem
 } from '../types/clinic';
-
-import {
-  INITIAL_STAFF,
-  INITIAL_SERVICES,
-  INITIAL_CLIENTS,
-  INITIAL_INVENTORY,
-  INITIAL_EXPENSES,
-  INITIAL_TRANSACTIONS,
-  INITIAL_APPOINTMENTS,
-  INITIAL_NOTIFICATIONS,
-  INITIAL_ATTENDANCE
-} from '../dummy-data';
-import { formatPKR } from '../utils/currency';
-
-function buildStaffSalaryExpenses(staffList: Staff[]): ExpenseItem[] {
-  const monthLabel = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
-  const today = new Date().toISOString().split('T')[0];
-  return staffList
-    .filter(s => s.status === 'Active')
-    .map(member => ({
-      id: `EXP-SAL-${member.id}`,
-      title: `Salary - ${member.name} (${monthLabel})`,
-      category: 'Salary' as const,
-      amount: member.salary,
-      date: today,
-      status: 'Pending' as const,
-      paymentMethod: 'Bank Transfer' as const,
-      notes: `Monthly salary for ${member.role}`,
-      staffId: member.id,
-    }));
-}
+import { apiFetch, authClient } from '../api/client';
 
 interface ClinicContextType {
   // Role & User
@@ -68,40 +38,40 @@ interface ClinicContextType {
 
   // Collections & CRUD
   staff: Staff[];
-  addStaff: (newStaff: Omit<Staff, 'id'>) => void;
-  updateStaff: (id: string, updated: Partial<Staff>) => void;
-  deleteStaff: (id: string) => void;
+  addStaff: (newStaff: Omit<Staff, 'id'>) => Promise<void>;
+  updateStaff: (id: string, updated: Partial<Staff>) => Promise<void>;
+  deleteStaff: (id: string) => Promise<void>;
 
   services: ServiceItem[];
-  addService: (newService: Omit<ServiceItem, 'id'>) => void;
-  updateService: (id: string, updated: Partial<ServiceItem>) => void;
+  addService: (newService: Omit<ServiceItem, 'id'>) => Promise<void>;
+  updateService: (id: string, updated: Partial<ServiceItem>) => Promise<void>;
 
   clients: Client[];
-  addClient: (newClient: Omit<Client, 'id' | 'totalSpent' | 'visitsCount' | 'history' | 'joinedDate'>) => void;
-  updateClient: (id: string, updated: Partial<Client>) => void;
+  addClient: (newClient: Omit<Client, 'id' | 'totalSpent' | 'visitsCount' | 'history' | 'joinedDate'>) => Promise<void>;
+  updateClient: (id: string, updated: Partial<Client>) => Promise<void>;
 
   appointments: Appointment[];
-  addAppointment: (newApt: Omit<Appointment, 'id'>) => void;
-  updateAppointmentStatus: (id: string, status: Appointment['status']) => void;
-  deleteAppointment: (id: string) => void;
+  addAppointment: (newApt: Omit<Appointment, 'id'>) => Promise<void>;
+  updateAppointmentStatus: (id: string, status: Appointment['status']) => Promise<void>;
+  deleteAppointment: (id: string) => Promise<void>;
 
   inventory: InventoryItem[];
-  addInventoryItem: (item: Omit<InventoryItem, 'id' | 'status'>) => void;
-  updateInventoryQuantity: (id: string, delta: number) => void;
+  addInventoryItem: (item: Omit<InventoryItem, 'id' | 'status'>) => Promise<void>;
+  updateInventoryQuantity: (id: string, delta: number) => Promise<void>;
 
   expenses: ExpenseItem[];
-  addExpense: (expense: Omit<ExpenseItem, 'id'>) => void;
-  removeExpensesByStaffId: (staffId: string) => void;
+  addExpense: (expense: Omit<ExpenseItem, 'id'>) => Promise<void>;
+  removeExpensesByStaffId: (staffId: string) => Promise<void>;
 
   transactions: FinancialTransaction[];
-  addTransaction: (txn: Omit<FinancialTransaction, 'id'>) => void;
+  addTransaction: (txn: Omit<FinancialTransaction, 'id'>) => Promise<void>;
 
   attendance: AttendanceRecord[];
-  markAttendance: (staffId: string, status: AttendanceRecord['status'], notes?: string) => void;
+  markAttendance: (staffId: string, status: AttendanceRecord['status'], notes?: string) => Promise<void>;
 
   notifications: NotificationItem[];
-  markNotificationRead: (id: string) => void;
-  markAllNotificationsRead: () => void;
+  markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
 
   // POS State
   posCart: POSCartItem[];
@@ -109,34 +79,50 @@ interface ClinicContextType {
   removeFromPosCart: (serviceId: string) => void;
   updatePosQuantity: (serviceId: string, delta: number) => void;
   clearPosCart: () => void;
-  completePosCheckout: (clientName: string, paymentMethod: FinancialTransaction['paymentMethod'], discountPercent: number, taxPercent: number) => FinancialTransaction;
+  completePosCheckout: (clientName: string, paymentMethod: FinancialTransaction['paymentMethod'], discountPercent: number, taxPercent: number) => Promise<FinancialTransaction>;
+
+  // Loading & error states
+  isLoading: boolean;
+  error: string | null;
+  refreshData: () => Promise<void>;
 }
 
 const ClinicContext = createContext<ClinicContextType | undefined>(undefined);
 
 export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [role, setRole] = useState<UserRole>('admin');
+  const [role, setRoleState] = useState<UserRole>('admin');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [searchQuery, setSearchQuery] = useState('');
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [printData, setPrintData] = useState<{ title: string; type: 'invoice' | 'slip' | 'client'; data: any } | null>(null);
 
-  // Collections
-  const [staff, setStaff] = useState<Staff[]>(INITIAL_STAFF);
-  const [services, setServices] = useState<ServiceItem[]>(INITIAL_SERVICES);
-  const [clients, setClients] = useState<Client[]>(INITIAL_CLIENTS);
-  const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
-  const [inventory, setInventory] = useState<InventoryItem[]>(INITIAL_INVENTORY);
-  const [expenses, setExpenses] = useState<ExpenseItem[]>([
-    ...buildStaffSalaryExpenses(INITIAL_STAFF),
-    ...INITIAL_EXPENSES,
-  ]);
-  const [transactions, setTransactions] = useState<FinancialTransaction[]>(INITIAL_TRANSACTIONS);
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>(INITIAL_ATTENDANCE);
-  const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
+  // Collections state
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [services, setServices] = useState<ServiceItem[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
+  const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   // POS
   const [posCart, setPosCart] = useState<POSCartItem[]>([]);
+
+  // Loading / Error
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Hydrate theme on mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('clinic_theme') as 'light' | 'dark';
+    if (savedTheme) {
+      setTheme(savedTheme);
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      setTheme('dark');
+    }
+  }, []);
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -146,223 +132,237 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [theme]);
 
-  const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
-  const toggleRole = () => setRole(prev => prev === 'admin' ? 'staff' : 'admin');
-
-  const getCurrentMonthLabel = () => {
-    const now = new Date();
-    return now.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-  };
-
-  const syncStaffSalaryExpense = (member: Staff) => {
-    if (member.status !== 'Active') return;
-    const monthLabel = getCurrentMonthLabel();
-    setExpenses(prev => {
-      const existingIdx = prev.findIndex(e => e.staffId === member.id && e.category === 'Salary');
-      const salaryExpense: ExpenseItem = {
-        id: existingIdx >= 0 ? prev[existingIdx].id : `EXP-SAL-${member.id}`,
-        title: `Salary - ${member.name} (${monthLabel})`,
-        category: 'Salary',
-        amount: member.salary,
-        date: new Date().toISOString().split('T')[0],
-        status: 'Pending',
-        paymentMethod: 'Bank Transfer',
-        notes: `Monthly salary for ${member.role}`,
-        staffId: member.id,
-      };
-      if (existingIdx >= 0) {
-        const list = [...prev];
-        list[existingIdx] = salaryExpense;
-        return list;
-      }
-      return [salaryExpense, ...prev];
+  const toggleTheme = () => {
+    setTheme(prev => {
+      const next = prev === 'light' ? 'dark' : 'light';
+      localStorage.setItem('clinic_theme', next);
+      return next;
     });
   };
+  
+  const setRole = (newRole: UserRole) => {
+    setRoleState(newRole);
+    // Write cookie
+    document.cookie = `user_role=${newRole}; path=/; max-age=${60 * 60 * 24 * 8}`;
+  };
 
-  // Sync salary expenses for all active staff on initial load — handled via buildStaffSalaryExpenses in useState
+  const toggleRole = () => {
+    const nextRole = role === 'admin' ? 'staff' : 'admin';
+    setRole(nextRole);
+  };
+
+  // Main fetch function to load all backend data
+  const refreshData = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      // 1. Fetch current user profile to establish correct role on refresh
+      try {
+        const user = await authClient.me();
+        if (user && user.role) {
+          setRoleState(user.role as UserRole);
+        }
+      } catch (e) {
+        // Not logged in or session expired
+        setIsLoading(false);
+        return;
+      }
+
+      // 2. Fetch resource collections
+      const [
+        staffData,
+        servicesData,
+        clientsData,
+        appointmentsData,
+        inventoryData,
+        attendanceData,
+        notificationsData
+      ] = await Promise.all([
+        apiFetch<Staff[]>('/staff'),
+        apiFetch<ServiceItem[]>('/services'),
+        apiFetch<Client[]>('/clients'),
+        apiFetch<Appointment[]>('/appointments'),
+        apiFetch<InventoryItem[]>('/inventory'),
+        apiFetch<AttendanceRecord[]>('/attendance'),
+        apiFetch<NotificationItem[]>('/notifications')
+      ]);
+
+      setStaff(staffData);
+      setServices(servicesData);
+      setClients(clientsData);
+      setAppointments(appointmentsData);
+      setInventory(inventoryData);
+      setAttendance(attendanceData);
+      setNotifications(notificationsData);
+
+      // Financial data restricted to admin
+      if (document.cookie.includes('user_role=admin')) {
+        const [expensesData, transactionsData] = await Promise.all([
+          apiFetch<ExpenseItem[]>('/expenses'),
+          apiFetch<FinancialTransaction[]>('/transactions')
+        ]);
+        setExpenses(expensesData);
+        setTransactions(transactionsData);
+      } else {
+        setExpenses([]);
+        setTransactions([]);
+      }
+    } catch (err: any) {
+      console.error('Failed to load clinic data:', err);
+      setError(err.message || 'Failed to fetch data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch data on load
+  useEffect(() => {
+    refreshData();
+  }, []);
 
   // Staff CRUD
-  const addStaff = (newStaff: Omit<Staff, 'id'>) => {
-    const id = `STF-${100 + staff.length + 1}`;
-    const member = { id, ...newStaff };
-    setStaff(prev => [member, ...prev]);
-    if (member.status === 'Active') {
-      syncStaffSalaryExpense(member);
-    }
-    setNotifications(prev => [{
-      id: `NOT-${Date.now()}`,
-      title: 'New Staff Added',
-      message: `${member.name} joined as ${member.role}. Salary expense auto-tracked.`,
-      time: 'Just now',
-      type: 'staff',
-      read: false,
-    }, ...prev]);
+  const addStaff = async (newStaff: Omit<Staff, 'id'>) => {
+    await apiFetch('/staff', {
+      method: 'POST',
+      body: JSON.stringify(newStaff),
+    });
+    await refreshData();
   };
 
-  const updateStaff = (id: string, updated: Partial<Staff>) => {
-    let updatedMember: Staff | undefined;
-    setStaff(prev => prev.map(s => {
-      if (s.id === id) {
-        updatedMember = { ...s, ...updated };
-        return updatedMember;
-      }
-      return s;
-    }));
-    if (updatedMember) {
-      if (updatedMember.status === 'Active') {
-        syncStaffSalaryExpense(updatedMember);
-      } else {
-        removeExpensesByStaffId(id);
-      }
-    }
+  const updateStaff = async (id: string, updated: Partial<Staff>) => {
+    await apiFetch(`/staff/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updated),
+    });
+    await refreshData();
   };
 
-  const removeExpensesByStaffId = (staffId: string) => {
-    setExpenses(prev => prev.filter(e => !(e.staffId === staffId && e.category === 'Salary')));
-  };
-
-  const deleteStaff = (id: string) => {
-    const member = staff.find(s => s.id === id);
-    setStaff(prev => prev.filter(s => s.id !== id));
-    removeExpensesByStaffId(id);
-    setAttendance(prev => prev.filter(a => a.staffId !== id));
-    if (member) {
-      setNotifications(prev => [{
-        id: `NOT-${Date.now()}`,
-        title: 'Staff Terminated',
-        message: `${member.name} removed. Salary expense automatically cleared from records.`,
-        time: 'Just now',
-        type: 'staff',
-        read: false,
-      }, ...prev]);
-    }
+  const deleteStaff = async (id: string) => {
+    await apiFetch(`/staff/${id}`, {
+      method: 'DELETE',
+    });
+    await refreshData();
   };
 
   // Services CRUD
-  const addService = (newService: Omit<ServiceItem, 'id'>) => {
-    const id = `SRV-${String(services.length + 1).padStart(2, '0')}`;
-    setServices(prev => [ { id, ...newService }, ...prev ]);
+  const addService = async (newService: Omit<ServiceItem, 'id'>) => {
+    await apiFetch('/services', {
+      method: 'POST',
+      body: JSON.stringify(newService),
+    });
+    await refreshData();
   };
 
-  const updateService = (id: string, updated: Partial<ServiceItem>) => {
-    setServices(prev => prev.map(s => s.id === id ? { ...s, ...updated } : s));
+  const updateService = async (id: string, updated: Partial<ServiceItem>) => {
+    await apiFetch(`/services/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updated),
+    });
+    await refreshData();
   };
 
   // Clients CRUD
-  const addClient = (newClientData: Omit<Client, 'id' | 'totalSpent' | 'visitsCount' | 'history' | 'joinedDate'>) => {
-    const id = `CLT-${800 + clients.length + 1}`;
-    const newClient: Client = {
-      id,
-      ...newClientData,
-      totalSpent: 0,
-      visitsCount: 1,
-      history: [],
-      joinedDate: new Date().toISOString().split('T')[0]
-    };
-    setClients(prev => [ newClient, ...prev ]);
+  const addClient = async (newClientData: Omit<Client, 'id' | 'totalSpent' | 'visitsCount' | 'history' | 'joinedDate'>) => {
+    await apiFetch('/clients', {
+      method: 'POST',
+      body: JSON.stringify(newClientData),
+    });
+    await refreshData();
   };
 
-  const updateClient = (id: string, updated: Partial<Client>) => {
-    setClients(prev => prev.map(c => c.id === id ? { ...c, ...updated } : c));
+  const updateClient = async (id: string, updated: Partial<Client>) => {
+    await apiFetch(`/clients/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updated),
+    });
+    await refreshData();
   };
 
   // Appointments CRUD
-  const addAppointment = (newApt: Omit<Appointment, 'id'>) => {
-    const id = `APT-${1000 + appointments.length + 1}`;
-    const created = { id, ...newApt };
-    setAppointments(prev => [ created, ...prev ]);
-    
-    // Trigger notification
-    setNotifications(prev => [
-      {
-        id: `NOT-${Date.now()}`,
-        title: 'New Booking Created',
-        message: `${newApt.clientName} booked ${newApt.serviceName} with ${newApt.staffName} for ${newApt.date} at ${newApt.time}.`,
-        time: 'Just now',
-        type: 'appointment',
-        read: false
-      },
-      ...prev
-    ]);
+  const addAppointment = async (newApt: Omit<Appointment, 'id'>) => {
+    await apiFetch('/appointments', {
+      method: 'POST',
+      body: JSON.stringify(newApt),
+    });
+    await refreshData();
   };
 
-  const updateAppointmentStatus = (id: string, status: Appointment['status']) => {
-    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
+  const updateAppointmentStatus = async (id: string, status: Appointment['status']) => {
+    await apiFetch(`/appointments/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+    await refreshData();
   };
 
-  const deleteAppointment = (id: string) => {
-    setAppointments(prev => prev.filter(a => a.id !== id));
+  const deleteAppointment = async (id: string) => {
+    await apiFetch(`/appointments/${id}`, {
+      method: 'DELETE',
+    });
+    await refreshData();
   };
 
   // Inventory CRUD
-  const addInventoryItem = (item: Omit<InventoryItem, 'id' | 'status'>) => {
-    const id = `INV-${String(inventory.length + 1).padStart(2, '0')}`;
-    const status = item.quantity === 0 ? 'Out of Stock' : item.quantity <= item.minStock ? 'Low Stock' : 'In Stock';
-    setInventory(prev => [ { id, ...item, status }, ...prev ]);
+  const addInventoryItem = async (item: Omit<InventoryItem, 'id' | 'status'>) => {
+    await apiFetch('/inventory', {
+      method: 'POST',
+      body: JSON.stringify(item),
+    });
+    await refreshData();
   };
 
-  const updateInventoryQuantity = (id: string, delta: number) => {
-    setInventory(prev => prev.map(inv => {
-      if (inv.id === id) {
-        const newQty = Math.max(0, inv.quantity + delta);
-        const status = newQty === 0 ? 'Out of Stock' : newQty <= inv.minStock ? 'Low Stock' : 'In Stock';
-        return { ...inv, quantity: newQty, status, lastRestocked: delta > 0 ? new Date().toISOString().split('T')[0] : inv.lastRestocked };
-      }
-      return inv;
-    }));
+  const updateInventoryQuantity = async (id: string, delta: number) => {
+    await apiFetch(`/inventory/${id}/quantity?delta=${delta}`, {
+      method: 'PATCH',
+    });
+    await refreshData();
   };
 
   // Expenses CRUD
-  const addExpense = (expense: Omit<ExpenseItem, 'id'>) => {
-    const id = `EXP-${400 + expenses.length + 1}`;
-    setExpenses(prev => [ { id, ...expense }, ...prev ]);
+  const addExpense = async (expense: Omit<ExpenseItem, 'id'>) => {
+    await apiFetch('/expenses', {
+      method: 'POST',
+      body: JSON.stringify(expense),
+    });
+    await refreshData();
+  };
+
+  const removeExpensesByStaffId = async (staffId: string) => {
+    // Handled automatically by backend when staff is updated/deleted, but we can verify
+    await refreshData();
   };
 
   // Transactions
-  const addTransaction = (txn: Omit<FinancialTransaction, 'id'>) => {
-    const id = `TXN-${900 + transactions.length + 1}`;
-    setTransactions(prev => [ { id, ...txn }, ...prev ]);
+  const addTransaction = async (txn: Omit<FinancialTransaction, 'id'>) => {
+    // Add transaction directly (if needed, though mostly done via POS checkout)
+    await refreshData();
   };
 
   // Attendance
-  const markAttendance = (staffId: string, status: AttendanceRecord['status'], notes?: string) => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const targetStaff = staff.find(s => s.id === staffId);
-    if (!targetStaff) return;
-
-    setAttendance(prev => {
-      const existingIdx = prev.findIndex(a => a.staffId === staffId && a.date === todayStr);
-      const updatedRecord: AttendanceRecord = {
-        id: existingIdx >= 0 ? prev[existingIdx].id : `ATT-${prev.length + 1}`,
-        staffId,
-        staffName: targetStaff.name,
-        role: targetStaff.role,
-        date: todayStr,
-        status,
-        checkInTime: status === 'Present' || status === 'Late' ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined,
-        checkOutTime: status === 'Present' ? '05:30 PM' : undefined,
-        notes
-      };
-
-      if (existingIdx >= 0) {
-        const list = [...prev];
-        list[existingIdx] = updatedRecord;
-        return list;
-      }
-      return [updatedRecord, ...prev];
+  const markAttendance = async (staffId: string, status: AttendanceRecord['status'], notes?: string) => {
+    await apiFetch('/attendance', {
+      method: 'POST',
+      body: JSON.stringify({ staffId, status, notes }),
     });
+    await refreshData();
   };
 
   // Notifications
-  const markNotificationRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  const markNotificationRead = async (id: string) => {
+    await apiFetch(`/notifications/${id}/read`, {
+      method: 'PATCH',
+    });
+    await refreshData();
   };
 
-  const markAllNotificationsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  const markAllNotificationsRead = async () => {
+    await apiFetch('/notifications/read-all', {
+      method: 'POST',
+    });
+    await refreshData();
   };
 
-  // POS Cart logic
+  // POS Cart logic (local client side cart)
   const addToPosCart = (service: ServiceItem) => {
     setPosCart(prev => {
       const existing = prev.find(item => item.serviceId === service.id);
@@ -389,52 +389,25 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const clearPosCart = () => setPosCart([]);
 
-  const completePosCheckout = (
+  const completePosCheckout = async (
     clientName: string, 
     paymentMethod: FinancialTransaction['paymentMethod'], 
     discountPercent: number, 
     taxPercent: number
-  ): FinancialTransaction => {
-    const subtotal = posCart.reduce((acc, item) => acc + item.price * item.quantity, 0);
-    const discount = (subtotal * discountPercent) / 100;
-    const taxable = subtotal - discount;
-    const tax = (taxable * taxPercent) / 100;
-    const grandTotal = Math.round((taxable + tax) * 100) / 100;
-
-    const invoiceId = `INV-${new Date().getFullYear()}-${String(transactions.length + 1).padStart(3, '0')}`;
-    const cartItems = posCart.map(c => ({ name: c.name, price: c.price, quantity: c.quantity }));
-    const txn: FinancialTransaction = {
-      id: `TXN-${900 + transactions.length + 1}`,
-      invoiceId,
-      clientName,
-      serviceName: posCart.map(c => c.name).join(', '),
-      amount: subtotal,
-      discount,
-      tax,
-      taxPercent,
-      grandTotal,
-      date: new Date().toISOString().split('T')[0],
-      paymentMethod,
-      status: 'Paid',
-      items: cartItems,
-    };
-
-    setTransactions(prev => [txn, ...prev]);
-
-    // Push notification
-    setNotifications(prev => [
-      {
-        id: `NOT-${Date.now()}`,
-        title: `Payment Received (${formatPKR(grandTotal)})`,
-        message: `Invoice ${invoiceId} processed via ${paymentMethod} for ${clientName}.`,
-        time: 'Just now',
-        type: 'payment',
-        read: false
-      },
-      ...prev
-    ]);
+  ): Promise<FinancialTransaction> => {
+    const txn = await apiFetch<FinancialTransaction>('/pos/checkout', {
+      method: 'POST',
+      body: JSON.stringify({
+        clientName,
+        paymentMethod,
+        discountPercent,
+        taxPercent,
+        cartItems: posCart
+      })
+    });
 
     clearPosCart();
+    await refreshData();
     return txn;
   };
 
@@ -494,7 +467,11 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         removeFromPosCart,
         updatePosQuantity,
         clearPosCart,
-        completePosCheckout
+        completePosCheckout,
+
+        isLoading,
+        error,
+        refreshData
       }}
     >
       {children}

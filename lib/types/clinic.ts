@@ -76,7 +76,8 @@ export type ServiceCategory =
   | 'Injectables & Anti-Aging' 
   | 'Body Contouring' 
   | 'IV Therapy' 
-  | 'Rejuvenation';
+  | 'Rejuvenation'
+  | 'Packages';
 
 export interface ServiceItem {
   id: string;

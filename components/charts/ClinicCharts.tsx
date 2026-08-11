@@ -40,11 +40,11 @@ const weeklyAppointmentsData = [
 ];
 
 const serviceDistributionData = [
-  { name: 'HydraFacials', value: 35, color: '#2563EB' },
-  { name: 'Laser Hair', value: 25, color: '#3B82F6' },
-  { name: 'Injectables', value: 20, color: '#10B981' },
-  { name: 'PRP & Hair', value: 12, color: '#F59E0B' },
-  { name: 'IV Therapies', value: 8, color: '#8B5CF6' },
+  { name: 'Injectables (Botox/Fillers)', value: 45, color: '#10B981' },
+  { name: 'Laser Treatments', value: 22, color: '#2563EB' },
+  { name: 'HydraFacials & Skincare', value: 15, color: '#3B82F6' },
+  { name: 'PRP & Hair Therapies', value: 10, color: '#F59E0B' },
+  { name: 'IV Drips & Wellness', value: 8, color: '#8B5CF6' },
 ];
 
 const expenseBreakdownData = [
@@ -122,7 +122,10 @@ export const ServiceDistributionChart: React.FC = () => {
               <Cell key={`cell-${index}`} fill={entry.color} />
             ))}
           </Pie>
-          <Tooltip contentStyle={{ backgroundColor: '#0F172A', borderRadius: '12px', border: 'none', color: '#FFF', fontSize: '12px' }} />
+          <Tooltip 
+            formatter={(value: any) => [`${value}%`, 'Share']}
+            contentStyle={{ backgroundColor: '#0F172A', borderRadius: '12px', border: 'none', color: '#FFF', fontSize: '12px' }} 
+          />
           <Legend />
         </PieChart>
       </ResponsiveContainer>
