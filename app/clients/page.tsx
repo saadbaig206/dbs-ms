@@ -13,7 +13,8 @@ import {
   Printer,
   ChevronRight,
   Eye,
-  Sparkles
+  Sparkles,
+  MapPin
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { formatPKR } from '../../lib/utils/currency';
@@ -25,9 +26,10 @@ import { Input, Select } from '../../components/ui/Input';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 
 export default function ClientsPage() {
-  const { clients, addClient, staff, services, setPrintData } = useClinic();
+  const { clients, addClient, staff, services, setPrintData, branches } = useClinic();
 
   const [search, setSearch] = useState('');
+  const [branchFilter, setBranchFilter] = useState('All');
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
   // Add Client Modal State
@@ -40,14 +42,15 @@ export default function ClientsPage() {
   const [address, setAddress] = useState('');
   const [preferredService, setPreferredService] = useState(services[0]?.name || '');
   const [assignedStaffId, setAssignedStaffId] = useState(staff[0]?.id || '');
+  const [clientBranchId, setClientBranchId] = useState('');
   const [notes, setNotes] = useState('');
 
   const filteredClients = clients.filter((c) => {
-    return (
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
+    const matchesBranch = branchFilter === 'All' || c.branchId === branchFilter;
+    const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.phone.includes(search) ||
-      c.cnic.includes(search)
-    );
+      (c.cnic && c.cnic.includes(search));
+    return matchesBranch && matchesSearch;
   });
 
   const handleRegisterClient = (e: React.FormEvent) => {
@@ -64,7 +67,8 @@ export default function ClientsPage() {
       assignedStaffId: staffObj?.id,
       assignedStaffName: staffObj?.name,
       preferredService,
-      notes
+      notes,
+      branchId: clientBranchId || undefined
     });
 
     setIsAddModalOpen(false);
@@ -73,6 +77,7 @@ export default function ClientsPage() {
     setCnic('');
     setAddress('');
     setNotes('');
+    setClientBranchId('');
   };
 
   return (
@@ -94,8 +99,8 @@ export default function ClientsPage() {
         </Button>
       </div>
 
-      {/* Search Bar */}
-      <div className="luxury-card p-4">
+      {/* Search & Branch Filter */}
+      <div className="luxury-card p-4 flex flex-col sm:flex-row gap-4 items-center justify-between">
         <Input
           placeholder="Search by client name, phone number, or CNIC/ID..."
           value={search}
@@ -103,6 +108,16 @@ export default function ClientsPage() {
           icon={<Search className="w-4 h-4" />}
           className="max-w-md"
         />
+        <div className="w-full sm:w-48">
+          <Select
+            options={[
+              { label: 'All Branches', value: 'All' },
+              ...branches.map(b => ({ label: b.name, value: b.id }))
+            ]}
+            value={branchFilter}
+            onChange={(e) => setBranchFilter(e.target.value)}
+          />
+        </div>
       </div>
 
       {/* Clients Table */}
@@ -130,6 +145,14 @@ export default function ClientsPage() {
                   <td className="py-3.5 px-4">
                     <div className="font-bold text-slate-900 dark:text-slate-100">{client.name}</div>
                     <div className="text-[11px] text-slate-400 font-mono">{client.phone}</div>
+                    {client.branchId && (
+                      <div className="mt-1">
+                        <Badge variant="gold" size="sm">
+                          <MapPin className="w-2.5 h-2.5 mr-1 inline" />
+                          {branches.find(b => b.id === client.branchId)?.name || 'Linked Branch'}
+                        </Badge>
+                      </div>
+                    )}
                   </td>
                   <td className="py-3.5 px-4 font-mono text-slate-600 dark:text-slate-300">
                     {client.cnic}
@@ -229,13 +252,27 @@ export default function ClientsPage() {
             onChange={(e) => setAddress(e.target.value)}
           />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="sm:col-span-2">
+              <Select
+                label="Preferred Treatment"
+                options={services.map((s) => ({ label: s.name, value: s.name }))}
+                value={preferredService}
+                onChange={(e) => setPreferredService(e.target.value)}
+              />
+            </div>
             <Select
-              label="Preferred Treatment"
-              options={services.map((s) => ({ label: s.name, value: s.name }))}
-              value={preferredService}
-              onChange={(e) => setPreferredService(e.target.value)}
+              label="Assigned Branch"
+              options={[
+                { label: 'Unassigned', value: '' },
+                ...branches.map(b => ({ label: b.name, value: b.id }))
+              ]}
+              value={clientBranchId}
+              onChange={(e) => setClientBranchId(e.target.value)}
             />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
               label="Assigned Practitioner"
               options={staff.map((st) => ({ label: `${st.name} (${st.role})`, value: st.id }))}

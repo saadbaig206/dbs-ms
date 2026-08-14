@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Float, JSON
+from sqlalchemy import Column, String, Integer, Float, JSON, ForeignKey
 from app.models.base import Base
 
 class Client(Base):
@@ -19,3 +19,4 @@ class Client(Base):
     notes = Column(String, nullable=True)
     history = Column(JSON, nullable=False, default=list) # List of ClientHistoryItem dicts
     joined_date = Column(String, nullable=False) # YYYY-MM-DD
+    branch_id = Column(String, ForeignKey("branches.id"), nullable=True)

@@ -43,6 +43,7 @@ export interface Client {
   notes?: string;
   history: ClientHistoryItem[];
   joinedDate: string;
+  branchId?: string;
 }
 
 export type StaffRole = 
@@ -68,6 +69,14 @@ export interface Staff {
   performanceRating: number; // 1 to 5
   assignedServices: string[];
   attendanceRate: number; // percentage
+  branchId?: string;
+}
+
+export interface Branch {
+  id: string;
+  name: string;
+  location: string;
+  phone?: string;
 }
 
 export type ServiceCategory = 

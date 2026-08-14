@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users2,
   Plus,
@@ -29,10 +29,11 @@ import { Input, Select } from '../../components/ui/Input';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 
 export default function StaffPage() {
-  const { staff, addStaff, deleteStaff, attendance, markAttendance, role } = useClinic();
+  const { staff, addStaff, deleteStaff, attendance, markAttendance, role, branches } = useClinic();
 
   const [activeTab, setActiveTab] = useState<'directory' | 'attendance'>('directory');
   const [search, setSearch] = useState('');
+  const [branchFilter, setBranchFilter] = useState('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   // Form State for Adding Staff
@@ -41,6 +42,7 @@ export default function StaffPage() {
   const [salary, setSalary] = useState<number>(12000);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [staffBranchId, setStaffBranchId] = useState('');
   const [photo, setPhoto] = useState('https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=300');
 
   // Attendance Form State
@@ -48,6 +50,23 @@ export default function StaffPage() {
   const [selectedStaffId, setSelectedStaffId] = useState(staff[0]?.id || '');
   const [attStatus, setAttStatus] = useState<AttendanceStatus>('Present');
   const [attNotes, setAttNotes] = useState('');
+
+  // Custom Toast State
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (text: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage({ text, type });
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 4000);
+  };
+
+  // Synchronize selectedStaffId when staff list finishes loading
+  React.useEffect(() => {
+    if (staff.length > 0 && (!selectedStaffId || !staff.some(s => s.id === selectedStaffId))) {
+      setSelectedStaffId(staff[0].id);
+    }
+  }, [staff]);
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -57,11 +76,11 @@ export default function StaffPage() {
   const absentCount = attendance.filter((a) => a.status === 'Absent').length;
 
   const filteredStaff = staff.filter((s) => {
-    return (
-      s.name.toLowerCase().includes(search.toLowerCase()) ||
+    const matchesBranch = branchFilter === 'All' || s.branchId === branchFilter;
+    const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) ||
       s.role.toLowerCase().includes(search.toLowerCase()) ||
-      s.email.toLowerCase().includes(search.toLowerCase())
-    );
+      s.email.toLowerCase().includes(search.toLowerCase());
+    return matchesBranch && matchesSearch;
   });
 
   const handleAddStaff = (e: React.FormEvent) => {
@@ -77,13 +96,15 @@ export default function StaffPage() {
       status: 'Active',
       performanceRating: 5.0,
       assignedServices: ['Signature Treatments'],
-      attendanceRate: 100
+      attendanceRate: 100,
+      branchId: staffBranchId || undefined
     });
 
     setIsAddModalOpen(false);
     setName('');
     setPhone('');
     setEmail('');
+    setStaffBranchId('');
   };
 
   const handleSaveAttendance = (e: React.FormEvent) => {
@@ -99,7 +120,7 @@ export default function StaffPage() {
     const unmarkedStaff = staff.filter(s => !todayRecords.some(r => r.staffId === s.id));
 
     if (unmarkedStaff.length === 0) {
-      alert("All staff members have already been marked for today!");
+      showToast("All staff members have already been marked for today!", "error");
       return;
     }
 
@@ -107,9 +128,9 @@ export default function StaffPage() {
       await Promise.all(
         unmarkedStaff.map(s => markAttendance(s.id, 'Present', 'Bulk Check-In'))
       );
-      alert(`Successfully checked in ${unmarkedStaff.length} staff members!`);
+      showToast(`Successfully checked in ${unmarkedStaff.length} staff members!`);
     } catch (err: any) {
-      alert("Failed to mark bulk attendance: " + err.message);
+      showToast("Failed to mark bulk attendance: " + err.message, "error");
     }
   };
 
@@ -182,8 +203,8 @@ export default function StaffPage() {
 
       {activeTab === 'directory' ? (
         <>
-          {/* Search */}
-          <div className="luxury-card p-4">
+          {/* Search & Branch Filter */}
+          <div className="luxury-card p-4 flex flex-col sm:flex-row gap-4 items-center justify-between">
             <Input
               placeholder="Search by doctor name, role, or email..."
               value={search}
@@ -191,6 +212,16 @@ export default function StaffPage() {
               icon={<Search className="w-4 h-4" />}
               className="max-w-md"
             />
+            <div className="w-full sm:w-48">
+              <Select
+                options={[
+                  { label: 'All Branches', value: 'All' },
+                  ...branches.map(b => ({ label: b.name, value: b.id }))
+                ]}
+                value={branchFilter}
+                onChange={(e) => setBranchFilter(e.target.value)}
+              />
+            </div>
           </div>
 
           {/* Staff Cards Grid */}
@@ -209,6 +240,14 @@ export default function StaffPage() {
                         <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">{member.name}</h3>
                         <p className="text-xs font-semibold text-blue-600 dark:text-blue-400">{member.role}</p>
                         <span className="text-[10px] text-slate-400 font-mono">ID: {member.id}</span>
+                        {member.branchId && (
+                          <div className="mt-1">
+                            <Badge variant="gold" size="sm">
+                              <MapPin className="w-2.5 h-2.5 mr-1 inline" />
+                              {branches.find(b => b.id === member.branchId)?.name || 'Branch'}
+                            </Badge>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <Badge variant={member.status === 'Active' ? 'success' : 'warning'}>
@@ -389,22 +428,36 @@ export default function StaffPage() {
             required
           />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="sm:col-span-2">
+              <Select
+                label="Staff Role"
+                options={[
+                  { label: 'Medical Director', value: 'Medical Director' },
+                  { label: 'Senior Dermatologist', value: 'Senior Dermatologist' },
+                  { label: 'Aesthetic Physician', value: 'Aesthetic Physician' },
+                  { label: 'Hydrafacial Specialist', value: 'Hydrafacial Specialist' },
+                  { label: 'Laser Specialist', value: 'Laser Specialist' },
+                  { label: 'Cosmetic Nurse', value: 'Cosmetic Nurse' },
+                  { label: 'Clinic Manager', value: 'Clinic Manager' },
+                  { label: 'Receptionist', value: 'Receptionist' }
+                ]}
+                value={staffRole}
+                onChange={(e) => setStaffRole(e.target.value as any)}
+              />
+            </div>
             <Select
-              label="Staff Role"
+              label="Assigned Branch"
               options={[
-                { label: 'Medical Director', value: 'Medical Director' },
-                { label: 'Senior Dermatologist', value: 'Senior Dermatologist' },
-                { label: 'Aesthetic Physician', value: 'Aesthetic Physician' },
-                { label: 'Hydrafacial Specialist', value: 'Hydrafacial Specialist' },
-                { label: 'Laser Specialist', value: 'Laser Specialist' },
-                { label: 'Cosmetic Nurse', value: 'Cosmetic Nurse' },
-                { label: 'Clinic Manager', value: 'Clinic Manager' },
-                { label: 'Receptionist', value: 'Receptionist' }
+                { label: 'Unassigned', value: '' },
+                ...branches.map(b => ({ label: b.name, value: b.id }))
               ]}
-              value={staffRole}
-              onChange={(e) => setStaffRole(e.target.value as any)}
+              value={staffBranchId}
+              onChange={(e) => setStaffBranchId(e.target.value)}
             />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Monthly Salary (Rs)"
               type="number"
@@ -412,16 +465,14 @@ export default function StaffPage() {
               onChange={(e) => setSalary(Number(e.target.value))}
               required
             />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Phone Number"
-              placeholder="+1 (555) 000-0000"
+              placeholder="+92 (300) 123-4567"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               required
             />
+          </div>
             <Input
               label="Email Address"
               type="email"
@@ -488,6 +539,29 @@ export default function StaffPage() {
           </div>
         </form>
       </Modal>
+    </div>
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className={`fixed top-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl border shadow-xl ${
+              toastMessage.type === 'success'
+                ? 'bg-emerald-50 dark:bg-emerald-950/90 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800'
+                : 'bg-rose-50 dark:bg-rose-950/90 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-800'
+            }`}
+          >
+            {toastMessage.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 animate-pulse" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+            )}
+            <span className="text-xs font-semibold">{toastMessage.text}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

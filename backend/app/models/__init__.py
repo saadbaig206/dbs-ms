@@ -9,3 +9,4 @@ from app.models.expense import ExpenseItem
 from app.models.transaction import FinancialTransaction
 from app.models.attendance import AttendanceRecord
 from app.models.notification import NotificationItem
+from app.models.branch import Branch

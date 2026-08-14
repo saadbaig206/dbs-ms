@@ -21,6 +21,7 @@ class ClientBase(CamelModel):
     assigned_staff_name: Optional[str] = None
     preferred_service: Optional[str] = None
     notes: Optional[str] = None
+    branch_id: Optional[str] = None
 
 class ClientCreate(ClientBase):
     pass
@@ -39,6 +40,7 @@ class ClientUpdate(CamelModel):
     visits_count: Optional[int] = Field(None, ge=0)
     notes: Optional[str] = None
     history: Optional[List[ClientHistoryItemSchema]] = None
+    branch_id: Optional[str] = None
 
 class ClientResponse(ClientBase):
     id: str

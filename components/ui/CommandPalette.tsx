@@ -17,7 +17,8 @@ import {
   Settings as SettingsIcon, 
   LayoutDashboard,
   ShieldCheck,
-  Plus
+  Plus,
+  MapPin
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { CLINIC_INFO } from '../../lib/constants/clinic';
@@ -26,19 +27,7 @@ export const CommandPalette: React.FC = () => {
   const router = useRouter();
   const { isCommandPaletteOpen, setIsCommandPaletteOpen, role, toggleRole } = useClinic();
   const [query, setQuery] = useState('');
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        setIsCommandPaletteOpen(!isCommandPaletteOpen);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isCommandPaletteOpen, setIsCommandPaletteOpen]);
-
-  if (!isCommandPaletteOpen) return null;
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
   const navItems = [
     { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, category: 'Navigation', adminOnly: false },
@@ -48,6 +37,7 @@ export const CommandPalette: React.FC = () => {
     { title: 'Client Directory', href: '/clients', icon: Users, category: 'Navigation', adminOnly: false },
     { title: 'Services Catalog', href: '/services', icon: Sparkles, category: 'Navigation', adminOnly: false },
     { title: 'Inventory Management', href: '/inventory', icon: Package, category: 'Navigation', adminOnly: false },
+    { title: 'Branches Management', href: '/branches', icon: MapPin, category: 'Navigation', adminOnly: true },
     { title: 'Staff Directory', href: '/staff', icon: UserCheck, category: 'Navigation', adminOnly: true },
     { title: 'Attendance Matrix', href: '/attendance', icon: UserCheck, category: 'Navigation', adminOnly: false },
     { title: 'Financial Analytics', href: '/finance', icon: DollarSign, category: 'Navigation', adminOnly: true },
@@ -66,6 +56,53 @@ export const CommandPalette: React.FC = () => {
     setQuery('');
     router.push(href);
   };
+
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [query, isCommandPaletteOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(!isCommandPaletteOpen);
+        return;
+      }
+
+      if (!isCommandPaletteOpen) return;
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(false);
+        return;
+      }
+
+      const totalLength = filteredItems.length + 1; // +1 for Switch Role item
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex((prevIndex) => (prevIndex + 1) % totalLength);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex((prevIndex) => (prevIndex - 1 + totalLength) % totalLength);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (selectedIndex === 0) {
+          toggleRole();
+          setIsCommandPaletteOpen(false);
+        } else {
+          const item = filteredItems[selectedIndex - 1];
+          if (item) {
+            handleSelect(item.href);
+          }
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isCommandPaletteOpen, setIsCommandPaletteOpen, selectedIndex, filteredItems, toggleRole]);
+
+  if (!isCommandPaletteOpen) return null;
 
   return (
     <AnimatePresence>
@@ -110,13 +147,21 @@ export const CommandPalette: React.FC = () => {
                 toggleRole();
                 setIsCommandPaletteOpen(false);
               }}
-              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-left text-sm text-slate-700 dark:text-slate-200 transition-colors mb-2"
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left text-sm transition-colors mb-2 ${
+                selectedIndex === 0 
+                  ? 'bg-blue-600 text-white' 
+                  : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+              }`}
             >
               <div className="flex items-center gap-3">
-                <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <ShieldCheck className={`w-4 h-4 ${selectedIndex === 0 ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
                 <span>Switch Role (Current: <strong className="uppercase">{role}</strong>)</span>
               </div>
-              <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 px-2 py-0.5 rounded-md font-semibold">
+              <span className={`text-xs px-2 py-0.5 rounded-md font-semibold ${
+                selectedIndex === 0 
+                  ? 'bg-white/20 text-white' 
+                  : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+              }`}>
                 Toggle
               </span>
             </button>
@@ -130,23 +175,36 @@ export const CommandPalette: React.FC = () => {
                 No matching results found for "{query}".
               </div>
             ) : (
-              filteredItems.map(item => {
+              filteredItems.map((item, idx) => {
                 const Icon = item.icon;
+                const isSelected = selectedIndex === idx + 1;
                 return (
                   <button
                     key={item.href}
                     onClick={() => handleSelect(item.href)}
-                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-blue-50 dark:hover:bg-slate-800/80 text-left text-sm text-slate-800 dark:text-slate-200 transition-colors group"
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left text-sm transition-colors group ${
+                      isSelected
+                        ? 'bg-blue-600 text-white'
+                        : 'hover:bg-blue-50 dark:hover:bg-slate-800/80 text-slate-800 dark:text-slate-200'
+                    }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                      <div className={`p-1.5 rounded-lg transition-colors ${
+                        isSelected 
+                          ? 'bg-white/20 text-white' 
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 group-hover:bg-blue-600 group-hover:text-white'
+                      }`}>
                         <Icon className="w-4 h-4" />
                       </div>
-                      <span className="font-medium group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                      <span className={`font-medium ${
+                        isSelected ? 'text-white' : 'group-hover:text-blue-600 dark:group-hover:text-blue-400'
+                      }`}>
                         {item.title}
                       </span>
                     </div>
-                    <span className="text-[11px] text-slate-400 font-mono">
+                    <span className={`text-[11px] font-mono ${
+                      isSelected ? 'text-white/85' : 'text-slate-400'
+                    }`}>
                       {item.href}
                     </span>
                   </button>

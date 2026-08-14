@@ -14,6 +14,7 @@ class StaffBase(CamelModel):
     performance_rating: float = Field(default=5.0, ge=1, le=5)
     assigned_services: List[str] = Field(default_factory=list)
     attendance_rate: float = Field(default=100.0, ge=0, le=100)
+    branch_id: Optional[str] = None
 
 class StaffCreate(StaffBase):
     pass
@@ -30,6 +31,7 @@ class StaffUpdate(CamelModel):
     performance_rating: Optional[float] = Field(None, ge=1, le=5)
     assigned_services: Optional[List[str]] = None
     attendance_rate: Optional[float] = Field(None, ge=0, le=100)
+    branch_id: Optional[str] = None
 
 class StaffResponse(StaffBase):
     id: str

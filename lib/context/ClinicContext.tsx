@@ -37,6 +37,11 @@ interface ClinicContextType {
   setPrintData: (data: { title: string; type: 'invoice' | 'slip' | 'client'; data: any } | null) => void;
 
   // Collections & CRUD
+  branches: Branch[];
+  addBranch: (newBranch: Omit<Branch, 'id'>) => Promise<void>;
+  updateBranch: (id: string, updated: Partial<Branch>) => Promise<void>;
+  deleteBranch: (id: string) => Promise<void>;
+
   staff: Staff[];
   addStaff: (newStaff: Omit<Staff, 'id'>) => Promise<void>;
   updateStaff: (id: string, updated: Partial<Staff>) => Promise<void>;
@@ -97,6 +102,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [printData, setPrintData] = useState<{ title: string; type: 'invoice' | 'slip' | 'client'; data: any } | null>(null);
 
   // Collections state
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -170,6 +176,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       // 2. Fetch resource collections
       const [
+        branchesData,
         staffData,
         servicesData,
         clientsData,
@@ -178,6 +185,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         attendanceData,
         notificationsData
       ] = await Promise.all([
+        apiFetch<Branch[]>('/branches'),
         apiFetch<Staff[]>('/staff'),
         apiFetch<ServiceItem[]>('/services'),
         apiFetch<Client[]>('/clients'),
@@ -187,6 +195,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         apiFetch<NotificationItem[]>('/notifications')
       ]);
 
+      setBranches(branchesData);
       setStaff(staffData);
       setServices(servicesData);
       setClients(clientsData);
@@ -219,6 +228,30 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     refreshData();
   }, []);
+
+  // Branches CRUD
+  const addBranch = async (newBranch: Omit<Branch, 'id'>) => {
+    await apiFetch('/branches', {
+      method: 'POST',
+      body: JSON.stringify(newBranch),
+    });
+    await refreshData();
+  };
+
+  const updateBranch = async (id: string, updated: Partial<Branch>) => {
+    await apiFetch(`/branches/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updated),
+    });
+    await refreshData();
+  };
+
+  const deleteBranch = async (id: string) => {
+    await apiFetch(`/branches/${id}`, {
+      method: 'DELETE',
+    });
+    await refreshData();
+  };
 
   // Staff CRUD
   const addStaff = async (newStaff: Omit<Staff, 'id'>) => {
@@ -425,6 +458,11 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setIsCommandPaletteOpen,
         printData,
         setPrintData,
+
+        branches,
+        addBranch,
+        updateBranch,
+        deleteBranch,
 
         staff,
         addStaff,

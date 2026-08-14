@@ -24,7 +24,8 @@ import {
   Lock,
   Menu,
   X,
-  ShieldCheck
+  ShieldCheck,
+  MapPin
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { CLINIC_INFO } from '../../lib/constants/clinic';
@@ -55,6 +56,7 @@ export const Sidebar: React.FC = () => {
     { title: 'Billing', href: '/pos', icon: CreditCard, adminOnly: false },
     { title: 'Services', href: '/services', icon: Sparkles, adminOnly: false },
     { title: 'Inventory', href: '/inventory', icon: Package, adminOnly: false },
+    { title: 'Branches', href: '/branches', icon: MapPin, adminOnly: true },
     { title: 'Finance & Reports', href: '/finance-reports', icon: DollarSign, adminOnly: true },
     { title: 'Staff', href: '/staff', icon: Users2, adminOnly: true },
     { title: 'Settings', href: '/settings', icon: Settings, adminOnly: true },
@@ -148,7 +150,12 @@ export const Sidebar: React.FC = () => {
                 <p className="text-[10px] text-slate-400">Current Role</p>
               </div>
             </div>
-           
+            <button
+              onClick={toggleRole}
+              className="px-2 py-1 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white rounded-lg text-[10px] font-bold transition-all focus:outline-none"
+            >
+              Switch
+            </button>
           </div>
         )}
 

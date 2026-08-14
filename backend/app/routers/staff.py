@@ -46,7 +46,8 @@ async def create_staff_member(
         status=staff_in.status,
         performance_rating=staff_in.performance_rating,
         assigned_services=staff_in.assigned_services,
-        attendance_rate=staff_in.attendance_rate
+        attendance_rate=staff_in.attendance_rate,
+        branch_id=staff_in.branch_id
     )
     db.add(db_staff)
     await db.commit()

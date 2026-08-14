@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, JSON
+from sqlalchemy import Column, String, Float, JSON, ForeignKey
 from app.models.base import Base
 
 class Staff(Base):
@@ -16,3 +16,4 @@ class Staff(Base):
     performance_rating = Column(Float, default=5.0)
     assigned_services = Column(JSON, nullable=False, default=list) # List of service names or IDs
     attendance_rate = Column(Float, default=100.0)
+    branch_id = Column(String, ForeignKey("branches.id"), nullable=True)

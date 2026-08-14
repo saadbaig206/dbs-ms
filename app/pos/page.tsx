@@ -14,7 +14,8 @@ import {
   DollarSign,
   User,
   ShoppingBag,
-  Percent
+  Percent,
+  AlertCircle
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { ServiceItem, PaymentMethod } from '../../lib/types/clinic';
@@ -42,15 +43,41 @@ export default function POSPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [search, setSearch] = useState('');
   const [clientName, setClientName] = useState(clients[0]?.name || 'Victoria Beckham');
+  const [clientSearch, setClientSearch] = useState('');
+  const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Card');
   const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [taxPercent, setTaxPercent] = useState<number>(10);
   const [isPaidSuccess, setIsPaidSuccess] = useState(false);
 
+  // Custom Toast State
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (text: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage({ text, type });
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 4000);
+  };
+
+  // Synchronize default client when client list finishes loading
+  React.useEffect(() => {
+    if (clients.length > 0 && (!clientName || !clients.some(c => c.name === clientName))) {
+      setClientName(clients[0].name);
+    }
+  }, [clients]);
+
+  // Synchronize clientSearch string with clientName
+  React.useEffect(() => {
+    setClientSearch(clientName);
+  }, [clientName]);
+
   // Quick Client Registration State
   const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
   const [quickClientName, setQuickClientName] = useState('');
   const [quickClientPhone, setQuickClientPhone] = useState('');
+  const [quickClientAge, setQuickClientAge] = useState<number>(30);
+  const [quickClientGender, setQuickClientGender] = useState<string>('Female');
 
   const handleQuickAddClient = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,8 +87,8 @@ export default function POSPage() {
         name: quickClientName,
         phone: quickClientPhone,
         cnic: 'N/A',
-        gender: 'Female',
-        age: 30,
+        gender: quickClientGender,
+        age: quickClientAge,
         address: 'N/A',
         notes: 'Quick POS Register'
       });
@@ -69,8 +96,11 @@ export default function POSPage() {
       setIsAddClientModalOpen(false);
       setQuickClientName('');
       setQuickClientPhone('');
+      setQuickClientAge(30);
+      setQuickClientGender('Female');
+      showToast("Client registered successfully!");
     } catch (err: any) {
-      alert("Failed to register client: " + err.message);
+      showToast("Failed to register client: " + err.message, "error");
     }
   };
 
@@ -98,7 +128,7 @@ export default function POSPage() {
         setPrintData({ title: `Invoice ${txn.invoiceId}`, type: 'invoice', data: txn });
       }, 800);
     } catch (e: any) {
-      alert("Checkout failed: " + e.message);
+      showToast("Checkout failed: " + e.message, "error");
     }
   };
 
@@ -212,20 +242,67 @@ export default function POSPage() {
             </div>
 
             {/* Client Picker & Quick Add */}
-            <div className="flex items-end gap-2">
-              <div className="flex-1">
+            <div className="flex items-end gap-2 relative">
+              <div className="flex-1 relative">
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                   Client Name
                 </label>
-                <Select
-                  options={clients.map((c) => ({ label: `${c.name} (${c.phone})`, value: c.name }))}
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={clientSearch}
+                    onChange={(e) => {
+                      setClientSearch(e.target.value);
+                      setIsClientDropdownOpen(true);
+                    }}
+                    onFocus={() => setIsClientDropdownOpen(true)}
+                    className="w-full rounded-[14px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-600 transition-all duration-200 py-2.5 px-3.5"
+                    placeholder="Search or type client..."
+                  />
+                  {isClientDropdownOpen && (
+                    <>
+                      <div 
+                        className="fixed inset-0 z-10" 
+                        onClick={() => {
+                          setIsClientDropdownOpen(false);
+                          setClientSearch(clientName);
+                        }} 
+                      />
+                      <div className="absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-20 divide-y divide-slate-100 dark:divide-slate-800/60">
+                        {clients.filter(c => 
+                          c.name.toLowerCase().includes(clientSearch.toLowerCase()) || 
+                          c.phone.includes(clientSearch)
+                        ).length === 0 ? (
+                          <div className="p-3 text-xs text-slate-400 text-center">
+                            No clients found. Click '+' to add.
+                          </div>
+                        ) : (
+                          clients.filter(c => 
+                            c.name.toLowerCase().includes(clientSearch.toLowerCase()) || 
+                            c.phone.includes(clientSearch)
+                          ).map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => {
+                                setClientName(c.name);
+                                setIsClientDropdownOpen(false);
+                              }}
+                              className="w-full text-left px-4 py-2.5 text-xs hover:bg-blue-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors"
+                            >
+                              <div className="font-bold">{c.name}</div>
+                              <div className="text-[10px] text-slate-400">{c.phone}</div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
               <button
                 onClick={() => setIsAddClientModalOpen(true)}
-                className="p-3 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white rounded-[14px] border border-slate-200 dark:border-slate-800 transition-colors"
+                className="p-3 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white rounded-[14px] border border-slate-200 dark:border-slate-800 transition-colors relative z-10"
                 title="Register New Client Quickly"
                 type="button"
               >
@@ -392,6 +469,25 @@ export default function POSPage() {
             onChange={(e) => setQuickClientPhone(e.target.value)}
             required
           />
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Age"
+              type="number"
+              value={quickClientAge}
+              onChange={(e) => setQuickClientAge(Number(e.target.value))}
+              required
+            />
+            <Select
+              label="Gender"
+              options={[
+                { label: 'Female', value: 'Female' },
+                { label: 'Male', value: 'Male' },
+                { label: 'Other', value: 'Other' }
+              ]}
+              value={quickClientGender}
+              onChange={(e) => setQuickClientGender(e.target.value)}
+            />
+          </div>
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
             <Button type="button" variant="outline" onClick={() => setIsAddClientModalOpen(false)}>
               Cancel
@@ -402,6 +498,28 @@ export default function POSPage() {
           </div>
         </form>
       </Modal>
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className={`fixed top-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl border shadow-xl ${
+              toastMessage.type === 'success'
+                ? 'bg-emerald-50 dark:bg-emerald-950/90 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800'
+                : 'bg-rose-50 dark:bg-rose-950/90 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-800'
+            }`}
+          >
+            {toastMessage.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 animate-pulse" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+            )}
+            <span className="text-xs font-semibold">{toastMessage.text}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

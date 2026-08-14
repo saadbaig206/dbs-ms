@@ -48,7 +48,8 @@ async def create_client(
         total_spent=0.0,
         visits_count=1,
         history=[],
-        joined_date=datetime.now().strftime("%Y-%m-%d")
+        joined_date=datetime.now().strftime("%Y-%m-%d"),
+        branch_id=client_in.branch_id
     )
     db.add(db_client)
     await db.commit()

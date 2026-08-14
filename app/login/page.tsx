@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Sparkles, Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
+import { Sparkles, Mail, Lock, ArrowRight, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { CLINIC_INFO } from '../../lib/constants/clinic';
 import { Button } from '../../components/ui/Button';
@@ -18,6 +18,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,16 +112,23 @@ export default function LoginPage() {
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
                   setError('');
                 }}
                 required
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
+                className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
                 placeholder="Enter your password"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3.5 top-3 text-slate-500 hover:text-slate-300 focus:outline-none"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
           </div>
 
@@ -139,11 +147,31 @@ export default function LoginPage() {
         {/* Credentials Helper */}
         <div className="mt-6 pt-4 border-t border-slate-800/50">
           <div className="text-center space-y-1">
-            <p className="text-[10px] text-slate-500 font-medium">Demo Credentials</p>
-            <div className="flex flex-col sm:flex-row justify-center gap-2 text-[10px] text-slate-400">
-              <span>Admin: <span className="text-blue-400">admin@gmail.com</span> / <span className="text-blue-400">admin</span></span>
+            <p className="text-[10px] text-slate-500 font-medium">Demo Credentials (Click to Autofill)</p>
+            <div className="flex flex-col sm:flex-row justify-center items-center gap-2 text-[10px] text-slate-400">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('admin@gmail.com');
+                  setPassword('admin');
+                  setError('');
+                }}
+                className="hover:text-blue-300 transition-colors cursor-pointer text-left sm:text-center focus:outline-none"
+              >
+                Admin: <span className="text-blue-400 font-bold underline">admin@gmail.com</span> / <span className="text-blue-400 font-bold underline">admin</span>
+              </button>
               <span className="hidden sm:inline text-slate-600">|</span>
-              <span>Staff: <span className="text-indigo-400">staff@gmail.com</span> / <span className="text-indigo-400">staff</span></span>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('staff@gmail.com');
+                  setPassword('staff');
+                  setError('');
+                }}
+                className="hover:text-indigo-300 transition-colors cursor-pointer text-left sm:text-center focus:outline-none"
+              >
+                Staff: <span className="text-indigo-400 font-bold underline">staff@gmail.com</span> / <span className="text-indigo-400 font-bold underline">staff</span>
+              </button>
             </div>
           </div>
         </div>
