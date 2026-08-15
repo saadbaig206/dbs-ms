@@ -15,6 +15,31 @@ async def login(
     login_data: LoginRequest,
     db: AsyncSession = Depends(get_db)
 ):
+    # Fallback initialization for serverless runtimes (like Vercel) where ASGI lifespan events are skipped
+    try:
+        result = await db.execute(select(User))
+        users_exist = bool(result.scalars().first())
+    except Exception:
+        from app.models.base import Base
+        async with db.bind.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        users_exist = False
+
+    if not users_exist:
+        from app.core.security import get_password_hash
+        admin_user = User(
+            email="admin@gmail.com",
+            hashed_password=get_password_hash("admin"),
+            role="admin"
+        )
+        staff_user = User(
+            email="staff@gmail.com",
+            hashed_password=get_password_hash("staff"),
+            role="staff"
+        )
+        db.add_all([admin_user, staff_user])
+        await db.commit()
+
     result = await db.execute(select(User).where(User.email == login_data.email))
     user = result.scalars().first()
     if not user or not verify_password(login_data.password, user.hashed_password):
