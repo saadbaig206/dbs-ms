@@ -65,12 +65,25 @@ async def get_me(current_user: User = Depends(get_current_user)):
 @router.get("/debug-db")
 async def debug_db(db: AsyncSession = Depends(get_db)):
     try:
+        from app.core.security import verify_password
         result = await db.execute(select(User))
         users = result.scalars().all()
+        
+        users_info = []
+        for u in users:
+            is_admin_pass_correct = verify_password("admin", u.hashed_password) if u.email == "admin@gmail.com" else None
+            is_staff_pass_correct = verify_password("staff", u.hashed_password) if u.email == "staff@gmail.com" else None
+            users_info.append({
+                "email": u.email,
+                "role": u.role,
+                "hashed_password": u.hashed_password,
+                "test_pass_ok": is_admin_pass_correct if u.email == "admin@gmail.com" else is_staff_pass_correct
+            })
+            
         return {
             "status": "connected",
             "users_count": len(users),
-            "users": [{"email": u.email, "role": u.role} for u in users]
+            "users": users_info
         }
     except Exception as e:
         return {
