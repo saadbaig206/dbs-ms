@@ -4,6 +4,11 @@ from app.core.config import settings
 # Neon works well with pooled connection strings.
 # We set up the async engine using settings.DATABASE_URL
 db_url = settings.DATABASE_URL
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
+elif db_url.startswith("postgresql://"):
+    db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
 if "?" in db_url:
     db_url = db_url.split("?")[0]
 
