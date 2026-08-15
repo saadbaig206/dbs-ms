@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get('access_token')?.value;
@@ -10,7 +10,9 @@ export async function GET() {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:8000');
+    const host = request.headers.get('host');
+    const protocol = request.headers.get('x-forwarded-proto') || 'https';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || (host ? `${protocol}://${host}` : 'http://localhost:8000');
     const res = await fetch(`${apiUrl}/api/v1/auth/me`, {
       headers: {
         'Authorization': `Bearer ${token}`

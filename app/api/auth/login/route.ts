@@ -3,10 +3,13 @@ import { NextResponse } from 'next/server';
 export async function POST(request: Request) {
   try {
     const { email, password } = await request.json();
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:8000');
+    const host = request.headers.get('host');
+    const protocol = request.headers.get('x-forwarded-proto') || 'https';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || (host ? `${protocol}://${host}` : 'http://localhost:8000');
 
     console.log("DEBUG: process.env.NEXT_PUBLIC_API_URL =", process.env.NEXT_PUBLIC_API_URL);
-    console.log("DEBUG: process.env.VERCEL_URL =", process.env.VERCEL_URL);
+    console.log("DEBUG: Host header =", host);
+    console.log("DEBUG: Protocol =", protocol);
     console.log("DEBUG: Using apiUrl =", apiUrl);
     console.log("DEBUG: Attempting backend fetch to =", `${apiUrl}/api/v1/auth/login` , "for email =", email);
 
