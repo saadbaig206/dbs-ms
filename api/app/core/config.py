@@ -7,7 +7,7 @@ from typing_extensions import Annotated
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file="api/.env" if os.path.exists("api/.env") else ".env",
+        env_file=".env" if os.path.exists(".env") else "../.env",
         env_ignore_empty=True,
         extra="ignore",
     )
