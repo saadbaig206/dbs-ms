@@ -13,8 +13,11 @@ export async function POST(request: Request) {
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
+      const fallbackError = res.status === 401 
+        ? 'Invalid email or password' 
+        : `Backend error (${res.status}): ${res.statusText || 'Unable to connect'}`;
       return NextResponse.json(
-        { error: errData.detail || 'Invalid email or password' },
+        { error: errData.detail || fallbackError },
         { status: res.status }
       );
     }
