@@ -5,14 +5,22 @@ export async function POST(request: Request) {
     const { email, password } = await request.json();
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:8000');
 
+    console.log("DEBUG: process.env.NEXT_PUBLIC_API_URL =", process.env.NEXT_PUBLIC_API_URL);
+    console.log("DEBUG: process.env.VERCEL_URL =", process.env.VERCEL_URL);
+    console.log("DEBUG: Using apiUrl =", apiUrl);
+    console.log("DEBUG: Attempting backend fetch to =", `${apiUrl}/api/v1/auth/login` , "for email =", email);
+
     const res = await fetch(`${apiUrl}/api/v1/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
 
+    console.log("DEBUG: Response status from FastAPI =", res.status);
+
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
+      console.log("DEBUG: FastAPI Error payload =", errData);
       const fallbackError = res.status === 401 
         ? 'Invalid email or password' 
         : `Backend error (${res.status}): ${res.statusText || 'Unable to connect'}`;
