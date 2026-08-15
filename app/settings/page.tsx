@@ -11,15 +11,27 @@ import { Badge } from '../../components/ui/Badge';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 
 export default function SettingsPage() {
-  const { theme, toggleTheme, role } = useClinic();
+  const { theme, toggleTheme, role, clinicInfo, updateClinicInfo } = useClinic();
 
-  const [clinicName, setClinicName] = useState<string>(CLINIC_INFO.name || '');
-  const [phone, setPhone] = useState<string>(CLINIC_INFO.phone || '');
-  const [email, setEmail] = useState<string>(CLINIC_INFO.email || '');
-  const [address, setAddress] = useState<string>(CLINIC_INFO.address || '');
-  const [currency, setCurrency] = useState<string>('PKR (Rs)');
-  const [language, setLanguage] = useState<string>('English (US)');
+  const [clinicName, setClinicName] = useState<string>(clinicInfo.name || '');
+  const [phone, setPhone] = useState<string>(clinicInfo.phone || '');
+  const [email, setEmail] = useState<string>(clinicInfo.email || '');
+  const [address, setAddress] = useState<string>(clinicInfo.address || '');
+  const [currency, setCurrency] = useState<string>(clinicInfo.currency || 'PKR (Rs)');
+  const [language, setLanguage] = useState<string>(clinicInfo.language || 'English (US)');
   const [isSaved, setIsSaved] = useState<boolean>(false);
+
+  // Sync state with context when context loads/updates
+  useEffect(() => {
+    if (clinicInfo) {
+      setClinicName(clinicInfo.name);
+      setPhone(clinicInfo.phone);
+      setEmail(clinicInfo.email);
+      setAddress(clinicInfo.address);
+      setCurrency(clinicInfo.currency);
+      setLanguage(clinicInfo.language);
+    }
+  }, [clinicInfo]);
 
   // Reset save state after 3 seconds
   useEffect(() => {
@@ -33,9 +45,15 @@ export default function SettingsPage() {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    updateClinicInfo({
+      name: clinicName,
+      phone,
+      email,
+      address,
+      currency,
+      language
+    });
     setIsSaved(true);
-    // Here you would typically save the data to your backend
-    console.log('Saving settings:', { clinicName, phone, email, address, currency, language });
   };
 
   const handleFieldChange = (setter: React.Dispatch<React.SetStateAction<string>>, value: string) => {

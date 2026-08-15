@@ -18,12 +18,15 @@ export default function ServicesPage() {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingService, setEditingService] = useState<ServiceItem | null>(null);
+  const [editPrice, setEditPrice] = useState<string>('0');
+  const [editStatus, setEditStatus] = useState<'Active' | 'Inactive'>('Active');
 
   // Form State
   const [name, setName] = useState('');
   const [category, setCategory] = useState<ServiceCategory>('Facial & Skin Care');
-  const [price, setPrice] = useState<number>(350);
-  const [durationMinutes, setDurationMinutes] = useState<number>(60);
+  const [price, setPrice] = useState<string>('350');
+  const [durationMinutes, setDurationMinutes] = useState<string>('60');
   const [description, setDescription] = useState('');
   const [image, setImage] = useState('https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&q=80&w=500');
 
@@ -40,8 +43,8 @@ export default function ServicesPage() {
     addService({
       name,
       category,
-      price,
-      durationMinutes,
+      price: Number(price) || 0,
+      durationMinutes: Number(durationMinutes) || 0,
       assignedStaffIds: ['STF-101'],
       assignedStaffNames: ['Dr. Elena Rostova'],
       status: 'Active',
@@ -55,15 +58,9 @@ export default function ServicesPage() {
   };
 
   const handleEditPrice = (srv: ServiceItem) => {
-    const newPriceStr = prompt(`Enter new price for ${srv.name}:`, String(srv.price));
-    if (newPriceStr !== null) {
-      const newPrice = Number(newPriceStr);
-      if (!isNaN(newPrice) && newPrice >= 0) {
-        updateService(srv.id, { price: newPrice });
-      } else {
-        alert("Please enter a valid positive number.");
-      }
-    }
+    setEditingService(srv);
+    setEditPrice(String(srv.price));
+    setEditStatus(srv.status);
   };
 
   return (
@@ -224,16 +221,16 @@ export default function ServicesPage() {
             />
             <Input
               label="Price (Rs)"
-              type="number"
+              type="text"
               value={price}
-              onChange={(e) => setPrice(Number(e.target.value))}
+              onChange={(e) => setPrice(e.target.value.replace(/\D/g, ''))}
               required
             />
             <Input
               label="Duration (mins)"
-              type="number"
+              type="text"
               value={durationMinutes}
-              onChange={(e) => setDurationMinutes(Number(e.target.value))}
+              onChange={(e) => setDurationMinutes(e.target.value.replace(/\D/g, ''))}
               required
             />
           </div>
@@ -252,6 +249,51 @@ export default function ServicesPage() {
             </Button>
             <Button type="submit" variant="primary">
               Save Service
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit Service Modal */}
+      <Modal
+        isOpen={editingService !== null}
+        onClose={() => setEditingService(null)}
+        title={`Edit Service: ${editingService?.name}`}
+        description="Update service pricing and active status"
+        maxWidth="md"
+      >
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          if (editingService) {
+            const numericPrice = Number(editPrice);
+            updateService(editingService.id, { price: isNaN(numericPrice) ? 0 : numericPrice, status: editStatus });
+            setEditingService(null);
+          }
+        }} className="space-y-4">
+          <Input
+            label="Service Price (Rs)"
+            type="text"
+            value={editPrice}
+            onChange={(e) => setEditPrice(e.target.value.replace(/\D/g, ''))}
+            required
+          />
+
+          <Select
+            label="Service Status"
+            options={[
+              { label: 'Active', value: 'Active' },
+              { label: 'Inactive', value: 'Inactive' }
+            ]}
+            value={editStatus}
+            onChange={(e) => setEditStatus(e.target.value as any)}
+          />
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <Button type="button" variant="outline" onClick={() => setEditingService(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary">
+              Save Changes
             </Button>
           </div>
         </form>

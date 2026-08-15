@@ -21,11 +21,10 @@ import {
   MapPin
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
-import { CLINIC_INFO } from '../../lib/constants/clinic';
 
 export const CommandPalette: React.FC = () => {
   const router = useRouter();
-  const { isCommandPaletteOpen, setIsCommandPaletteOpen, role, toggleRole } = useClinic();
+  const { isCommandPaletteOpen, setIsCommandPaletteOpen, role, toggleRole, clinicInfo } = useClinic();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -77,30 +76,25 @@ export const CommandPalette: React.FC = () => {
         return;
       }
 
-      const totalLength = filteredItems.length + 1; // +1 for Switch Role item
+      const totalLength = filteredItems.length;
 
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setSelectedIndex((prevIndex) => (prevIndex + 1) % totalLength);
+        setSelectedIndex((prevIndex) => (prevIndex + 1) % (totalLength || 1));
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setSelectedIndex((prevIndex) => (prevIndex - 1 + totalLength) % totalLength);
+        setSelectedIndex((prevIndex) => (prevIndex - 1 + totalLength) % (totalLength || 1));
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        if (selectedIndex === 0) {
-          toggleRole();
-          setIsCommandPaletteOpen(false);
-        } else {
-          const item = filteredItems[selectedIndex - 1];
-          if (item) {
-            handleSelect(item.href);
-          }
+        const item = filteredItems[selectedIndex];
+        if (item) {
+          handleSelect(item.href);
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isCommandPaletteOpen, setIsCommandPaletteOpen, selectedIndex, filteredItems, toggleRole]);
+  }, [isCommandPaletteOpen, setIsCommandPaletteOpen, selectedIndex, filteredItems]);
 
   if (!isCommandPaletteOpen) return null;
 
@@ -140,33 +134,6 @@ export const CommandPalette: React.FC = () => {
           {/* Quick Actions */}
           <div className="p-2 max-h-[350px] overflow-y-auto">
             <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-              Quick Switch Role
-            </div>
-            <button
-              onClick={() => {
-                toggleRole();
-                setIsCommandPaletteOpen(false);
-              }}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left text-sm transition-colors mb-2 ${
-                selectedIndex === 0 
-                  ? 'bg-blue-600 text-white' 
-                  : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <ShieldCheck className={`w-4 h-4 ${selectedIndex === 0 ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
-                <span>Switch Role (Current: <strong className="uppercase">{role}</strong>)</span>
-              </div>
-              <span className={`text-xs px-2 py-0.5 rounded-md font-semibold ${
-                selectedIndex === 0 
-                  ? 'bg-white/20 text-white' 
-                  : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
-              }`}>
-                Toggle
-              </span>
-            </button>
-
-            <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
               Navigation ({filteredItems.length})
             </div>
 
@@ -177,7 +144,7 @@ export const CommandPalette: React.FC = () => {
             ) : (
               filteredItems.map((item, idx) => {
                 const Icon = item.icon;
-                const isSelected = selectedIndex === idx + 1;
+                const isSelected = selectedIndex === idx;
                 return (
                   <button
                     key={item.href}
@@ -214,7 +181,7 @@ export const CommandPalette: React.FC = () => {
           </div>
 
           <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-400">
-            <span>{CLINIC_INFO.name} Command Palette</span>
+            <span>{clinicInfo.name} Command Palette</span>
             <span>Use ↑ ↓ to navigate, ↵ to select</span>
           </div>
         </motion.div>

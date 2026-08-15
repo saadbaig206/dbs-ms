@@ -27,8 +27,16 @@ import { Input, Select } from '../../components/ui/Input';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 
 export default function FinanceReportsPage() {
-  const { transactions, expenses, addExpense, role, setPrintData } = useClinic();
+  const { transactions, expenses, addExpense, updateExpense, role, setPrintData } = useClinic();
   const [activeTab, setActiveTab] = useState<'transactions' | 'expenses' | 'reports'>('transactions');
+
+  const handlePayExpense = async (id: string) => {
+    try {
+      await updateExpense(id, { status: 'Paid' });
+    } catch (e: any) {
+      console.error("Failed to pay expense:", e);
+    }
+  };
 
   // Transactions Section State
   const [txnSearch, setTxnSearch] = useState('');
@@ -39,7 +47,7 @@ export default function FinanceReportsPage() {
   const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false);
   const [expTitle, setExpTitle] = useState('');
   const [expCategory, setExpCategory] = useState<ExpenseCategory>('Products');
-  const [expAmount, setExpAmount] = useState<number>(1500);
+  const [expAmount, setExpAmount] = useState<string>('1500');
   const [expPaymentMethod, setExpPaymentMethod] = useState<'Bank Transfer' | 'Cash' | 'Card' | 'Cheque'>('Bank Transfer');
   const [expNotes, setExpNotes] = useState('');
 
@@ -160,7 +168,7 @@ export default function FinanceReportsPage() {
     addExpense({
       title: expTitle,
       category: expCategory,
-      amount: expAmount,
+      amount: Number(expAmount) || 0,
       date: new Date().toISOString().split('T')[0],
       status: 'Paid',
       paymentMethod: expPaymentMethod,
@@ -444,7 +452,17 @@ export default function FinanceReportsPage() {
                             -{formatPKR(exp.amount)}
                           </td>
                           <td className="py-3.5 px-4 text-right">
-                            <Badge variant="success">{exp.status}</Badge>
+                            <div className="flex items-center justify-end gap-2">
+                              <Badge variant={exp.status === 'Paid' ? 'success' : 'warning'}>{exp.status}</Badge>
+                              {exp.status === 'Pending' && (
+                                <button
+                                  onClick={() => handlePayExpense(exp.id)}
+                                  className="px-2.5 py-1 text-[10px] font-bold uppercase rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white transition-all cursor-pointer"
+                                >
+                                  Pay Salary
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -558,9 +576,9 @@ export default function FinanceReportsPage() {
             />
             <Input
               label="Amount (Rs)"
-              type="number"
+              type="text"
               value={expAmount}
-              onChange={(e) => setExpAmount(Number(e.target.value))}
+              onChange={(e) => setExpAmount(e.target.value.replace(/\D/g, ''))}
               required
             />
           </div>

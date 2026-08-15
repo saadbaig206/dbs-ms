@@ -4,7 +4,6 @@ import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, Sparkles, CheckCircle2 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
-import { CLINIC_INFO } from '../../lib/constants/clinic';
 import { formatPKR } from '../../lib/utils/currency';
 import { Button } from './Button';
 import { Modal } from './Modal';
@@ -16,62 +15,82 @@ function InvoicePrintContent({ data }: { data: any }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-xl border border-slate-200">
-        <div>
-          <span className="text-slate-500 font-semibold block uppercase">Billed To</span>
-          <span className="font-bold text-slate-900 text-sm">{data.clientName || 'Valued Client'}</span>
-          <p className="text-slate-600 mt-0.5">Payment Method: {data.paymentMethod || 'Card'}</p>
+      {/* Billed To / Specialist Info Grid */}
+      <div className="grid grid-cols-2 gap-6 text-xs bg-slate-50/50 p-5 rounded-2xl border border-slate-100">
+        <div className="space-y-1.5">
+          <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px] block">Billed To</span>
+          <span className="font-extrabold text-slate-900 text-sm block">{data.clientName || 'Valued Client'}</span>
+          {data.phone && <p className="text-slate-600">Phone: {data.phone}</p>}
+          <p className="text-slate-500 font-medium">
+            Payment Method: <span className="text-slate-950 font-bold">{data.paymentMethod || 'Card'}</span>
+            {data.paymentMethod === 'Card' && data.cardLastFour && (
+              <span className="text-slate-500 block text-[10px] mt-1 font-semibold">
+                • {data.cardType || 'Card'} ending in {data.cardLastFour}
+                {data.bankTxnId && ` (Txn ID: ${data.bankTxnId})`}
+              </span>
+            )}
+          </p>
         </div>
-        <div className="text-right">
-          <span className="text-slate-500 font-semibold block uppercase">Payment Status</span>
-          <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-sm">
-            <CheckCircle2 className="w-4 h-4" /> PAID IN FULL
+        <div className="text-right space-y-1.5 border-l border-slate-200/60 pl-6">
+          <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px] block">Invoice Details</span>
+          <span className="font-mono font-black text-slate-900 block text-sm">
+            {data.invoiceId || data.id || `DOC-${Date.now().toString().slice(-6)}`}
           </span>
+          <p className="text-slate-600">
+            Date: {data.date || new Date().toLocaleDateString('en-PK')}
+          </p>
+          <p className="text-slate-500 font-medium">
+            Specialist: <span className="text-slate-950 font-bold">{data.staffName || data.assignedStaffName || 'Dr. Ali Imran (Consultant)'}</span>
+          </p>
         </div>
       </div>
 
-      <table className="w-full text-xs text-left border-collapse">
-        <thead className="bg-slate-100 uppercase text-slate-600 font-semibold">
-          <tr>
-            <th className="py-2.5 px-3 border border-slate-200">Service / Item</th>
-            <th className="py-2.5 px-3 border border-slate-200 text-center">Qty</th>
-            <th className="py-2.5 px-3 border border-slate-200 text-right">Unit Price</th>
-            <th className="py-2.5 px-3 border border-slate-200 text-right">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item: { name: string; price: number; quantity: number }, idx: number) => (
-            <tr key={idx}>
-              <td className="py-2.5 px-3 border border-slate-200 font-medium text-slate-800">{item.name}</td>
-              <td className="py-2.5 px-3 border border-slate-200 text-center">{item.quantity}</td>
-              <td className="py-2.5 px-3 border border-slate-200 text-right">{formatPKR(item.price)}</td>
-              <td className="py-2.5 px-3 border border-slate-200 text-right font-semibold">
-                {formatPKR(item.price * item.quantity)}
-              </td>
+      {/* Styled Invoice Items Table */}
+      <div className="border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
+        <table className="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr className="bg-slate-950 text-white font-semibold uppercase tracking-wider text-[9px]">
+              <th className="p-4">Item / Service</th>
+              <th className="p-4 text-right">Price</th>
+              <th className="p-4 text-center">Qty</th>
+              <th className="p-4 text-right">Total</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-slate-700 font-medium bg-white">
+            {items.map((item: any, idx: number) => (
+              <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                <td className="p-4 font-bold text-slate-900">{item.name}</td>
+                <td className="p-4 text-right font-mono">{formatPKR(item.price)}</td>
+                <td className="p-4 text-center text-slate-500 font-mono">{item.quantity}</td>
+                <td className="p-4 text-right font-bold text-slate-900 font-mono">
+                  {formatPKR(item.price * item.quantity)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
-      <div className="flex justify-end">
-        <div className="w-72 space-y-1.5 text-xs text-right border-t border-slate-200 pt-3">
-          <div className="flex justify-between text-slate-600">
+      {/* Financial Summary */}
+      <div className="flex justify-end text-xs pt-2">
+        <div className="w-72 space-y-2.5 border-t-2 border-slate-150 pt-4 font-medium">
+          <div className="flex justify-between text-slate-500">
             <span>Subtotal:</span>
-            <span>{formatPKR(data.amount ?? 0)}</span>
+            <span className="font-mono text-slate-900">{formatPKR(data.subtotal ?? data.amount)}</span>
           </div>
-          {(data.discount ?? 0) > 0 && (
-            <div className="flex justify-between text-rose-600">
-              <span>Discount:</span>
-              <span>-{formatPKR(data.discount)}</span>
+          {data.discountPercent > 0 && (
+            <div className="flex justify-between text-emerald-600 font-bold">
+              <span>Discount ({data.discountPercent}%):</span>
+              <span className="font-mono">-{formatPKR(data.discount)}</span>
             </div>
           )}
-          <div className="flex justify-between text-slate-600">
+          <div className="flex justify-between text-slate-500">
             <span>Tax ({data.taxPercent ?? 10}%):</span>
-            <span>{formatPKR(data.tax ?? 0)}</span>
+            <span className="font-mono text-slate-900">{formatPKR(data.tax ?? 0)}</span>
           </div>
-          <div className="flex justify-between font-bold text-base text-slate-900 border-t border-slate-300 pt-2">
+          <div className="flex justify-between font-black text-lg text-slate-900 border-t border-slate-300 pt-3">
             <span>Grand Total:</span>
-            <span>{formatPKR(data.grandTotal ?? 0)}</span>
+            <span className="font-mono text-blue-600">{formatPKR(data.grandTotal ?? data.amount)}</span>
           </div>
         </div>
       </div>
@@ -80,33 +99,42 @@ function InvoicePrintContent({ data }: { data: any }) {
 }
 
 function PrintDocument({ type, data }: { type: string; data: any }) {
+  const { clinicInfo } = useClinic();
+
   return (
-    <div className="bg-white text-slate-900 p-8 font-sans max-w-[210mm] mx-auto">
-      <div className="flex items-start justify-between border-b-2 border-slate-200 pb-6 mb-6">
+    <div className="bg-white text-slate-900 p-8 font-sans max-w-[210mm] mx-auto space-y-6">
+      {/* Header Accent Line */}
+      <div className="h-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-full" />
+      
+      {/* Header Info */}
+      <div className="flex items-start justify-between border-b border-slate-200/80 pb-6">
         <div>
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white">
-              <Sparkles className="w-5 h-5" />
-            </div>
+          <div className="flex items-center gap-3 mb-3">
+            <img 
+              src="/logo.png" 
+              alt="DBS Logo" 
+              className="h-12 w-auto object-contain"
+            />
             <div>
-              <h1 className="text-lg font-bold tracking-tight text-slate-900 uppercase leading-tight">
-                {CLINIC_INFO.name}
+              <h1 className="text-xl font-black tracking-tight text-slate-950 uppercase leading-none">
+                {clinicInfo.name}
               </h1>
+              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1 block">Aesthetics & Wellness Spa</span>
             </div>
           </div>
-          <p className="text-xs text-slate-600">{CLINIC_INFO.address}</p>
-          <p className="text-xs text-slate-600">
-            Phone: {CLINIC_INFO.phone} • Email: {CLINIC_INFO.email}
+          <p className="text-xs text-slate-500 max-w-[340px] leading-relaxed">{clinicInfo.address}</p>
+          <p className="text-xs text-slate-500 font-semibold mt-1">
+            Phone: {clinicInfo.phone} • Email: {clinicInfo.email}
           </p>
         </div>
-        <div className="text-right">
-          <span className="inline-block px-3 py-1 bg-slate-900 text-white text-xs font-bold uppercase rounded-md mb-1">
+        <div className="text-right flex flex-col items-end">
+          <span className="inline-block px-3 py-1 bg-slate-950 text-white text-[9px] font-black tracking-wider uppercase rounded-lg mb-2 shadow-sm">
             {type === 'invoice' ? 'OFFICIAL INVOICE' : type === 'slip' ? 'BOOKING CONFIRMATION' : 'CLIENT RECORD'}
           </span>
-          <p className="text-xs font-mono text-slate-600">
-            {data.invoiceId || data.id || `DOC-${Date.now().toString().slice(-6)}`}
+          <p className="text-xs font-mono font-bold text-slate-700">
+            ID: {data.invoiceId || data.id || `DOC-${Date.now().toString().slice(-6)}`}
           </p>
-          <p className="text-xs text-slate-600">Date: {data.date || new Date().toLocaleDateString('en-PK')}</p>
+          <p className="text-xs text-slate-500 font-medium">Date: {data.date || new Date().toLocaleDateString('en-PK')}</p>
         </div>
       </div>
 
@@ -114,45 +142,65 @@ function PrintDocument({ type, data }: { type: string; data: any }) {
 
       {type === 'slip' && (
         <div className="space-y-4 text-xs">
-          <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
-            <h4 className="font-bold text-blue-900 text-sm mb-2 uppercase">Appointment Confirmation</h4>
-            <div className="grid grid-cols-2 gap-2 text-slate-700">
-              <p><strong>Client:</strong> {data.clientName}</p>
-              <p><strong>Phone:</strong> {data.phone}</p>
-              <p><strong>Service:</strong> {data.serviceName}</p>
-              <p><strong>Assigned Staff:</strong> {data.staffName}</p>
-              <p><strong>Date:</strong> {data.date}</p>
-              <p><strong>Time:</strong> {data.time}</p>
-              <p><strong>Fee:</strong> {formatPKR(data.price ?? 0)}</p>
+          <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
+            <h4 className="font-black text-slate-950 text-sm uppercase tracking-wider">Appointment Details</h4>
+            <div className="grid grid-cols-2 gap-y-3 gap-x-6 text-slate-700 font-medium border-t border-slate-200/60 pt-3">
+              <p><strong>Client Name:</strong> <span className="text-slate-950 font-bold">{data.clientName}</span></p>
+              <p><strong>Contact Phone:</strong> {data.phone || 'N/A'}</p>
+              <p><strong>Scheduled Service:</strong> <span className="text-slate-950 font-bold">{data.serviceName}</span></p>
+              <p><strong>Assigned Specialist:</strong> <span className="text-slate-950 font-bold">{data.staffName || 'Dr. Ali Imran (Consultant)'}</span></p>
+              <p><strong>Treatment Date:</strong> {data.date}</p>
+              <p><strong>Treatment Time:</strong> {data.time}</p>
+              <p className="col-span-2 text-sm border-t border-slate-200/60 pt-3 mt-1">
+                <strong>Booking Fee:</strong> <span className="text-blue-600 font-black font-mono">{formatPKR(data.price ?? 0)}</span>
+              </p>
             </div>
           </div>
-          <div className="p-3 bg-slate-50 rounded-lg text-slate-600 border border-slate-200">
-            <strong>Pre-Treatment Instructions:</strong> Please arrive 15 minutes before your appointment. Avoid direct sun exposure 48 hours prior to laser and facial therapies.
+          <div className="p-4 bg-yellow-500/5 rounded-2xl text-yellow-800 border border-yellow-500/10 leading-relaxed font-medium">
+            <strong>Pre-Treatment Instructions:</strong> Please arrive 15 minutes prior to your booking. Avoid direct sun exposure 48 hours before laser or facial treatment.
           </div>
         </div>
       )}
 
       {type === 'client' && (
         <div className="space-y-4 text-xs">
-          <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
-            <p><strong>Name:</strong> {data.name}</p>
+          <div className="grid grid-cols-2 gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-100 font-medium text-slate-700">
+            <p><strong>Name:</strong> <span className="text-slate-900 font-bold">{data.name}</span></p>
             <p><strong>Phone:</strong> {data.phone}</p>
-            <p><strong>CNIC:</strong> {data.cnic}</p>
-            <p><strong>Total Spent:</strong> {formatPKR(data.totalSpent ?? 0, { decimals: false })}</p>
-            <p><strong>Visits:</strong> {data.visitsCount}</p>
-            <p><strong>Joined:</strong> {data.joinedDate}</p>
+            <p><strong>Total Spent:</strong> <span className="text-emerald-600 font-bold font-mono">{formatPKR(data.totalSpent ?? 0, { decimals: false })}</span></p>
+            <p><strong>Visits Count:</strong> {data.visitsCount} visits</p>
+            <p><strong>Joined Date:</strong> {data.joinedDate}</p>
           </div>
           {data.notes && (
-            <p className="text-slate-600 p-3 bg-slate-50 rounded-lg border border-slate-200">
-              <strong>Notes:</strong> {data.notes}
+            <p className="text-slate-600 p-4 bg-slate-50 rounded-2xl border border-slate-100 leading-relaxed">
+              <strong>Clinical Notes:</strong> {data.notes}
             </p>
           )}
         </div>
       )}
 
-      <div className="border-t border-slate-200 pt-6 mt-8 text-center text-[10px] text-slate-500 space-y-1">
-        <p>Thank you for choosing {CLINIC_INFO.name}.</p>
-        <p>This is an officially generated receipt & voucher.</p>
+      {/* Signature & Stamp Blocks */}
+      <div className="grid grid-cols-2 gap-12 pt-8 border-t border-slate-200/60 text-xs">
+        <div className="space-y-8">
+          <p className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">Client Acknowledgement</p>
+          <div className="border-b border-slate-350 w-48 pt-2" />
+          <p className="text-slate-500 text-[10px] font-medium">Signature of Client</p>
+        </div>
+        <div className="space-y-8 flex flex-col items-end">
+          <div className="w-48 text-right space-y-8">
+            <p className="text-slate-400 font-bold uppercase tracking-wider text-[9px] text-left">Authorized Representative</p>
+            <div className="border-b border-slate-350 w-48 pt-2" />
+            <p className="text-slate-500 text-[10px] font-medium text-left">Clinic Stamp & Signature</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Terms & Return Policy */}
+      <div className="pt-4 mt-4 text-center text-[10px] text-slate-400 space-y-1.5 border-t border-dashed border-slate-200/80">
+        <p className="font-bold text-slate-500 uppercase tracking-wider text-[9px]">Terms & Return Policy</p>
+        <p className="max-w-[520px] mx-auto leading-relaxed">
+          All service packages, treatments, and procedures are strictly non-refundable and non-transferable. Appointments must be cancelled or rescheduled at least 24 hours in advance. Thank you for choosing {clinicInfo.name}.
+        </p>
       </div>
     </div>
   );

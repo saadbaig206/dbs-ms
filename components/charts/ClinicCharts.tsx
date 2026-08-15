@@ -17,50 +17,88 @@ import {
   Legend
 } from 'recharts';
 import { formatPKRCompact } from '../../lib/utils/currency';
+import { FinancialTransaction, ExpenseItem, Appointment } from '../../lib/types/clinic';
 
-const revenueData = [
-  { month: 'Jan', revenue: 42000, profit: 26000, expenses: 16000 },
-  { month: 'Feb', revenue: 48000, profit: 30000, expenses: 18000 },
-  { month: 'Mar', revenue: 55000, profit: 34000, expenses: 21000 },
-  { month: 'Apr', revenue: 62000, profit: 39000, expenses: 23000 },
-  { month: 'May', revenue: 71000, profit: 46000, expenses: 25000 },
-  { month: 'Jun', revenue: 84000, profit: 54000, expenses: 30000 },
-  { month: 'Jul', revenue: 98000, profit: 64000, expenses: 34000 },
-  { month: 'Aug', revenue: 112000, profit: 75000, expenses: 37000 },
-];
+// Helper to show a stylized fallback for empty states
+const EmptyState: React.FC<{ message: string }> = ({ message }) => (
+  <div className="w-full h-full min-h-[200px] flex flex-col items-center justify-center text-center p-4 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl bg-slate-50/50 dark:bg-slate-900/10">
+    <p className="text-xs font-semibold text-slate-400 max-w-[250px] leading-relaxed">
+      {message}
+    </p>
+  </div>
+);
 
-const weeklyAppointmentsData = [
-  { day: 'Mon', confirmed: 14, completed: 12, cancelled: 1 },
-  { day: 'Tue', confirmed: 18, completed: 16, cancelled: 2 },
-  { day: 'Wed', confirmed: 22, completed: 20, cancelled: 1 },
-  { day: 'Thu', confirmed: 19, completed: 18, cancelled: 0 },
-  { day: 'Fri', confirmed: 25, completed: 24, cancelled: 1 },
-  { day: 'Sat', confirmed: 28, completed: 26, cancelled: 2 },
-  { day: 'Sun', confirmed: 10, completed: 10, cancelled: 0 },
-];
+// 1. Revenue & Profit Area Chart
+interface RevenueChartProps {
+  transactions?: FinancialTransaction[];
+  expenses?: ExpenseItem[];
+}
 
-const serviceDistributionData = [
-  { name: 'Injectables (Botox/Fillers)', value: 45, color: '#10B981' },
-  { name: 'Laser Treatments', value: 22, color: '#2563EB' },
-  { name: 'HydraFacials & Skincare', value: 15, color: '#3B82F6' },
-  { name: 'PRP & Hair Therapies', value: 10, color: '#F59E0B' },
-  { name: 'IV Drips & Wellness', value: 8, color: '#8B5CF6' },
-];
+export const RevenueChart: React.FC<RevenueChartProps> = ({ transactions = [], expenses = [] }) => {
+  // Aggregate data dynamically by month
+  // We'll gather the last 6 months or all months in the data
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  
+  // Create an object to hold monthly sums
+  const monthlyDataMap: Record<number, { revenue: number; expenses: number }> = {};
+  
+  // Initialize current year's months
+  const currentYear = new Date().getFullYear();
+  for (let m = 0; m < 12; m++) {
+    monthlyDataMap[m] = { revenue: 0, expenses: 0 };
+  }
 
-const expenseBreakdownData = [
-  { category: 'Staff Salaries', amount: 148000 },
-  { category: 'Clinic Rent', amount: 28000 },
-  { category: 'Products & Serums', amount: 24400 },
-  { category: 'Marketing & Ads', amount: 18300 },
-  { category: 'Machine Service', amount: 9600 },
-  { category: 'Utilities & Water', amount: 4490 },
-];
+  // Populate revenues
+  transactions.forEach((t) => {
+    if (t.status === 'Paid') {
+      const d = new Date(t.date);
+      if (d.getFullYear() === currentYear) {
+        const m = d.getMonth();
+        monthlyDataMap[m].revenue += t.grandTotal;
+      }
+    }
+  });
 
-export const RevenueChart: React.FC = () => {
+  // Populate expenses
+  expenses.forEach((e) => {
+    if (e.status === 'Paid') {
+      const d = new Date(e.date);
+      if (d.getFullYear() === currentYear) {
+        const m = d.getMonth();
+        monthlyDataMap[m].expenses += e.amount;
+      }
+    }
+  });
+
+  // Format into recharts format
+  const chartData = Object.entries(monthlyDataMap).map(([mStr, val]) => {
+    const m = parseInt(mStr);
+    const profit = Math.max(0, val.revenue - val.expenses);
+    return {
+      month: months[m],
+      revenue: val.revenue,
+      expenses: val.expenses,
+      profit: profit,
+      monthIndex: m
+    };
+  });
+
+  // Filter to show only months that have had transactions/expenses OR up to the current month
+  const currentMonthIdx = new Date().getMonth();
+  const activeChartData = chartData.filter((d) => {
+    return d.monthIndex <= currentMonthIdx || d.revenue > 0 || d.expenses > 0;
+  });
+
+  const hasData = activeChartData.some((d) => d.revenue > 0 || d.expenses > 0);
+
+  if (!hasData) {
+    return <EmptyState message="No revenue or expense records found for this year to plot statistics." />;
+  }
+
   return (
     <div className="w-full h-72">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={revenueData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+        <AreaChart data={activeChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
           <defs>
             <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#2563EB" stopOpacity={0.4} />
@@ -86,31 +124,43 @@ export const RevenueChart: React.FC = () => {
   );
 };
 
-export const AppointmentsChart: React.FC = () => {
-  return (
-    <div className="w-full h-72">
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={weeklyAppointmentsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-          <XAxis dataKey="day" stroke="#64748B" fontSize={12} tickLine={false} />
-          <YAxis stroke="#64748B" fontSize={12} tickLine={false} />
-          <Tooltip contentStyle={{ backgroundColor: '#0F172A', borderRadius: '12px', border: 'none', color: '#FFF', fontSize: '12px' }} />
-          <Legend />
-          <Bar dataKey="completed" fill="#2563EB" radius={[6, 6, 0, 0]} name="Completed" />
-          <Bar dataKey="confirmed" fill="#3B82F6" radius={[6, 6, 0, 0]} name="Scheduled" />
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-  );
-};
+// 2. Service Distribution Pie Chart
+interface ServiceDistributionProps {
+  appointments?: Appointment[];
+}
 
-export const ServiceDistributionChart: React.FC = () => {
+export const ServiceDistributionChart: React.FC<ServiceDistributionProps> = ({ appointments = [] }) => {
+  // Count by Service Name
+  const distributionMap: Record<string, number> = {};
+  appointments.forEach((a) => {
+    if (a.status !== 'Cancelled') {
+      distributionMap[a.serviceName] = (distributionMap[a.serviceName] || 0) + 1;
+    }
+  });
+
+  const total = Object.values(distributionMap).reduce((acc, v) => acc + v, 0);
+
+  const colors = ['#10B981', '#2563EB', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899', '#14B8A6'];
+
+  const chartData = Object.entries(distributionMap).map(([name, val], index) => {
+    const percentage = total > 0 ? Math.round((val / total) * 100) : 0;
+    return {
+      name,
+      value: percentage,
+      color: colors[index % colors.length]
+    };
+  }).filter((d) => d.value > 0);
+
+  if (chartData.length === 0) {
+    return <EmptyState message="No scheduled or completed appointments available to display service shares." />;
+  }
+
   return (
     <div className="w-full h-72 flex items-center justify-center">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
-            data={serviceDistributionData}
+            data={chartData}
             cx="50%"
             cy="50%"
             innerRadius={60}
@@ -118,7 +168,7 @@ export const ServiceDistributionChart: React.FC = () => {
             paddingAngle={5}
             dataKey="value"
           >
-            {serviceDistributionData.map((entry, index) => (
+            {chartData.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={entry.color} />
             ))}
           </Pie>
@@ -133,15 +183,40 @@ export const ServiceDistributionChart: React.FC = () => {
   );
 };
 
-export const ExpenseBreakdownChart: React.FC = () => {
+// 3. Expense Category Breakdown Bar Chart
+interface ExpenseBreakdownProps {
+  expenses?: ExpenseItem[];
+}
+
+export const ExpenseBreakdownChart: React.FC<ExpenseBreakdownProps> = ({ expenses = [] }) => {
+  const breakdownMap: Record<string, number> = {};
+  
+  expenses.forEach((e) => {
+    if (e.status === 'Paid') {
+      breakdownMap[e.category] = (breakdownMap[e.category] || 0) + e.amount;
+    }
+  });
+
+  const chartData = Object.entries(breakdownMap).map(([category, amount]) => ({
+    category,
+    amount
+  })).sort((a, b) => b.amount - a.amount);
+
+  if (chartData.length === 0) {
+    return <EmptyState message="No paid expense entries found to display category breakdown." />;
+  }
+
   return (
     <div className="w-full h-72">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={expenseBreakdownData} layout="vertical" margin={{ top: 10, right: 10, left: 30, bottom: 0 }}>
+        <BarChart data={chartData} layout="vertical" margin={{ top: 10, right: 10, left: 30, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
           <XAxis type="number" stroke="#64748B" fontSize={12} tickFormatter={(v) => formatPKRCompact(v)} />
           <YAxis type="category" dataKey="category" stroke="#64748B" fontSize={11} tickLine={false} />
-          <Tooltip formatter={(value: any) => [formatPKRCompact(Number(value)), 'Amount']} contentStyle={{ backgroundColor: '#0F172A', borderRadius: '12px', border: 'none', color: '#FFF', fontSize: '12px' }} />
+          <Tooltip 
+            formatter={(value: any) => [formatPKRCompact(Number(value)), 'Amount']} 
+            contentStyle={{ backgroundColor: '#0F172A', borderRadius: '12px', border: 'none', color: '#FFF', fontSize: '12px' }} 
+          />
           <Bar dataKey="amount" fill="#F59E0B" radius={[0, 8, 8, 0]} />
         </BarChart>
       </ResponsiveContainer>

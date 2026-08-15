@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { formatPKR } from '../../lib/utils/currency';
-import { CLINIC_INFO } from '../../lib/constants/clinic';
 import { StatCard } from '../../components/cards/StatCard';
 import { RevenueChart, ServiceDistributionChart, ExpenseBreakdownChart } from '../../components/charts/ClinicCharts';
 import { Button } from '../../components/ui/Button';
@@ -24,7 +23,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 
 export default function DashboardPage() {
-  const { appointments, inventory, transactions, expenses, role, setPrintData } = useClinic();
+  const { appointments, inventory, transactions, expenses, role, setPrintData, clinicInfo } = useClinic();
 
   const todayStr = new Date().toISOString().split('T')[0];
   const todayAppointments = appointments.filter(a => a.date === todayStr);
@@ -63,7 +62,7 @@ export default function DashboardPage() {
             Clinic Dashboard
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Today's schedule and basic reports for {CLINIC_INFO.name}.
+            Today's schedule and basic reports for {clinicInfo.name}.
           </p>
         </div>
 
@@ -149,7 +148,7 @@ export default function DashboardPage() {
             </div>
             <Badge variant="primary">Updated Live</Badge>
           </div>
-          <RevenueChart />
+          <RevenueChart transactions={transactions} expenses={expenses} />
         </div>
 
         {/* Service Distribution Pie Chart */}
@@ -162,7 +161,7 @@ export default function DashboardPage() {
               <p className="text-xs text-slate-500">Share of revenue by service category</p>
             </div>
           </div>
-          <ServiceDistributionChart />
+          <ServiceDistributionChart appointments={appointments} />
         </div>
       </div>
 
@@ -179,7 +178,7 @@ export default function DashboardPage() {
             </div>
             {role === 'staff' && <Badge variant="warning">Admin View Only</Badge>}
           </div>
-          <ExpenseBreakdownChart />
+          <ExpenseBreakdownChart expenses={expenses} />
         </div>
 
         {/* Today's Schedule Table */}

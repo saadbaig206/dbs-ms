@@ -19,15 +19,17 @@ export default function InventoryPage() {
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [reduceModalItemId, setReduceModalItemId] = useState<string | null>(null);
-  const [reduceAmount, setReduceAmount] = useState<number>(1);
+  const [reduceAmount, setReduceAmount] = useState<string>('1');
+  const [addModalItemId, setAddModalItemId] = useState<string | null>(null);
+  const [addAmount, setAddAmount] = useState<string>('1');
 
   // Form State
   const [itemName, setItemName] = useState('');
   const [category, setCategory] = useState<InventoryCategory>('Injectables & Toxins');
-  const [quantity, setQuantity] = useState<number>(25);
-  const [minStock, setMinStock] = useState<number>(15);
+  const [quantity, setQuantity] = useState<string>('25');
+  const [minStock, setMinStock] = useState<string>('15');
   const [supplier, setSupplier] = useState('Allergan Aesthetics USA');
-  const [price, setPrice] = useState<number>(250);
+  const [price, setPrice] = useState<string>('250');
 
   const filteredInventory = inventory.filter((item) => {
     const matchesSearch =
@@ -42,10 +44,10 @@ export default function InventoryPage() {
     addInventoryItem({
       itemName,
       category,
-      quantity,
-      minStock,
+      quantity: Number(quantity) || 0,
+      minStock: Number(minStock) || 0,
       supplier,
-      price,
+      price: Number(price) || 0,
       lastRestocked: new Date().toISOString().split('T')[0]
     });
 
@@ -55,13 +57,24 @@ export default function InventoryPage() {
 
   const handleReduceStock = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reduceModalItemId || reduceAmount <= 0) return;
-    updateInventoryQuantity(reduceModalItemId, -reduceAmount);
+    const amount = Number(reduceAmount) || 0;
+    if (!reduceModalItemId || amount <= 0) return;
+    updateInventoryQuantity(reduceModalItemId, -amount);
     setReduceModalItemId(null);
-    setReduceAmount(1);
+    setReduceAmount('1');
+  };
+
+  const handleQuickAddStock = (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = Number(addAmount) || 0;
+    if (!addModalItemId || amount <= 0) return;
+    updateInventoryQuantity(addModalItemId, amount);
+    setAddModalItemId(null);
+    setAddAmount('1');
   };
 
   const reduceItem = inventory.find(i => i.id === reduceModalItemId);
+  const addItem = inventory.find(i => i.id === addModalItemId);
 
   return (
     <div className="space-y-6 pb-10">
@@ -177,13 +190,13 @@ export default function InventoryPage() {
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-1 flex-wrap">
                         <button
-                          onClick={() => updateInventoryQuantity(item.id, 10)}
+                          onClick={() => { setAddModalItemId(item.id); setAddAmount('1'); }}
                           className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 hover:bg-emerald-100 transition-colors"
                         >
-                          +10 Add
+                          + Add
                         </button>
                         <button
-                          onClick={() => { setReduceModalItemId(item.id); setReduceAmount(1); }}
+                          onClick={() => { setReduceModalItemId(item.id); setReduceAmount('1'); }}
                           className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 hover:bg-rose-100 transition-colors"
                         >
                           − Reduce
@@ -242,23 +255,23 @@ export default function InventoryPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Input
               label="Initial Quantity"
-              type="number"
+              type="text"
               value={quantity}
-              onChange={(e) => setQuantity(Number(e.target.value))}
+              onChange={(e) => setQuantity(e.target.value.replace(/\D/g, ''))}
               required
             />
             <Input
               label="Min Alert Stock"
-              type="number"
+              type="text"
               value={minStock}
-              onChange={(e) => setMinStock(Number(e.target.value))}
+              onChange={(e) => setMinStock(e.target.value.replace(/\D/g, ''))}
               required
             />
             <Input
               label="Unit Price (Rs)"
-              type="number"
+              type="text"
               value={price}
-              onChange={(e) => setPrice(Number(e.target.value))}
+              onChange={(e) => setPrice(e.target.value.replace(/\D/g, ''))}
               required
             />
           </div>
@@ -285,11 +298,9 @@ export default function InventoryPage() {
         <form onSubmit={handleReduceStock} className="space-y-4">
           <Input
             label="Quantity to Remove"
-            type="number"
-            min={1}
-            max={reduceItem?.quantity ?? 1}
+            type="text"
             value={reduceAmount}
-            onChange={(e) => setReduceAmount(Math.max(1, Number(e.target.value)))}
+            onChange={(e) => setReduceAmount(e.target.value.replace(/\D/g, ''))}
             required
           />
           <p className="text-xs text-slate-500">
@@ -301,6 +312,36 @@ export default function InventoryPage() {
             </Button>
             <Button type="submit" variant="primary" icon={<Minus className="w-4 h-4" />}>
               Confirm Reduction
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Add Stock Modal */}
+      <Modal
+        isOpen={!!addModalItemId}
+        onClose={() => setAddModalItemId(null)}
+        title="Add Stock Quantity"
+        description={addItem ? `Current stock: ${addItem.quantity} units — ${addItem.itemName}` : ''}
+        maxWidth="sm"
+      >
+        <form onSubmit={handleQuickAddStock} className="space-y-4">
+          <Input
+            label="Quantity to Add"
+            type="text"
+            value={addAmount}
+            onChange={(e) => setAddAmount(e.target.value.replace(/\D/g, ''))}
+            required
+          />
+          <p className="text-xs text-slate-500">
+            Use this when new supplier shipments arrive.
+          </p>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <Button type="button" variant="outline" onClick={() => setAddModalItemId(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" icon={<Plus className="w-4 h-4" />}>
+              Confirm Addition
             </Button>
           </div>
         </form>

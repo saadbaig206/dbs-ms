@@ -36,20 +36,20 @@ export default function ClientsPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [cnic, setCnic] = useState('');
   const [gender, setGender] = useState<'Female' | 'Male' | 'Other'>('Female');
-  const [age, setAge] = useState<number>(32);
+  const [age, setAge] = useState<string>('32');
   const [address, setAddress] = useState('');
   const [preferredService, setPreferredService] = useState(services[0]?.name || '');
   const [assignedStaffId, setAssignedStaffId] = useState(staff[0]?.id || '');
   const [clientBranchId, setClientBranchId] = useState('');
   const [notes, setNotes] = useState('');
 
-  const filteredClients = clients.filter((c) => {
+  const filteredClients = (clients || []).filter((c) => {
+    if (!c) return false;
     const matchesBranch = branchFilter === 'All' || c.branchId === branchFilter;
-    const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.phone.includes(search) ||
-      (c.cnic && c.cnic.includes(search));
+    const matchesSearch = 
+      (c.name && c.name.toLowerCase().includes(search.toLowerCase())) ||
+      (c.phone && c.phone.includes(search));
     return matchesBranch && matchesSearch;
   });
 
@@ -60,9 +60,8 @@ export default function ClientsPage() {
     addClient({
       name,
       phone,
-      cnic,
       gender,
-      age,
+      age: Number(age) || 32,
       address,
       assignedStaffId: staffObj?.id,
       assignedStaffName: staffObj?.name,
@@ -74,7 +73,7 @@ export default function ClientsPage() {
     setIsAddModalOpen(false);
     setName('');
     setPhone('');
-    setCnic('');
+    setAge('32');
     setAddress('');
     setNotes('');
     setClientBranchId('');
@@ -102,7 +101,7 @@ export default function ClientsPage() {
       {/* Search & Branch Filter */}
       <div className="luxury-card p-4 flex flex-col sm:flex-row gap-4 items-center justify-between">
         <Input
-          placeholder="Search by client name, phone number, or CNIC/ID..."
+          placeholder="Search by client name or phone number..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           icon={<Search className="w-4 h-4" />}
@@ -128,7 +127,6 @@ export default function ClientsPage() {
               <tr>
                 <th className="py-3.5 px-4 rounded-l-xl">Client ID</th>
                 <th className="py-3.5 px-4">Client Name</th>
-                <th className="py-3.5 px-4">CNIC / ID</th>
                 <th className="py-3.5 px-4">Gender & Age</th>
                 <th className="py-3.5 px-4">Primary Doctor</th>
                 <th className="py-3.5 px-4">Visits</th>
@@ -153,9 +151,6 @@ export default function ClientsPage() {
                         </Badge>
                       </div>
                     )}
-                  </td>
-                  <td className="py-3.5 px-4 font-mono text-slate-600 dark:text-slate-300">
-                    {client.cnic}
                   </td>
                   <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
                     {client.gender}, {client.age} yrs
@@ -218,14 +213,7 @@ export default function ClientsPage() {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Input
-              label="CNIC / Passport ID"
-              placeholder="42201-1234567-8"
-              value={cnic}
-              onChange={(e) => setCnic(e.target.value)}
-              required
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
               label="Gender"
               options={[
@@ -238,9 +226,9 @@ export default function ClientsPage() {
             />
             <Input
               label="Age"
-              type="number"
+              type="text"
               value={age}
-              onChange={(e) => setAge(Number(e.target.value))}
+              onChange={(e) => setAge(e.target.value.replace(/\D/g, ''))}
               required
             />
           </div>

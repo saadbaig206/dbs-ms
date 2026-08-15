@@ -16,7 +16,8 @@ import {
   Clock,
   AlertCircle,
   XCircle,
-  UserCheck
+  UserCheck,
+  MapPin
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { formatPKR } from '../../lib/utils/currency';
@@ -39,9 +40,10 @@ export default function StaffPage() {
   // Form State for Adding Staff
   const [name, setName] = useState('');
   const [staffRole, setStaffRole] = useState<StaffRole>('Aesthetic Physician');
-  const [salary, setSalary] = useState<number>(12000);
+  const [salary, setSalary] = useState<string>('12000');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [staffBranchId, setStaffBranchId] = useState('');
   const [photo, setPhoto] = useState('https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=300');
 
@@ -89,9 +91,10 @@ export default function StaffPage() {
       photo,
       name,
       role: staffRole,
-      salary,
+      salary: Number(salary) || 0,
       phone,
       email,
+      password,
       joiningDate: new Date().toISOString().split('T')[0],
       status: 'Active',
       performanceRating: 5.0,
@@ -104,14 +107,35 @@ export default function StaffPage() {
     setName('');
     setPhone('');
     setEmail('');
+    setPassword('');
     setStaffBranchId('');
   };
 
-  const handleSaveAttendance = (e: React.FormEvent) => {
+  const getCoordinates = (): Promise<{ latitude: number; longitude: number } | undefined> => {
+    return new Promise((resolve) => {
+      if (typeof window === 'undefined' || !navigator.geolocation) {
+        resolve(undefined);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+        () => resolve(undefined),
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
+    });
+  };
+
+  const handleSaveAttendance = async (e: React.FormEvent) => {
     e.preventDefault();
-    markAttendance(selectedStaffId, attStatus, attNotes);
-    setIsMarkModalOpen(false);
-    setAttNotes('');
+    try {
+      const coords = await getCoordinates();
+      await markAttendance(selectedStaffId, attStatus, attNotes, coords?.latitude, coords?.longitude);
+      showToast("Attendance marked successfully!");
+      setIsMarkModalOpen(false);
+      setAttNotes('');
+    } catch (err: any) {
+      showToast("Failed to mark attendance: " + err.message, "error");
+    }
   };
 
   const handleBulkCheckIn = async () => {
@@ -125,8 +149,9 @@ export default function StaffPage() {
     }
 
     try {
+      const coords = await getCoordinates();
       await Promise.all(
-        unmarkedStaff.map(s => markAttendance(s.id, 'Present', 'Bulk Check-In'))
+        unmarkedStaff.map(s => markAttendance(s.id, 'Present', 'Bulk Check-In', coords?.latitude, coords?.longitude))
       );
       showToast(`Successfully checked in ${unmarkedStaff.length} staff members!`);
     } catch (err: any) {
@@ -460,9 +485,9 @@ export default function StaffPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Monthly Salary (Rs)"
-              type="number"
+              type="text"
               value={salary}
-              onChange={(e) => setSalary(Number(e.target.value))}
+              onChange={(e) => setSalary(e.target.value.replace(/\D/g, ''))}
               required
             />
             <Input
@@ -481,7 +506,15 @@ export default function StaffPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
             />
-          </div>
+            <Input
+              label="Portal Password"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
             <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>
@@ -539,7 +572,6 @@ export default function StaffPage() {
           </div>
         </form>
       </Modal>
-    </div>
       {/* Toast Notification */}
       <AnimatePresence>
         {toastMessage && (

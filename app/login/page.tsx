@@ -5,14 +5,13 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Sparkles, Mail, Lock, ArrowRight, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
-import { CLINIC_INFO } from '../../lib/constants/clinic';
 import { Button } from '../../components/ui/Button';
 
 import { authClient } from '../../lib/api/client';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { setRole, refreshData } = useClinic();
+  const { setRole, refreshData, clinicInfo } = useClinic();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -64,7 +63,7 @@ export default function LoginPage() {
             <Sparkles className="w-7 h-7" />
           </div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white uppercase font-sans leading-tight">
-            {CLINIC_INFO.name}
+            {clinicInfo.name}
           </h1>
           <p className="text-xs font-semibold text-blue-400 uppercase tracking-widest mt-1">
             POS & Management System

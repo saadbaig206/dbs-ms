@@ -18,7 +18,6 @@ export const staffSchema = z.object({
 export const clientSchema = z.object({
   name: z.string().min(2, 'Name is required'),
   phone: z.string().min(5, 'Phone number is required'),
-  cnic: z.string().regex(/^\d{5}-\d{7}-\d{1}$/, 'CNIC must match format 12345-1234567-1').optional().or(z.literal('')),
   gender: z.enum(['Female', 'Male', 'Other']),
   age: z.number().int().min(0, 'Age must be a positive number'),
   address: z.string().optional(),

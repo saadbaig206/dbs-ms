@@ -25,16 +25,16 @@ import {
   Menu,
   X,
   ShieldCheck,
-  MapPin
+  MapPin,
+  MessageSquare
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
-import { CLINIC_INFO } from '../../lib/constants/clinic';
 import { Badge } from '../ui/Badge';
 import { authClient } from '../../lib/api/client';
 
 export const Sidebar: React.FC = () => {
   const pathname = usePathname();
-  const { role, toggleRole } = useClinic();
+  const { role, toggleRole, clinicInfo } = useClinic();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -59,8 +59,12 @@ export const Sidebar: React.FC = () => {
     { title: 'Branches', href: '/branches', icon: MapPin, adminOnly: true },
     { title: 'Finance & Reports', href: '/finance-reports', icon: DollarSign, adminOnly: true },
     { title: 'Staff', href: '/staff', icon: Users2, adminOnly: true },
+    { title: 'WhatsApp Bot', href: '/whatsapp', icon: MessageSquare, adminOnly: true },
     { title: 'Settings', href: '/settings', icon: Settings, adminOnly: true },
   ];
+
+  const shortName = clinicInfo.name.split(' ')[0] || 'Clinic';
+  const tagline = clinicInfo.name.split(' ').slice(1).join(' ') || 'Management System';
 
   const sidebarContent = (
     <div className="flex flex-col h-full bg-[#0F172A] text-slate-300 select-none border-r border-slate-800">
@@ -71,10 +75,10 @@ export const Sidebar: React.FC = () => {
           {!isCollapsed && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <h1 className="text-base font-extrabold text-white tracking-wider uppercase font-sans">
-                {CLINIC_INFO.shortName}
+                {shortName}
               </h1>
               <p className="text-[10px] text-blue-400 font-semibold tracking-widest uppercase">
-                {CLINIC_INFO.tagline}
+                {tagline}
               </p>
             </motion.div>
           )}
@@ -89,10 +93,12 @@ export const Sidebar: React.FC = () => {
 
       {/* Navigation List */}
       <div className="flex-1 py-4 px-3 space-y-1 overflow-y-auto custom-scrollbar">
-        {menuItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = pathname === item.href;
-          const isRestricted = role === 'staff' && item.adminOnly;
+        {menuItems
+          .filter((item) => !(role === 'staff' && item.adminOnly))
+          .map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname === item.href;
+            const isRestricted = false; // Admin-only items are filtered out, so no items are restricted now
 
           return (
             <Link
@@ -139,25 +145,8 @@ export const Sidebar: React.FC = () => {
         })}
       </div>
 
-      {/* Footer Role Switch & Logout */}
+      {/* Footer Logout */}
       <div className="p-3 border-t border-slate-800/80 bg-slate-950/40 space-y-2">
-        {!isCollapsed && (
-          <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-blue-400" />
-              <div>
-                <p className="text-xs font-bold text-white uppercase">{role}</p>
-                <p className="text-[10px] text-slate-400">Current Role</p>
-              </div>
-            </div>
-            <button
-              onClick={toggleRole}
-              className="px-2 py-1 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white rounded-lg text-[10px] font-bold transition-all focus:outline-none"
-            >
-              Switch
-            </button>
-          </div>
-        )}
 
         <Link
           href="/login"

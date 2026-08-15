@@ -31,7 +31,7 @@ export interface Client {
   id: string;
   name: string;
   phone: string;
-  cnic: string;
+  cnic?: string;
   gender: 'Female' | 'Male' | 'Other';
   age: number;
   address: string;

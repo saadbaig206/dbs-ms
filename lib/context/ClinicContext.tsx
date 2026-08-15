@@ -12,11 +12,31 @@ import {
   FinancialTransaction,
   AttendanceRecord,
   NotificationItem,
-  POSCartItem
+  POSCartItem,
+  Branch
 } from '../types/clinic';
 import { apiFetch, authClient } from '../api/client';
+import { CLINIC_INFO } from '../constants/clinic';
 
 interface ClinicContextType {
+  // Clinic General Info
+  clinicInfo: {
+    name: string;
+    phone: string;
+    email: string;
+    address: string;
+    currency: string;
+    language: string;
+  };
+  updateClinicInfo: (info: {
+    name: string;
+    phone: string;
+    email: string;
+    address: string;
+    currency: string;
+    language: string;
+  }) => void;
+
   // Role & User
   role: UserRole;
   setRole: (role: UserRole) => void;
@@ -43,7 +63,7 @@ interface ClinicContextType {
   deleteBranch: (id: string) => Promise<void>;
 
   staff: Staff[];
-  addStaff: (newStaff: Omit<Staff, 'id'>) => Promise<void>;
+  addStaff: (newStaff: Omit<Staff, 'id'> & { password?: string }) => Promise<void>;
   updateStaff: (id: string, updated: Partial<Staff>) => Promise<void>;
   deleteStaff: (id: string) => Promise<void>;
 
@@ -66,13 +86,20 @@ interface ClinicContextType {
 
   expenses: ExpenseItem[];
   addExpense: (expense: Omit<ExpenseItem, 'id'>) => Promise<void>;
+  updateExpense: (id: string, updated: Partial<ExpenseItem>) => Promise<void>;
   removeExpensesByStaffId: (staffId: string) => Promise<void>;
 
   transactions: FinancialTransaction[];
   addTransaction: (txn: Omit<FinancialTransaction, 'id'>) => Promise<void>;
 
   attendance: AttendanceRecord[];
-  markAttendance: (staffId: string, status: AttendanceRecord['status'], notes?: string) => Promise<void>;
+  markAttendance: (
+    staffId: string, 
+    status: AttendanceRecord['status'], 
+    notes?: string,
+    latitude?: number,
+    longitude?: number
+  ) => Promise<void>;
 
   notifications: NotificationItem[];
   markNotificationRead: (id: string) => Promise<void>;
@@ -84,7 +111,13 @@ interface ClinicContextType {
   removeFromPosCart: (serviceId: string) => void;
   updatePosQuantity: (serviceId: string, delta: number) => void;
   clearPosCart: () => void;
-  completePosCheckout: (clientName: string, paymentMethod: FinancialTransaction['paymentMethod'], discountPercent: number, taxPercent: number) => Promise<FinancialTransaction>;
+  completePosCheckout: (
+    clientName: string, 
+    paymentMethod: FinancialTransaction['paymentMethod'], 
+    discountPercent: number, 
+    taxPercent: number,
+    cardDetails?: { cardLastFour?: string; cardType?: string; bankTxnId?: string }
+  ) => Promise<FinancialTransaction>;
 
   // Loading & error states
   isLoading: boolean;
@@ -96,6 +129,32 @@ const ClinicContext = createContext<ClinicContextType | undefined>(undefined);
 
 export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [role, setRoleState] = useState<UserRole>('admin');
+  const [clinicInfo, setClinicInfoState] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('clinic_info');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+    return {
+      name: CLINIC_INFO.name,
+      phone: CLINIC_INFO.phone,
+      email: CLINIC_INFO.email,
+      address: CLINIC_INFO.address,
+      currency: 'PKR (Rs)',
+      language: 'English (US)'
+    };
+  });
+
+  const updateClinicInfo = (info: typeof clinicInfo) => {
+    setClinicInfoState(info);
+    localStorage.setItem('clinic_info', JSON.stringify(info));
+  };
+
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [searchQuery, setSearchQuery] = useState('');
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -158,15 +217,17 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // Main fetch function to load all backend data
-  const refreshData = async () => {
-    setIsLoading(true);
+  const refreshData = async (showSpinner = false) => {
+    if (showSpinner) setIsLoading(true);
     setError(null);
     try {
       // 1. Fetch current user profile to establish correct role on refresh
+      let activeRole: UserRole = 'staff';
       try {
         const user = await authClient.me();
         if (user && user.role) {
-          setRoleState(user.role as UserRole);
+          activeRole = user.role as UserRole;
+          setRoleState(activeRole);
         }
       } catch (e) {
         // Not logged in or session expired
@@ -175,6 +236,15 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       // 2. Fetch resource collections
+      const fetchSafe = async <T,>(url: string, fallback: T): Promise<T> => {
+        try {
+          return await apiFetch<T>(url);
+        } catch (e) {
+          console.error(`Failed to fetch ${url}:`, e);
+          return fallback;
+        }
+      };
+
       const [
         branchesData,
         staffData,
@@ -185,14 +255,14 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         attendanceData,
         notificationsData
       ] = await Promise.all([
-        apiFetch<Branch[]>('/branches'),
-        apiFetch<Staff[]>('/staff'),
-        apiFetch<ServiceItem[]>('/services'),
-        apiFetch<Client[]>('/clients'),
-        apiFetch<Appointment[]>('/appointments'),
-        apiFetch<InventoryItem[]>('/inventory'),
-        apiFetch<AttendanceRecord[]>('/attendance'),
-        apiFetch<NotificationItem[]>('/notifications')
+        fetchSafe<Branch[]>('/branches', []),
+        fetchSafe<Staff[]>('/staff', []),
+        fetchSafe<ServiceItem[]>('/services', []),
+        fetchSafe<Client[]>('/clients', []),
+        fetchSafe<Appointment[]>('/appointments', []),
+        fetchSafe<InventoryItem[]>('/inventory', []),
+        fetchSafe<AttendanceRecord[]>('/attendance', []),
+        fetchSafe<NotificationItem[]>('/notifications', [])
       ]);
 
       setBranches(branchesData);
@@ -205,10 +275,10 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setNotifications(notificationsData);
 
       // Financial data restricted to admin
-      if (document.cookie.includes('user_role=admin')) {
+      if (activeRole === 'admin') {
         const [expensesData, transactionsData] = await Promise.all([
-          apiFetch<ExpenseItem[]>('/expenses'),
-          apiFetch<FinancialTransaction[]>('/transactions')
+          fetchSafe<ExpenseItem[]>('/expenses', []),
+          fetchSafe<FinancialTransaction[]>('/transactions', [])
         ]);
         setExpenses(expensesData);
         setTransactions(transactionsData);
@@ -226,7 +296,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Fetch data on load
   useEffect(() => {
-    refreshData();
+    refreshData(true);
   }, []);
 
   // Branches CRUD
@@ -254,7 +324,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // Staff CRUD
-  const addStaff = async (newStaff: Omit<Staff, 'id'>) => {
+  const addStaff = async (newStaff: Omit<Staff, 'id'> & { password?: string }) => {
     await apiFetch('/staff', {
       method: 'POST',
       body: JSON.stringify(newStaff),
@@ -360,6 +430,14 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     await refreshData();
   };
 
+  const updateExpense = async (id: string, updated: Partial<ExpenseItem>) => {
+    await apiFetch(`/expenses/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updated),
+    });
+    await refreshData();
+  };
+
   const removeExpensesByStaffId = async (staffId: string) => {
     // Handled automatically by backend when staff is updated/deleted, but we can verify
     await refreshData();
@@ -371,11 +449,16 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     await refreshData();
   };
 
-  // Attendance
-  const markAttendance = async (staffId: string, status: AttendanceRecord['status'], notes?: string) => {
+  const markAttendance = async (
+    staffId: string, 
+    status: AttendanceRecord['status'], 
+    notes?: string,
+    latitude?: number,
+    longitude?: number
+  ) => {
     await apiFetch('/attendance', {
       method: 'POST',
-      body: JSON.stringify({ staffId, status, notes }),
+      body: JSON.stringify({ staffId, status, notes, latitude, longitude }),
     });
     await refreshData();
   };
@@ -426,7 +509,8 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     clientName: string, 
     paymentMethod: FinancialTransaction['paymentMethod'], 
     discountPercent: number, 
-    taxPercent: number
+    taxPercent: number,
+    cardDetails?: { cardLastFour?: string; cardType?: string; bankTxnId?: string }
   ): Promise<FinancialTransaction> => {
     const txn = await apiFetch<FinancialTransaction>('/pos/checkout', {
       method: 'POST',
@@ -435,18 +519,23 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         paymentMethod,
         discountPercent,
         taxPercent,
-        cartItems: posCart
+        cartItems: posCart,
+        cardLastFour: cardDetails?.cardLastFour,
+        cardType: cardDetails?.cardType,
+        bankTxnId: cardDetails?.bankTxnId
       })
     });
 
     clearPosCart();
-    await refreshData();
+    refreshData().catch(err => console.error(err));
     return txn;
   };
 
   return (
     <ClinicContext.Provider
       value={{
+        clinicInfo,
+        updateClinicInfo,
         role,
         setRole,
         toggleRole,
@@ -488,6 +577,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         expenses,
         addExpense,
+        updateExpense,
         removeExpensesByStaffId,
 
         transactions,

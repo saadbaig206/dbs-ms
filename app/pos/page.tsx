@@ -37,7 +37,9 @@ export default function POSPage() {
     clearPosCart,
     completePosCheckout,
     setPrintData,
-    addClient
+    addClient,
+    transactions,
+    role
   } = useClinic();
 
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -46,9 +48,17 @@ export default function POSPage() {
   const [clientSearch, setClientSearch] = useState('');
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Card');
-  const [discountPercent, setDiscountPercent] = useState<number>(0);
-  const [taxPercent, setTaxPercent] = useState<number>(10);
+  const [discountPercent, setDiscountPercent] = useState<string>('0');
+  const [taxPercent, setTaxPercent] = useState<string>('10');
   const [isPaidSuccess, setIsPaidSuccess] = useState(false);
+  
+  // Card details states
+  const [cardLastFour, setCardLastFour] = useState('');
+  const [cardType, setCardType] = useState('Visa');
+  const [bankTxnId, setBankTxnId] = useState('');
+  
+  // Local recent transactions list to guarantee reprint works for staff
+  const [localRecentTransactions, setLocalRecentTransactions] = useState<any[]>([]);
 
   // Custom Toast State
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -76,7 +86,7 @@ export default function POSPage() {
   const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
   const [quickClientName, setQuickClientName] = useState('');
   const [quickClientPhone, setQuickClientPhone] = useState('');
-  const [quickClientAge, setQuickClientAge] = useState<number>(30);
+  const [quickClientAge, setQuickClientAge] = useState<string>('30');
   const [quickClientGender, setQuickClientGender] = useState<string>('Female');
 
   const handleQuickAddClient = async (e: React.FormEvent) => {
@@ -87,8 +97,8 @@ export default function POSPage() {
         name: quickClientName,
         phone: quickClientPhone,
         cnic: 'N/A',
-        gender: quickClientGender,
-        age: quickClientAge,
+        gender: quickClientGender as 'Female' | 'Male' | 'Other',
+        age: Number(quickClientAge) || 30,
         address: 'N/A',
         notes: 'Quick POS Register'
       });
@@ -96,7 +106,7 @@ export default function POSPage() {
       setIsAddClientModalOpen(false);
       setQuickClientName('');
       setQuickClientPhone('');
-      setQuickClientAge(30);
+      setQuickClientAge('30');
       setQuickClientGender('Female');
       showToast("Client registered successfully!");
     } catch (err: any) {
@@ -113,16 +123,28 @@ export default function POSPage() {
   });
 
   const subtotal = posCart.reduce((acc, item) => acc + item.price * item.quantity, 0);
-  const discountAmount = (subtotal * discountPercent) / 100;
+  const discountAmount = (subtotal * (Number(discountPercent) || 0)) / 100;
   const taxableAmount = subtotal - discountAmount;
-  const taxAmount = (taxableAmount * taxPercent) / 100;
+  const taxAmount = (taxableAmount * (Number(taxPercent) || 0)) / 100;
   const grandTotal = Math.round((taxableAmount + taxAmount) * 100) / 100;
 
   const handleCheckout = async () => {
     if (posCart.length === 0) return;
     try {
-      const txn = await completePosCheckout(clientName, paymentMethod, discountPercent, taxPercent);
+      const cardDetails = paymentMethod === 'Card' ? {
+        cardLastFour,
+        cardType,
+        bankTxnId
+      } : undefined;
+      const txn = await completePosCheckout(clientName, paymentMethod, Number(discountPercent) || 0, Number(taxPercent) || 0, cardDetails);
+      setLocalRecentTransactions(prev => [txn, ...prev].slice(0, 5));
       setIsPaidSuccess(true);
+      
+      // Clear inputs
+      setCardLastFour('');
+      setCardType('Visa');
+      setBankTxnId('');
+
       setTimeout(() => {
         setIsPaidSuccess(false);
         setPrintData({ title: `Invoice ${txn.invoiceId}`, type: 'invoice', data: txn });
@@ -363,11 +385,9 @@ export default function POSPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-slate-600 dark:text-slate-400">Discount (%)</span>
                   <input
-                    type="number"
-                    min="0"
-                    max="100"
+                    type="text"
                     value={discountPercent}
-                    onChange={(e) => setDiscountPercent(Number(e.target.value))}
+                    onChange={(e) => setDiscountPercent(e.target.value.replace(/\D/g, ''))}
                     className="w-16 text-right px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-mono text-xs"
                   />
                 </div>
@@ -376,9 +396,9 @@ export default function POSPage() {
                     <button
                       key={pct}
                       type="button"
-                      onClick={() => setDiscountPercent(pct)}
+                      onClick={() => setDiscountPercent(String(pct))}
                       className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${
-                        discountPercent === pct
+                        Number(discountPercent) === pct
                           ? 'bg-blue-600 text-white border-blue-600'
                           : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100'
                       }`}
@@ -392,11 +412,9 @@ export default function POSPage() {
               <div className="flex items-center justify-between">
                 <span className="text-slate-600 dark:text-slate-400">Tax (%)</span>
                 <input
-                  type="number"
-                  min="0"
-                  max="30"
+                  type="text"
                   value={taxPercent}
-                  onChange={(e) => setTaxPercent(Number(e.target.value))}
+                  onChange={(e) => setTaxPercent(e.target.value.replace(/\D/g, ''))}
                   className="w-16 text-right px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-mono text-xs"
                 />
               </div>
@@ -428,6 +446,53 @@ export default function POSPage() {
                 ))}
               </div>
             </div>
+
+            {/* Card details sub-form */}
+            {paymentMethod === 'Card' && (
+              <motion.div 
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3"
+              >
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Card Last 4 Digits</label>
+                    <input
+                      type="text"
+                      maxLength={4}
+                      placeholder="e.g. 1234"
+                      value={cardLastFour}
+                      onChange={(e) => setCardLastFour(e.target.value.replace(/\D/g, ''))}
+                      className="w-full rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs py-1.5 px-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Card Type</label>
+                    <select
+                      value={cardType}
+                      onChange={(e) => setCardType(e.target.value)}
+                      className="w-full rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs py-1.5 px-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="Visa">Visa</option>
+                      <option value="Mastercard">Mastercard</option>
+                      <option value="American Express">American Express</option>
+                      <option value="UnionPay">UnionPay</option>
+                      <option value="PayPak">PayPak</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Bank Transaction ID</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. TXN-129841"
+                    value={bankTxnId}
+                    onChange={(e) => setBankTxnId(e.target.value)}
+                    className="w-full rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs py-1.5 px-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              </motion.div>
+            )}
 
             {/* Action Buttons */}
             <div className="space-y-2 pt-2">
@@ -472,9 +537,9 @@ export default function POSPage() {
           <div className="grid grid-cols-2 gap-4">
             <Input
               label="Age"
-              type="number"
+              type="text"
               value={quickClientAge}
-              onChange={(e) => setQuickClientAge(Number(e.target.value))}
+              onChange={(e) => setQuickClientAge(e.target.value.replace(/\D/g, ''))}
               required
             />
             <Select
@@ -498,6 +563,65 @@ export default function POSPage() {
           </div>
         </form>
       </Modal>
+
+      {/* Recent Invoices / Reprint History */}
+      <div className="luxury-card p-6 mt-6">
+        <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 mb-4 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2">
+          <Printer className="w-4 h-4 text-blue-600" />
+          Recent Sales & Invoice Reprinting
+        </h3>
+        
+        {(() => {
+          const displayTxns = role === 'admin'
+            ? [...localRecentTransactions, ...(transactions || [])].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).slice(0, 5)
+            : localRecentTransactions;
+
+          if (displayTxns.length === 0) {
+            return <p className="text-xs text-slate-400 text-center py-4">No recent transactions recorded today.</p>;
+          }
+
+          return (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[10px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
+                  <tr>
+                    <th className="py-2.5 px-4 rounded-l-xl">Invoice ID</th>
+                    <th className="py-2.5 px-4">Client</th>
+                    <th className="py-2.5 px-4">Payment Method</th>
+                    <th className="py-2.5 px-4">Total Amount</th>
+                    <th className="py-2.5 px-4">Date</th>
+                    <th className="py-2.5 px-4 text-right rounded-r-xl">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-semibold text-slate-700 dark:text-slate-300">
+                  {displayTxns.map((txn) => (
+                    <tr key={txn.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                      <td className="py-3 px-4 font-mono text-slate-900 dark:text-slate-100">{txn.invoiceId}</td>
+                      <td className="py-3 px-4">{txn.clientName}</td>
+                      <td className="py-3 px-4">
+                        <Badge variant="neutral">{txn.paymentMethod}</Badge>
+                      </td>
+                      <td className="py-3 px-4 font-mono text-blue-600 dark:text-blue-400">{formatPKR(txn.grandTotal)}</td>
+                      <td className="py-3 px-4 text-slate-400">{txn.date}</td>
+                      <td className="py-3 px-4 text-right">
+                        <Button
+                          onClick={() => setPrintData({ title: `Invoice ${txn.invoiceId}`, type: 'invoice', data: txn })}
+                          variant="outline"
+                          size="sm"
+                          icon={<Printer className="w-3.5 h-3.5" />}
+                        >
+                          Reprint
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
+      </div>
+
       {/* Toast Notification */}
       <AnimatePresence>
         {toastMessage && (
