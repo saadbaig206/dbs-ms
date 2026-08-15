@@ -61,3 +61,20 @@ async def login(
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+@router.get("/debug-db")
+async def debug_db(db: AsyncSession = Depends(get_db)):
+    try:
+        result = await db.execute(select(User))
+        users = result.scalars().all()
+        return {
+            "status": "connected",
+            "users_count": len(users),
+            "users": [{"email": u.email, "role": u.role} for u in users]
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error_detail": str(e)
+        }
+
