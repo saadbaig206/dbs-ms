@@ -18,46 +18,49 @@ from app.routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 1. Create tables on startup dynamically
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        # Ensure branch_id columns exist in staff and clients tables
-        await conn.execute(text(
-            "ALTER TABLE staff ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
-        ))
-        await conn.execute(text(
-            "ALTER TABLE clients ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
-        ))
-        
-    # 2. Seed default users and settings if none exist
-    async_session = sessionmaker(
-        engine, class_=AsyncSession, expire_on_commit=False
-    )
-    async with async_session() as session:
-        result = await session.execute(select(User))
-        if not result.scalars().first():
-            admin_user = User(
-                email="admin@gmail.com",
-                hashed_password=get_password_hash("admin"),
-                role="admin"
-            )
-            staff_user = User(
-                email="staff@gmail.com",
-                hashed_password=get_password_hash("staff"),
-                role="staff"
-            )
-            session.add_all([admin_user, staff_user])
-            await session.commit()
+    try:
+        # 1. Create tables on startup dynamically
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+            # Ensure branch_id columns exist in staff and clients tables
+            await conn.execute(text(
+                "ALTER TABLE staff ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
+            ))
+            await conn.execute(text(
+                "ALTER TABLE clients ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
+            ))
+            
+        # 2. Seed default users and settings if none exist
+        async_session = sessionmaker(
+            engine, class_=AsyncSession, expire_on_commit=False
+        )
+        async with async_session() as session:
+            result = await session.execute(select(User))
+            if not result.scalars().first():
+                admin_user = User(
+                    email="admin@gmail.com",
+                    hashed_password=get_password_hash("admin"),
+                    role="admin"
+                )
+                staff_user = User(
+                    email="staff@gmail.com",
+                    hashed_password=get_password_hash("staff"),
+                    role="staff"
+                )
+                session.add_all([admin_user, staff_user])
+                await session.commit()
 
-        settings_result = await session.execute(select(WhatsAppSettings))
-        if not settings_result.scalars().first():
-            default_settings = WhatsAppSettings(
-                id=1,
-                system_prompt="You are a helpful customer service assistant for DBS Aesthetics Clinic. Be professional, polite, and direct.",
-                knowledge_base="Aura Luxury / DBS Aesthetics Clinic is a premium luxury clinic. We offer advanced skincare, laser treatments, hair transplants, dental aesthetics, and cosmetic surgery."
-            )
-            session.add(default_settings)
-            await session.commit()
+            settings_result = await session.execute(select(WhatsAppSettings))
+            if not settings_result.scalars().first():
+                default_settings = WhatsAppSettings(
+                    id=1,
+                    system_prompt="You are a helpful customer service assistant for DBS Aesthetics Clinic. Be professional, polite, and direct.",
+                    knowledge_base="Aura Luxury / DBS Aesthetics Clinic is a premium luxury clinic. We offer advanced skincare, laser treatments, hair transplants, dental aesthetics, and cosmetic surgery."
+                )
+                session.add(default_settings)
+                await session.commit()
+    except Exception as e:
+        print(f"Lifespan initialization failed: {e}")
     yield
 
 

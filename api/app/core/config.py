@@ -25,7 +25,7 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in self.BACKEND_CORS_ORIGINS.split(",") if origin.strip()]
         return self.BACKEND_CORS_ORIGINS
 
-    DATABASE_URL: str
+    DATABASE_URL: str = ""
 
     GROQ_API_KEY: str = ""
     WHATSAPP_ACCESS_TOKEN: str = ""
