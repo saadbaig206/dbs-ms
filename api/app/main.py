@@ -69,6 +69,40 @@ async def lifespan(app: FastAPI):
                     session.add_all([admin_user, staff_user])
                     await session.commit()
 
+                from app.models.branch import Branch
+                from app.models.staff import Staff
+
+                branch_result = await session.execute(select(Branch))
+                if not branch_result.scalars().first():
+                    default_branch = Branch(
+                        id="BR-001",
+                        name="Main Branch",
+                        location="DBS Lahore, Pakistan",
+                        phone="+924211112233",
+                        latitude=31.5204,
+                        longitude=74.3587
+                    )
+                    session.add(default_branch)
+                    await session.commit()
+
+                staff_member_result = await session.execute(select(Staff).where(Staff.email == "staff@gmail.com"))
+                if not staff_member_result.scalars().first():
+                    default_staff = Staff(
+                        id="ST-001",
+                        photo="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=300",
+                        name="Default Staff",
+                        role="Hydrafacial Specialist",
+                        salary=45000.0,
+                        phone="+923001234567",
+                        email="staff@gmail.com",
+                        joining_date="2026-01-01",
+                        status="Active",
+                        assigned_services=[],
+                        branch_id="BR-001"
+                    )
+                    session.add(default_staff)
+                    await session.commit()
+
                 settings_result = await session.execute(select(WhatsAppSettings))
                 if not settings_result.scalars().first():
                     default_settings = WhatsAppSettings(
