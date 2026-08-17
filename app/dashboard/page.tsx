@@ -39,10 +39,24 @@ export default function DashboardPage() {
     attendance
   } = useClinic();
 
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Filter collections if a specific branch is selected
   const appointments = selectedBranchId 
     ? allAppointments.filter(a => a.branchId === selectedBranchId)
     : allAppointments;
+
+  if (!mounted) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-slate-500 animate-pulse font-bold">Loading dashboard...</div>
+      </div>
+    );
+  }
 
   const inventory = selectedBranchId 
     ? allInventory.filter(i => i.branchId === selectedBranchId)
