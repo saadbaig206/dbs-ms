@@ -60,7 +60,7 @@ export default function DashboardPage() {
   const todayAppointments = appointments.filter(a => a.date === todayStr);
   const lowStockCount = inventory.filter(i => i.status === 'Low Stock' || i.status === 'Out of Stock').length;
 
-  const currentStaff = staff.find(s => s.email === userEmail);
+  const currentStaff = staff.find(s => s.email?.toLowerCase() === userEmail?.toLowerCase());
   const todayRecord = attendance.find(a => a.staffId === currentStaff?.id && a.date === todayStr);
   const hasCheckedInToday = !!todayRecord;
   const hasCheckedOutToday = !!todayRecord?.checkOutTime;
