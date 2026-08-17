@@ -17,7 +17,6 @@ import {
 import { useClinic } from '../../lib/context/ClinicContext';
 import { formatPKR } from '../../lib/utils/currency';
 import { StatCard } from '../../components/cards/StatCard';
-import { RevenueChart, ServiceDistributionChart, ExpenseBreakdownChart } from '../../components/charts/ClinicCharts';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
@@ -139,24 +138,28 @@ export default function DashboardPage() {
 
       {/* Streamlined 4 KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          title="Today's Revenue"
-          value={formatPKR(todayRevenue)}
-          trend={`${todayAppointments.length} appointments`}
-          trendDirection="neutral"
-          colorVariant="blue"
-          icon={<DollarSign className="w-5 h-5" />}
-          subtitle="from POS & bookings"
-        />
-        <StatCard
-          title="Monthly Revenue"
-          value={formatPKR(monthlyRevenue)}
-          trend={new Date().toLocaleString('en-US', { month: 'long' })}
-          trendDirection="up"
-          colorVariant="emerald"
-          icon={<TrendingUp className="w-5 h-5" />}
-          subtitle="current month"
-        />
+        <Link href="/finance-reports" className="cursor-pointer block transition hover:-translate-y-0.5">
+          <StatCard
+            title="Today's Revenue"
+            value={formatPKR(todayRevenue)}
+            trend={`${todayAppointments.length} appointments`}
+            trendDirection="neutral"
+            colorVariant="blue"
+            icon={<DollarSign className="w-5 h-5" />}
+            subtitle="from POS & bookings"
+          />
+        </Link>
+        <Link href="/finance-reports" className="cursor-pointer block transition hover:-translate-y-0.5">
+          <StatCard
+            title="Monthly Revenue"
+            value={formatPKR(monthlyRevenue)}
+            trend={new Date().toLocaleString('en-US', { month: 'long' })}
+            trendDirection="up"
+            colorVariant="emerald"
+            icon={<TrendingUp className="w-5 h-5" />}
+            subtitle="current month"
+          />
+        </Link>
         <StatCard
           title="Total Profit"
           value={formatPKR(netProfit)}
@@ -177,54 +180,8 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Revenue & Profit Area Chart */}
-        <div className="luxury-card p-6 lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-                Revenue & Net Profit Analytics
-              </h3>
-              <p className="text-xs text-slate-500">Monthly financial performance breakdown (2026)</p>
-            </div>
-            <Badge variant="primary">Updated Live</Badge>
-          </div>
-          <RevenueChart transactions={transactions} expenses={expenses} />
-        </div>
-
-        {/* Service Distribution Pie Chart */}
-        <div className="luxury-card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-                Revenue Contribution
-              </h3>
-              <p className="text-xs text-slate-500">Share of revenue by service category</p>
-            </div>
-          </div>
-          <ServiceDistributionChart appointments={appointments} />
-        </div>
-      </div>
-
-      {/* Bottom Section: Expenses Breakdown & Live Schedule */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Expense Category Breakdown Chart */}
-        <div className="luxury-card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-                Expense Category Breakdown
-              </h3>
-              <p className="text-xs text-slate-500">Operational costs by category</p>
-            </div>
-            {role === 'staff' && <Badge variant="warning">Admin View Only</Badge>}
-          </div>
-          <ExpenseBreakdownChart expenses={expenses} />
-        </div>
-
-        {/* Today's Schedule Table */}
-        <div className="luxury-card p-6 lg:col-span-2">
+      {/* Today's Schedule Table */}
+      <div className="luxury-card p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">
@@ -297,6 +254,5 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-    </div>
   );
 }

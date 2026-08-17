@@ -23,6 +23,28 @@ async def lifespan(app: FastAPI):
             # 1. Create tables on startup dynamically
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
+                # Ensure branch_id columns exist in tables if they already exist without them
+                await conn.execute(text(
+                    "ALTER TABLE staff ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
+                ))
+                await conn.execute(text(
+                    "ALTER TABLE clients ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
+                ))
+                await conn.execute(text(
+                    "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
+                ))
+                await conn.execute(text(
+                    "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
+                ))
+                await conn.execute(text(
+                    "ALTER TABLE inventory ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
+                ))
+                await conn.execute(text(
+                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
+                ))
+                await conn.execute(text(
+                    "ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS branch_id VARCHAR UNIQUE REFERENCES branches(id) ON DELETE SET NULL;"
+                ))
                 
             # 2. Seed default users and settings if none exist
             async_session = sessionmaker(

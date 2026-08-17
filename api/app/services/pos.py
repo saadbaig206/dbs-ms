@@ -38,28 +38,46 @@ async def checkout(
     invoice_id = f"INV-{datetime.now().year}-{str(txn_count + 1).zfill(3)}"
     txn_id = f"TXN-{900 + txn_count + 1}"
     
-    # 1. Update client totals and history if they exist
-    client_result = await db.execute(select(Client).where(Client.name == client_name))
+    # 1. Update client totals and history (creating client on the fly if needed)
+    client_result = await db.execute(select(Client).where(Client.name.ilike(client_name)))
     client = client_result.scalars().first()
     
     service_names = ", ".join(item["name"] for item in cart_items)
     
-    if client:
-        client.visits_count += 1
-        client.total_spent += grand_total
-        
-        # Append history item
-        history_item = {
-            "id": f"HIS-{txn_id}",
-            "date": today_str,
-            "serviceName": service_names,
-            "staffName": client.assigned_staff_name or "Front Desk",
-            "amount": grand_total,
-            "status": "Paid"
-        }
-        
-        client.history.append(history_item)
+    if not client:
+        count_result = await db.execute(select(Client))
+        count = len(count_result.scalars().all())
+        client_id = f"CLT-{800 + count + 1}"
+        client = Client(
+            id=client_id,
+            name=client_name,
+            phone="0000000000",
+            gender="Other",
+            age=30,
+            address="N/A",
+            total_spent=0.0,
+            visits_count=0,
+            history=[],
+            joined_date=today_str,
+            branch_id=branch_id
+        )
         db.add(client)
+
+    client.visits_count += 1
+    client.total_spent += grand_total
+    
+    # Append history item
+    history_item = {
+        "id": f"HIS-{txn_id}",
+        "date": today_str,
+        "serviceName": service_names,
+        "staffName": client.assigned_staff_name or "Front Desk",
+        "amount": grand_total,
+        "status": "Paid"
+    }
+    
+    client.history.append(history_item)
+    db.add(client)
         
     # 2. Decrement inventory where applicable
     # We check if any inventory item matches the name of services in the cart
@@ -117,17 +135,6 @@ async def checkout(
         branch_id=branch_id
     )
     db.add(transaction)
-    
-    # 4. Create Notification
-    notification = NotificationItem(
-        id=f"NOT-{int(datetime.now().timestamp() * 1000)}",
-        title=f"Payment Received (Rs. {grand_total})",
-        message=f"Invoice {invoice_id} processed via {payment_method} for {client_name}.",
-        time="Just now",
-        type="payment",
-        read=False
-    )
-    db.add(notification)
     
     await db.commit()
     await db.refresh(transaction)
