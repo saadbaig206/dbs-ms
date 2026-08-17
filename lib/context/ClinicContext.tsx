@@ -128,6 +128,8 @@ interface ClinicContextType {
   selectedBranchId: string | null;
   setSelectedBranchId: (id: string | null) => void;
   userBranchId: string | null;
+  userId: string | null;
+  userEmail: string | null;
 }
 
 const ClinicContext = createContext<ClinicContextType | undefined>(undefined);
@@ -136,6 +138,8 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [role, setRoleState] = useState<UserRole>('admin');
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [userBranchId, setUserBranchId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [clinicInfo, setClinicInfoState] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('clinic_info');
@@ -234,6 +238,8 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (user && user.role) {
           activeRole = user.role as UserRole;
           setRoleState(activeRole);
+          setUserId(user.id || null);
+          setUserEmail(user.email || null);
           const bId = user.branch_id || user.branchId || null;
           setUserBranchId(bId);
           if (activeRole === 'staff' && bId) {
@@ -624,7 +630,9 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         selectedBranchId,
         setSelectedBranchId,
-        userBranchId
+        userBranchId,
+        userId,
+        userEmail
       }}
     >
       {children}

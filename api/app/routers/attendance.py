@@ -82,36 +82,42 @@ async def mark_attendance(
     existing_record = existing_result.scalars().first()
     
     check_in_time = None
-    check_out_time = None
-    if attendance_in.status in ["Present", "Late"]:
-        check_in_time = datetime.now().strftime("%I:%M %p")
-        check_out_time = "05:30 PM" if attendance_in.status == "Present" else None
-
-    if existing_record:
-        existing_record.status = attendance_in.status
-        existing_record.notes = attendance_in.notes
-        if check_in_time:
-            existing_record.check_in_time = check_in_time
-            existing_record.check_out_time = check_out_time
+    if attendance_in.status == "Checked Out":
+        if not existing_record:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot check-out. You have not checked-in yet today."
+            )
+        existing_record.check_out_time = datetime.now().strftime("%I:%M %p")
         db_record = existing_record
     else:
-        # Get count for ID generation
-        count_result = await db.execute(select(AttendanceRecord))
-        count = len(count_result.scalars().all())
-        record_id = f"ATT-{count + 1}"
-        
-        db_record = AttendanceRecord(
-            id=record_id,
-            staff_id=attendance_in.staff_id,
-            staff_name=staff_member.name,
-            role=staff_member.role,
-            date=today_str,
-            status=attendance_in.status,
-            check_in_time=check_in_time,
-            check_out_time=check_out_time,
-            notes=attendance_in.notes
-        )
-        db.add(db_record)
+        if attendance_in.status in ["Present", "Late"]:
+            check_in_time = datetime.now().strftime("%I:%M %p")
+            
+        if existing_record:
+            existing_record.status = attendance_in.status
+            existing_record.notes = attendance_in.notes
+            if check_in_time:
+                existing_record.check_in_time = check_in_time
+            db_record = existing_record
+        else:
+            # Get count for ID generation
+            count_result = await db.execute(select(AttendanceRecord))
+            count = len(count_result.scalars().all())
+            record_id = f"ATT-{count + 1}"
+            
+            db_record = AttendanceRecord(
+                id=record_id,
+                staff_id=attendance_in.staff_id,
+                staff_name=staff_member.name,
+                role=staff_member.role,
+                date=today_str,
+                status=attendance_in.status,
+                check_in_time=check_in_time,
+                check_out_time=None,
+                notes=attendance_in.notes
+            )
+            db.add(db_record)
 
     await db.commit()
     await db.refresh(db_record)

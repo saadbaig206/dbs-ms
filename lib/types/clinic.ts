@@ -181,7 +181,7 @@ export interface FinancialTransaction {
   branchId?: string;
 }
 
-export type AttendanceStatus = 'Present' | 'Late' | 'Leave' | 'Absent';
+export type AttendanceStatus = 'Present' | 'Late' | 'Leave' | 'Absent' | 'Checked Out';
 
 export interface AttendanceRecord {
   id: string;

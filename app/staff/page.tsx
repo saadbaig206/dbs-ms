@@ -71,6 +71,9 @@ export default function StaffPage() {
   const [selectedStaffId, setSelectedStaffId] = useState(staff[0]?.id || '');
   const [attStatus, setAttStatus] = useState<AttendanceStatus>('Present');
   const [attNotes, setAttNotes] = useState('');
+  
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [bulkList, setBulkList] = useState<Record<string, 'Present' | 'Absent' | 'Late' | 'Unmarked'>>({});
 
   // Custom Toast State
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -185,7 +188,7 @@ export default function StaffPage() {
   const handleSaveAttendance = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const coords = await getCoordinates();
+      const coords = role === 'admin' ? undefined : await getCoordinates();
       await markAttendance(selectedStaffId, attStatus, attNotes, coords?.latitude, coords?.longitude);
       showToast("Attendance marked successfully!");
       setIsMarkModalOpen(false);
@@ -195,22 +198,31 @@ export default function StaffPage() {
     }
   };
 
-  const handleBulkCheckIn = async () => {
+  const handleOpenBulkModal = () => {
     const todayStr = new Date().toISOString().split('T')[0];
     const todayRecords = attendance.filter(a => a.date === todayStr);
-    const unmarkedStaff = staff.filter(s => !todayRecords.some(r => r.staffId === s.id));
+    const initialList: Record<string, 'Present' | 'Absent' | 'Late' | 'Unmarked'> = {};
+    staff.forEach(s => {
+      const todayRec = todayRecords.find(r => r.staffId === s.id);
+      initialList[s.id] = (todayRec?.status as any) || 'Present';
+    });
+    setBulkList(initialList);
+    setIsBulkModalOpen(true);
+  };
 
-    if (unmarkedStaff.length === 0) {
-      showToast("All staff members have already been marked for today!", "error");
-      return;
-    }
-
+  const handleSaveBulkAttendance = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
-      const coords = await getCoordinates();
+      // Admins bypass GPS validation, so we pass undefined for coords
       await Promise.all(
-        unmarkedStaff.map(s => markAttendance(s.id, 'Present', 'Bulk Check-In', coords?.latitude, coords?.longitude))
+        Object.entries(bulkList)
+          .filter(([_, status]) => status !== 'Unmarked')
+          .map(([staffId, status]) => 
+            markAttendance(staffId, status as AttendanceStatus, 'Bulk Admin Mark')
+          )
       );
-      showToast(`Successfully checked in ${unmarkedStaff.length} staff members!`);
+      showToast("Bulk attendance updated successfully!");
+      setIsBulkModalOpen(false);
     } catch (err: any) {
       showToast("Failed to mark bulk attendance: " + err.message, "error");
     }
@@ -263,8 +275,8 @@ export default function StaffPage() {
 
           {activeTab === 'attendance' && (
             <div className="flex gap-2">
-              <Button onClick={handleBulkCheckIn} variant="outline" icon={<UserCheck className="w-4 h-4" />}>
-                Bulk Check-In
+              <Button onClick={handleOpenBulkModal} variant="outline" icon={<UserCheck className="w-4 h-4" />}>
+                Bulk Attendance
               </Button>
               <Button onClick={() => setIsMarkModalOpen(true)} variant="primary" icon={<Plus className="w-4 h-4" />}>
                 Mark Attendance
@@ -734,6 +746,58 @@ export default function StaffPage() {
           </div>
         </form>
       </Modal>
+
+      {/* Bulk Attendance Modal */}
+      <Modal
+        isOpen={isBulkModalOpen}
+        onClose={() => setIsBulkModalOpen(false)}
+        title="Bulk Attendance Register"
+        description="Verify and update status details for all active staff practitioners"
+        maxWidth="lg"
+      >
+        <form onSubmit={handleSaveBulkAttendance} className="space-y-4">
+          <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+            {staff.map((s) => (
+              <div key={s.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                <div>
+                  <span className="font-bold text-slate-900 dark:text-slate-100">{s.name}</span>
+                  <span className="text-[10px] text-slate-400 block font-normal">{s.role}</span>
+                </div>
+                <div className="flex gap-1.5">
+                  {['Present', 'Late', 'Absent'].map((status) => (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => setBulkList(prev => ({ ...prev, [s.id]: status as any }))}
+                      className={`px-3 py-1.5 rounded-xl font-bold text-[10px] transition-all cursor-pointer ${
+                        bulkList[s.id] === status
+                          ? status === 'Present'
+                            ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
+                            : status === 'Absent'
+                            ? 'bg-rose-600 text-white shadow-md shadow-rose-500/20'
+                            : 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                      }`}
+                    >
+                      {status}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <Button type="button" variant="outline" onClick={() => setIsBulkModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary">
+              Save Bulk Attendance
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
       {/* Toast Notification */}
       <AnimatePresence>
         {toastMessage && (

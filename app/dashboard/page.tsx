@@ -32,7 +32,11 @@ export default function DashboardPage() {
     setSelectedBranchId,
     role, 
     setPrintData, 
-    clinicInfo 
+    clinicInfo,
+    staff,
+    userEmail,
+    markAttendance,
+    attendance
   } = useClinic();
 
   // Filter collections if a specific branch is selected
@@ -55,6 +59,11 @@ export default function DashboardPage() {
   const todayStr = new Date().toISOString().split('T')[0];
   const todayAppointments = appointments.filter(a => a.date === todayStr);
   const lowStockCount = inventory.filter(i => i.status === 'Low Stock' || i.status === 'Out of Stock').length;
+
+  const currentStaff = staff.find(s => s.email === userEmail);
+  const todayRecord = attendance.find(a => a.staffId === currentStaff?.id && a.date === todayStr);
+  const hasCheckedInToday = !!todayRecord;
+  const hasCheckedOutToday = !!todayRecord?.checkOutTime;
 
   const totalRevenue = transactions.reduce((acc, t) => acc + t.grandTotal, 0);
   const todayRevenue = transactions.filter(t => t.date === todayStr).reduce((acc, t) => acc + t.grandTotal, 0);
@@ -136,39 +145,151 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Daily Practitioner Geofenced Attendance Check-In / Check-Out */}
+      {role === 'staff' && currentStaff && (
+        <div className="p-5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/60 rounded-[20px] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-slate-800 dark:text-slate-200">
+          <div className="space-y-1">
+            <h4 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-blue-600 animate-ping shrink-0" />
+              Practitioner Attendance Logging
+            </h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Assigned branch: <strong>{branches.find(b => b.id === currentStaff.branchId)?.name || 'Main Clinic'}</strong>. 
+              {hasCheckedInToday && ` Checked in at ${todayRecord?.checkInTime || 'N/A'}.`}
+              {hasCheckedOutToday && ` Checked out at ${todayRecord?.checkOutTime || 'N/A'}.`}
+            </p>
+          </div>
+          <div className="shrink-0 flex items-center gap-2">
+            {!hasCheckedInToday && (
+              <Button
+                variant="primary"
+                onClick={async () => {
+                  if (typeof window === 'undefined' || !navigator.geolocation) {
+                    alert('Geolocation is not supported by your browser.');
+                    return;
+                  }
+                  navigator.geolocation.getCurrentPosition(
+                    async (pos) => {
+                      try {
+                        await markAttendance(currentStaff.id, 'Present', 'Self Check-in', pos.coords.latitude, pos.coords.longitude);
+                        alert('Checked in successfully!');
+                        window.location.reload();
+                      } catch (e: any) {
+                        alert('Check-in failed: ' + e.message);
+                      }
+                    },
+                    (err) => {
+                      alert('GPS Location access is required to mark attendance.');
+                    },
+                    { enableHighAccuracy: true, timeout: 5000 }
+                  );
+                }}
+              >
+                Check-in Now
+              </Button>
+            )}
+            {hasCheckedInToday && !hasCheckedOutToday && (
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  if (typeof window === 'undefined' || !navigator.geolocation) {
+                    alert('Geolocation is not supported by your browser.');
+                    return;
+                  }
+                  navigator.geolocation.getCurrentPosition(
+                    async (pos) => {
+                      try {
+                        await markAttendance(currentStaff.id, 'Checked Out', 'Self Check-out', pos.coords.latitude, pos.coords.longitude);
+                        alert('Checked out successfully!');
+                        window.location.reload();
+                      } catch (e: any) {
+                        alert('Check-out failed: ' + e.message);
+                      }
+                    },
+                    (err) => {
+                      alert('GPS Location access is required to check-out.');
+                    },
+                    { enableHighAccuracy: true, timeout: 5000 }
+                  );
+                }}
+              >
+                Check-out Now
+              </Button>
+            )}
+            {hasCheckedInToday && hasCheckedOutToday && (
+              <Badge variant="success" size="md">Shift Completed</Badge>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Streamlined 4 KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Link href="/finance-reports" className="cursor-pointer block transition hover:-translate-y-0.5">
-          <StatCard
-            title="Today's Revenue"
-            value={formatPKR(todayRevenue)}
-            trend={`${todayAppointments.length} appointments`}
-            trendDirection="neutral"
-            colorVariant="blue"
-            icon={<DollarSign className="w-5 h-5" />}
-            subtitle="from POS & bookings"
-          />
-        </Link>
-        <Link href="/finance-reports" className="cursor-pointer block transition hover:-translate-y-0.5">
-          <StatCard
-            title="Monthly Revenue"
-            value={formatPKR(monthlyRevenue)}
-            trend={new Date().toLocaleString('en-US', { month: 'long' })}
-            trendDirection="up"
-            colorVariant="emerald"
-            icon={<TrendingUp className="w-5 h-5" />}
-            subtitle="current month"
-          />
-        </Link>
-        <StatCard
-          title="Total Profit"
-          value={formatPKR(netProfit)}
-          trend="Net after expenses"
-          trendDirection={netProfit >= 0 ? 'up' : 'down'}
-          colorVariant="purple"
-          icon={<Sparkles className="w-5 h-5" />}
-          subtitle="revenue minus costs"
-        />
+        {role === 'admin' ? (
+          <>
+            <Link href="/finance-reports" className="cursor-pointer block transition hover:-translate-y-0.5">
+              <StatCard
+                title="Today's Revenue"
+                value={formatPKR(todayRevenue)}
+                trend={`${todayAppointments.length} appointments`}
+                trendDirection="neutral"
+                colorVariant="blue"
+                icon={<DollarSign className="w-5 h-5" />}
+                subtitle="from POS & bookings"
+              />
+            </Link>
+            <Link href="/finance-reports" className="cursor-pointer block transition hover:-translate-y-0.5">
+              <StatCard
+                title="Monthly Revenue"
+                value={formatPKR(monthlyRevenue)}
+                trend={new Date().toLocaleString('en-US', { month: 'long' })}
+                trendDirection="up"
+                colorVariant="emerald"
+                icon={<TrendingUp className="w-5 h-5" />}
+                subtitle="current month"
+              />
+            </Link>
+            <StatCard
+              title="Total Profit"
+              value={formatPKR(netProfit)}
+              trend="Net after expenses"
+              trendDirection={netProfit >= 0 ? 'up' : 'down'}
+              colorVariant="purple"
+              icon={<Sparkles className="w-5 h-5" />}
+              subtitle="revenue minus costs"
+            />
+          </>
+        ) : (
+          <>
+            <StatCard
+              title="Today's Appointments"
+              value={todayAppointments.length}
+              trend="Scheduled today"
+              trendDirection="neutral"
+              colorVariant="blue"
+              icon={<Calendar className="w-5 h-5" />}
+              subtitle="active treatments"
+            />
+            <StatCard
+              title="Total Bookings"
+              value={appointments.length}
+              trend="Overall assigned"
+              trendDirection="up"
+              colorVariant="emerald"
+              icon={<TrendingUp className="w-5 h-5" />}
+              subtitle="all-time schedule"
+            />
+            <StatCard
+              title="Pending Requests"
+              value={appointments.filter(a => a.status === 'Pending' || a.status === 'Confirmed').length}
+              trend="Awaiting check-in"
+              trendDirection="neutral"
+              colorVariant="purple"
+              icon={<Sparkles className="w-5 h-5" />}
+              subtitle="treatments list"
+            />
+          </>
+        )}
         <StatCard
           title="Inventory Alerts"
           value={lowStockCount}
