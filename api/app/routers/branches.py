@@ -1,5 +1,6 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -80,6 +81,20 @@ async def delete_branch(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Branch not found"
         )
+    
+    # Nullify references in related tables to prevent foreign key errors or orphans
+    from app.models.staff import Staff
+    from app.models.appointment import Appointment
+    from app.models.transaction import FinancialTransaction
+    from app.models.inventory import InventoryItem
+    from app.models.expense import ExpenseItem
+    
+    await db.execute(update(Staff).where(Staff.branch_id == branch_id).values(branch_id=None))
+    await db.execute(update(Appointment).where(Appointment.branch_id == branch_id).values(branch_id=None))
+    await db.execute(update(FinancialTransaction).where(FinancialTransaction.branch_id == branch_id).values(branch_id=None))
+    await db.execute(update(InventoryItem).where(InventoryItem.branch_id == branch_id).values(branch_id=None))
+    await db.execute(update(ExpenseItem).where(ExpenseItem.branch_id == branch_id).values(branch_id=None))
+
     await db.delete(db_branch)
     await db.commit()
     return {"message": "Branch deleted successfully"}

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, JSON
+from sqlalchemy import Column, String, Float, JSON, ForeignKey
 from app.models.base import Base
 
 class FinancialTransaction(Base):
@@ -22,3 +22,4 @@ class FinancialTransaction(Base):
     card_last_four = Column(String, nullable=True)
     card_type = Column(String, nullable=True)
     bank_txn_id = Column(String, nullable=True)
+    branch_id = Column(String, ForeignKey("branches.id"), nullable=True)

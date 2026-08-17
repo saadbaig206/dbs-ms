@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Plus, Phone, Trash2, Edit2, ShieldAlert, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
@@ -11,16 +12,50 @@ import { Breadcrumb } from '../../components/ui/Breadcrumb';
 import { Badge } from '../../components/ui/Badge';
 
 export default function BranchesPage() {
-  const { branches, addBranch, updateBranch, deleteBranch, role } = useClinic();
+  const { branches, addBranch, updateBranch, deleteBranch, role, isLoading } = useClinic();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && role !== 'admin') {
+      router.push('/dashboard');
+    }
+  }, [role, isLoading, router]);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  if (isLoading || role !== 'admin') {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-slate-500 animate-pulse font-bold">Loading...</div>
+      </div>
+    );
+  }
 
   // Form State
   const [selectedBranchId, setSelectedBranchId] = useState('');
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
   const [phone, setPhone] = useState('');
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
+
+  const handleFetchCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      showToast("Geolocation is not supported by your browser.", "error");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLatitude(String(position.coords.latitude));
+        setLongitude(String(position.coords.longitude));
+        showToast("GPS coordinates loaded successfully!");
+      },
+      (error) => {
+        showToast("Failed to retrieve GPS location: " + error.message, "error");
+      }
+    );
+  };
 
   // Toast State
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -36,11 +71,19 @@ export default function BranchesPage() {
     e.preventDefault();
     if (!name || !location) return;
     try {
-      await addBranch({ name, location, phone });
+      await addBranch({ 
+        name, 
+        location, 
+        phone,
+        latitude: latitude ? Number(latitude) : undefined,
+        longitude: longitude ? Number(longitude) : undefined
+      });
       setIsAddModalOpen(false);
       setName('');
       setLocation('');
       setPhone('');
+      setLatitude('');
+      setLongitude('');
       showToast("Branch created successfully!");
     } catch (err: any) {
       showToast("Failed to create branch: " + err.message, "error");
@@ -52,6 +95,8 @@ export default function BranchesPage() {
     setName(branch.name);
     setLocation(branch.location);
     setPhone(branch.phone || '');
+    setLatitude(branch.latitude !== null && branch.latitude !== undefined ? String(branch.latitude) : '');
+    setLongitude(branch.longitude !== null && branch.longitude !== undefined ? String(branch.longitude) : '');
     setIsEditModalOpen(true);
   };
 
@@ -59,12 +104,20 @@ export default function BranchesPage() {
     e.preventDefault();
     if (!name || !location) return;
     try {
-      await updateBranch(selectedBranchId, { name, location, phone });
+      await updateBranch(selectedBranchId, { 
+        name, 
+        location, 
+        phone,
+        latitude: latitude ? Number(latitude) : undefined,
+        longitude: longitude ? Number(longitude) : undefined
+      });
       setIsEditModalOpen(false);
       setSelectedBranchId('');
       setName('');
       setLocation('');
       setPhone('');
+      setLatitude('');
+      setLongitude('');
       showToast("Branch updated successfully!");
     } catch (err: any) {
       showToast("Failed to update branch: " + err.message, "error");
@@ -102,7 +155,7 @@ export default function BranchesPage() {
         )}
       </div>
 
-      {role === 'staff' && (
+      {(role as string) === 'staff' && (
         <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-2xl flex items-center gap-3 text-xs text-amber-800 dark:text-amber-200">
           <ShieldAlert className="w-5 h-5 shrink-0 text-amber-600" />
           <span>
@@ -210,6 +263,31 @@ export default function BranchesPage() {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
           />
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Latitude"
+              placeholder="e.g. 31.5204"
+              value={latitude}
+              onChange={(e) => setLatitude(e.target.value)}
+            />
+            <Input
+              label="Longitude"
+              placeholder="e.g. 74.3587"
+              value={longitude}
+              onChange={(e) => setLongitude(e.target.value)}
+            />
+          </div>
+          <div className="pt-1">
+            <Button 
+              type="button" 
+              variant="outline" 
+              size="sm" 
+              onClick={handleFetchCurrentLocation}
+              className="w-full text-[11px] font-bold py-1.5"
+            >
+              Detect Current GPS Location
+            </Button>
+          </div>
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
             <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>
               Cancel
@@ -250,6 +328,31 @@ export default function BranchesPage() {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
           />
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Latitude"
+              placeholder="e.g. 31.5204"
+              value={latitude}
+              onChange={(e) => setLatitude(e.target.value)}
+            />
+            <Input
+              label="Longitude"
+              placeholder="e.g. 74.3587"
+              value={longitude}
+              onChange={(e) => setLongitude(e.target.value)}
+            />
+          </div>
+          <div className="pt-1">
+            <Button 
+              type="button" 
+              variant="outline" 
+              size="sm" 
+              onClick={handleFetchCurrentLocation}
+              className="w-full text-[11px] font-bold py-1.5"
+            >
+              Detect Current GPS Location
+            </Button>
+          </div>
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
             <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)}>
               Cancel

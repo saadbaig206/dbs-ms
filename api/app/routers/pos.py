@@ -17,6 +17,7 @@ class POSCheckoutPayload(CamelModel):
     card_last_four: Optional[str] = None
     card_type: Optional[str] = None
     bank_txn_id: Optional[str] = None
+    branch_id: Optional[str] = None
 
 @router.post("/checkout", response_model=FinancialTransactionResponse)
 async def pos_checkout(
@@ -34,7 +35,8 @@ async def pos_checkout(
             cart_items=payload.cart_items,
             card_last_four=payload.card_last_four,
             card_type=payload.card_type,
-            bank_txn_id=payload.bank_txn_id
+            bank_txn_id=payload.bank_txn_id,
+            branch_id=payload.branch_id
         )
         return transaction
     except Exception as e:

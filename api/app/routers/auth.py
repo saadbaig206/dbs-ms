@@ -59,8 +59,24 @@ async def login(
     }
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(current_user: User = Depends(get_current_user)):
-    return current_user
+async def get_me(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    branch_id = None
+    if current_user.role == "staff":
+        from app.models.staff import Staff
+        staff_result = await db.execute(select(Staff).where(Staff.email == current_user.email))
+        staff_member = staff_result.scalars().first()
+        if staff_member:
+            branch_id = staff_member.branch_id
+
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "role": current_user.role,
+        "branch_id": branch_id
+    }
 
 @router.get("/debug-db")
 async def debug_db(db: AsyncSession = Depends(get_db)):

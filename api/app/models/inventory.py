@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Float
+from sqlalchemy import Column, String, Integer, Float, ForeignKey
 from sqlalchemy.ext.hybrid import hybrid_property
 from app.models.base import Base
 
@@ -13,6 +13,7 @@ class InventoryItem(Base):
     supplier = Column(String, nullable=False)
     price = Column(Float, nullable=False)
     last_restocked = Column(String, nullable=False) # YYYY-MM-DD
+    branch_id = Column(String, ForeignKey("branches.id"), nullable=True)
 
     @hybrid_property
     def status(self) -> str:

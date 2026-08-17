@@ -1,4 +1,5 @@
 from sqlalchemy import Column, String, Integer, Float, JSON, ForeignKey
+from sqlalchemy.ext.mutable import MutableList
 from app.models.base import Base
 
 class Client(Base):
@@ -17,6 +18,6 @@ class Client(Base):
     total_spent = Column(Float, default=0.0)
     visits_count = Column(Integer, default=0)
     notes = Column(String, nullable=True)
-    history = Column(JSON, nullable=False, default=list) # List of ClientHistoryItem dicts
+    history = Column(MutableList.as_mutable(JSON), nullable=False, default=list) # List of ClientHistoryItem dicts
     joined_date = Column(String, nullable=False) # YYYY-MM-DD
     branch_id = Column(String, ForeignKey("branches.id"), nullable=True)

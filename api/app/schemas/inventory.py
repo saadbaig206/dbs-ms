@@ -10,6 +10,7 @@ class InventoryBase(CamelModel):
     supplier: str
     price: float = Field(ge=0)
     last_restocked: str
+    branch_id: Optional[str] = None
 
 class InventoryCreate(InventoryBase):
     pass
@@ -22,6 +23,7 @@ class InventoryUpdate(CamelModel):
     supplier: Optional[str] = None
     price: Optional[float] = Field(None, ge=0)
     last_restocked: Optional[str] = None
+    branch_id: Optional[str] = None
 
 class InventoryResponse(InventoryBase):
     id: str

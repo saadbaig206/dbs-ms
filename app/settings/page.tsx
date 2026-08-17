@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 import { Settings as SettingsIcon, Sparkles, Save, Download, Upload, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { CLINIC_INFO } from '../../lib/constants/clinic';
@@ -11,15 +12,30 @@ import { Badge } from '../../components/ui/Badge';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 
 export default function SettingsPage() {
-  const { theme, toggleTheme, role, clinicInfo, updateClinicInfo } = useClinic();
+  const { theme, toggleTheme, role, clinicInfo, updateClinicInfo, isLoading } = useClinic();
+  const router = useRouter();
 
-  const [clinicName, setClinicName] = useState<string>(clinicInfo.name || '');
-  const [phone, setPhone] = useState<string>(clinicInfo.phone || '');
-  const [email, setEmail] = useState<string>(clinicInfo.email || '');
-  const [address, setAddress] = useState<string>(clinicInfo.address || '');
-  const [currency, setCurrency] = useState<string>(clinicInfo.currency || 'PKR (Rs)');
-  const [language, setLanguage] = useState<string>(clinicInfo.language || 'English (US)');
+  useEffect(() => {
+    if (!isLoading && role !== 'admin') {
+      router.push('/dashboard');
+    }
+  }, [role, isLoading, router]);
+
+  const [clinicName, setClinicName] = useState<string>(clinicInfo?.name || '');
+  const [phone, setPhone] = useState<string>(clinicInfo?.phone || '');
+  const [email, setEmail] = useState<string>(clinicInfo?.email || '');
+  const [address, setAddress] = useState<string>(clinicInfo?.address || '');
+  const [currency, setCurrency] = useState<string>(clinicInfo?.currency || 'PKR (Rs)');
+  const [language, setLanguage] = useState<string>(clinicInfo?.language || 'English (US)');
   const [isSaved, setIsSaved] = useState<boolean>(false);
+
+  if (isLoading || role !== 'admin') {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-slate-500 animate-pulse font-bold">Loading...</div>
+      </div>
+    );
+  }
 
   // Sync state with context when context loads/updates
   useEffect(() => {

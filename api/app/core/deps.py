@@ -58,3 +58,22 @@ def require_role(allowed_roles: list[str]):
 # Helper dependencies
 get_admin_user = require_role(["admin"])
 get_staff_user = require_role(["admin", "staff"])
+
+async def get_user_branch_id(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> Optional[str]:
+    if current_user.role == "staff":
+        from app.models.staff import Staff
+        staff_result = await db.execute(select(Staff).where(Staff.email == current_user.email))
+        staff_member = staff_result.scalars().first()
+        if staff_member:
+            return staff_member.branch_id
+        return None
+    elif current_user.role == "admin":
+        branch_id = request.query_params.get("branch_id")
+        if not branch_id:
+            branch_id = request.headers.get("X-Branch-ID")
+        return branch_id
+    return None

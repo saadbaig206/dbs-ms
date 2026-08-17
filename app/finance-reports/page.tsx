@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   DollarSign,
@@ -27,7 +28,35 @@ import { Input, Select } from '../../components/ui/Input';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 
 export default function FinanceReportsPage() {
-  const { transactions, expenses, addExpense, updateExpense, role, setPrintData } = useClinic();
+  const { 
+    transactions: allTransactions, 
+    expenses: allExpenses, 
+    addExpense, 
+    updateExpense, 
+    role, 
+    setPrintData,
+    branches,
+    selectedBranchId,
+    setSelectedBranchId,
+    isLoading
+  } = useClinic();
+
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && role !== 'admin') {
+      router.push('/dashboard');
+    }
+  }, [role, isLoading, router]);
+
+  const transactions = selectedBranchId 
+    ? allTransactions.filter(t => t.branchId === selectedBranchId)
+    : allTransactions;
+
+  const expenses = selectedBranchId 
+    ? allExpenses.filter(e => e.branchId === selectedBranchId)
+    : allExpenses;
+
   const [activeTab, setActiveTab] = useState<'transactions' | 'expenses' | 'reports'>('transactions');
 
   const handlePayExpense = async (id: string) => {
@@ -194,7 +223,22 @@ export default function FinanceReportsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {branches.length > 0 && (
+            <select
+              value={selectedBranchId || ''}
+              onChange={(e) => setSelectedBranchId(e.target.value || null)}
+              className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-950 dark:text-slate-50 text-sm font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-sm cursor-pointer animate-fade-in"
+            >
+              <option value="">All Branches</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          )}
+
           {/* Main Sub-Tabs Toggle */}
           <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
             <button

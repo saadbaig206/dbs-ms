@@ -123,12 +123,19 @@ interface ClinicContextType {
   isLoading: boolean;
   error: string | null;
   refreshData: () => Promise<void>;
+
+  // Selected Branch for Dashboard/List filtering
+  selectedBranchId: string | null;
+  setSelectedBranchId: (id: string | null) => void;
+  userBranchId: string | null;
 }
 
 const ClinicContext = createContext<ClinicContextType | undefined>(undefined);
 
 export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [role, setRoleState] = useState<UserRole>('admin');
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+  const [userBranchId, setUserBranchId] = useState<string | null>(null);
   const [clinicInfo, setClinicInfoState] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('clinic_info');
@@ -221,13 +228,17 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (showSpinner) setIsLoading(true);
     setError(null);
     try {
-      // 1. Fetch current user profile to establish correct role on refresh
       let activeRole: UserRole = 'staff';
       try {
         const user = await authClient.me();
         if (user && user.role) {
           activeRole = user.role as UserRole;
           setRoleState(activeRole);
+          const bId = user.branch_id || user.branchId || null;
+          setUserBranchId(bId);
+          if (activeRole === 'staff' && bId) {
+            setSelectedBranchId(prev => prev || bId);
+          }
         }
       } catch (e) {
         // Not logged in or session expired
@@ -385,7 +396,10 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const addAppointment = async (newApt: Omit<Appointment, 'id'>) => {
     await apiFetch('/appointments', {
       method: 'POST',
-      body: JSON.stringify(newApt),
+      body: JSON.stringify({
+        ...newApt,
+        branchId: newApt.branchId || selectedBranchId || userBranchId || undefined
+      }),
     });
     await refreshData();
   };
@@ -409,7 +423,10 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const addInventoryItem = async (item: Omit<InventoryItem, 'id' | 'status'>) => {
     await apiFetch('/inventory', {
       method: 'POST',
-      body: JSON.stringify(item),
+      body: JSON.stringify({
+        ...item,
+        branchId: item.branchId || selectedBranchId || userBranchId || undefined
+      }),
     });
     await refreshData();
   };
@@ -425,7 +442,10 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const addExpense = async (expense: Omit<ExpenseItem, 'id'>) => {
     await apiFetch('/expenses', {
       method: 'POST',
-      body: JSON.stringify(expense),
+      body: JSON.stringify({
+        ...expense,
+        branchId: expense.branchId || selectedBranchId || userBranchId || undefined
+      }),
     });
     await refreshData();
   };
@@ -522,7 +542,8 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         cartItems: posCart,
         cardLastFour: cardDetails?.cardLastFour,
         cardType: cardDetails?.cardType,
-        bankTxnId: cardDetails?.bankTxnId
+        bankTxnId: cardDetails?.bankTxnId,
+        branchId: selectedBranchId || userBranchId || undefined
       })
     });
 
@@ -599,7 +620,11 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         isLoading,
         error,
-        refreshData
+        refreshData,
+
+        selectedBranchId,
+        setSelectedBranchId,
+        userBranchId
       }}
     >
       {children}

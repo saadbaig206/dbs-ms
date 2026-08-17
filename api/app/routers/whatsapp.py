@@ -8,7 +8,9 @@ from sqlalchemy.future import select
 from sqlalchemy import desc
 
 from app.db.session import get_db
+from app.core.deps import get_user_branch_id
 from app.models.whatsapp import WhatsAppConversation, WhatsAppMessage, WhatsAppSettings
+from app.models.client import Client
 from app.services.groq_service import GroqService
 from app.services.whatsapp_service import WhatsAppService
 from app.core.config import settings
@@ -125,10 +127,21 @@ async def process_incoming_message(payload: dict, db: AsyncSession):
 
         # If agent mode, trigger AI reply
         if conversation.mode == "agent":
-            # Fetch settings
-            settings_stmt = select(WhatsAppSettings).where(WhatsAppSettings.id == 1)
-            settings_res = await db.execute(settings_stmt)
-            whatsapp_settings = settings_res.scalars().first()
+            # Fetch client's branch_id
+            client_stmt = select(Client).where(Client.phone == from_phone)
+            client_res = await db.execute(client_stmt)
+            client = client_res.scalars().first()
+            
+            whatsapp_settings = None
+            if client and client.branch_id:
+                settings_stmt = select(WhatsAppSettings).where(WhatsAppSettings.branch_id == client.branch_id)
+                settings_res = await db.execute(settings_stmt)
+                whatsapp_settings = settings_res.scalars().first()
+                
+            if not whatsapp_settings:
+                settings_stmt = select(WhatsAppSettings).where(WhatsAppSettings.branch_id == None)
+                settings_res = await db.execute(settings_stmt)
+                whatsapp_settings = settings_res.scalars().first()
 
             system_prompt = "You are a helpful customer service assistant for DBS Aesthetics Clinic."
             knowledge_base = ""
@@ -230,7 +243,12 @@ async def update_mode(id: str, body: ConversationUpdate, db: AsyncSession = Depe
 
 # --- Send Manual Message (POST) ---
 @router.post("/conversations/{id}/send", response_model=MessageResponse)
-async def send_manual_message(id: str, body: MessageSend, db: AsyncSession = Depends(get_db)):
+async def send_manual_message(
+    id: str,
+    body: MessageSend,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
+):
     stmt = select(WhatsAppConversation).where(WhatsAppConversation.id == id)
     result = await db.execute(stmt)
     conversation = result.scalars().first()
@@ -238,9 +256,6 @@ async def send_manual_message(id: str, body: MessageSend, db: AsyncSession = Dep
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
         
-    # Send message via Meta WhatsApp Service
-    sent = await WhatsAppService.send_message(conversation.phone, body.message)
-    
     # Save message in database
     manual_message = WhatsAppMessage(
         id=uuid.uuid4().hex,
@@ -256,18 +271,32 @@ async def send_manual_message(id: str, body: MessageSend, db: AsyncSession = Dep
     
     await db.commit()
     await db.refresh(manual_message)
+    
+    # Send via background tasks to avoid blocking response
+    background_tasks.add_task(WhatsAppService.send_message, conversation.phone, body.message)
+    
     return manual_message
 
 # --- Get WhatsApp Settings (GET) ---
 @router.get("/settings")
-async def get_whatsapp_settings(db: AsyncSession = Depends(get_db)):
-    stmt = select(WhatsAppSettings).where(WhatsAppSettings.id == 1)
-    result = await db.execute(stmt)
-    whatsapp_settings = result.scalars().first()
+async def get_whatsapp_settings(
+    db: AsyncSession = Depends(get_db),
+    user_branch_id: Optional[str] = Depends(get_user_branch_id)
+):
+    whatsapp_settings = None
+    if user_branch_id:
+        stmt = select(WhatsAppSettings).where(WhatsAppSettings.branch_id == user_branch_id)
+        result = await db.execute(stmt)
+        whatsapp_settings = result.scalars().first()
+        
+    if not whatsapp_settings:
+        stmt = select(WhatsAppSettings).where(WhatsAppSettings.branch_id == None)
+        result = await db.execute(stmt)
+        whatsapp_settings = result.scalars().first()
     
     if not whatsapp_settings:
         whatsapp_settings = WhatsAppSettings(
-            id=1,
+            branch_id=None,
             system_prompt="You are a helpful customer service assistant for DBS Aesthetics Clinic. Be professional, polite, and direct.",
             knowledge_base=(
                 "DBS Aesthetics Clinic & Salon is a premium luxury wellness destination.\n\n"
@@ -294,13 +323,22 @@ async def get_whatsapp_settings(db: AsyncSession = Depends(get_db)):
 
 # --- Update WhatsApp Settings (POST) ---
 @router.post("/settings")
-async def update_whatsapp_settings(body: SettingsUpdate, db: AsyncSession = Depends(get_db)):
-    stmt = select(WhatsAppSettings).where(WhatsAppSettings.id == 1)
+async def update_whatsapp_settings(
+    body: SettingsUpdate,
+    db: AsyncSession = Depends(get_db),
+    user_branch_id: Optional[str] = Depends(get_user_branch_id)
+):
+    stmt = select(WhatsAppSettings)
+    if user_branch_id:
+        stmt = stmt.where(WhatsAppSettings.branch_id == user_branch_id)
+    else:
+        stmt = stmt.where(WhatsAppSettings.branch_id == None)
+        
     result = await db.execute(stmt)
     whatsapp_settings = result.scalars().first()
     
     if not whatsapp_settings:
-        whatsapp_settings = WhatsAppSettings(id=1)
+        whatsapp_settings = WhatsAppSettings(branch_id=user_branch_id)
         
     whatsapp_settings.system_prompt = body.system_prompt
     whatsapp_settings.knowledge_base = body.knowledge_base

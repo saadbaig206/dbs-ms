@@ -127,7 +127,7 @@ async def test_pos_checkout_atomicity(client: AsyncClient, db: AsyncSession):
     }
     
     response = await client.post("/api/v1/pos/checkout", json=checkout_payload, headers=headers)
-    assert response.status_code == 200
+    assert response.status_code == 200, response.text
     
     data = response.json()
     assert data["clientName"] == "John Doe"

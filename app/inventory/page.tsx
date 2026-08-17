@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Package, Plus, Search, Minus } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
@@ -13,7 +13,21 @@ import { Input, Select } from '../../components/ui/Input';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 
 export default function InventoryPage() {
-  const { inventory, addInventoryItem, updateInventoryQuantity } = useClinic();
+  const { inventory: allInventory, addInventoryItem, updateInventoryQuantity, branches, selectedBranchId, setSelectedBranchId, userBranchId } = useClinic();
+
+  const [filterBranchId, setFilterBranchId] = useState<string>('');
+
+  useEffect(() => {
+    if (userBranchId) {
+      setFilterBranchId(userBranchId);
+    } else if (selectedBranchId) {
+      setFilterBranchId(selectedBranchId);
+    }
+  }, [userBranchId, selectedBranchId]);
+
+  const inventory = filterBranchId 
+    ? allInventory.filter(i => i.branchId === filterBranchId)
+    : allInventory;
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
@@ -90,9 +104,25 @@ export default function InventoryPage() {
           </p>
         </div>
 
-        <Button onClick={() => setIsAddModalOpen(true)} variant="primary" icon={<Plus className="w-4 h-4" />}>
-          Add Stock Item
-        </Button>
+        <div className="flex items-center gap-3">
+          {branches.length > 0 && (
+            <select
+              value={filterBranchId}
+              onChange={(e) => setFilterBranchId(e.target.value)}
+              className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-950 dark:text-slate-50 text-sm font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-sm cursor-pointer"
+            >
+              <option value="">All Branches</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          )}
+          <Button onClick={() => setIsAddModalOpen(true)} variant="primary" icon={<Plus className="w-4 h-4" />}>
+            Add Stock Item
+          </Button>
+        </div>
       </div>
 
       {/* Filter & Search Bar */}

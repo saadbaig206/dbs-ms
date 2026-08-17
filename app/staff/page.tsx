@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users2,
@@ -12,6 +13,7 @@ import {
   Star,
   Lock,
   Trash2,
+  Edit2,
   CheckCircle2,
   Clock,
   AlertCircle,
@@ -30,14 +32,31 @@ import { Input, Select } from '../../components/ui/Input';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 
 export default function StaffPage() {
-  const { staff, addStaff, deleteStaff, attendance, markAttendance, role, branches } = useClinic();
+  const { staff, addStaff, updateStaff, deleteStaff, attendance, markAttendance, role, branches, isLoading } = useClinic();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && role !== 'admin') {
+      router.push('/dashboard');
+    }
+  }, [role, isLoading, router]);
 
   const [activeTab, setActiveTab] = useState<'directory' | 'attendance'>('directory');
+
+  if (isLoading || role !== 'admin') {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-slate-500 animate-pulse font-bold">Loading...</div>
+      </div>
+    );
+  }
   const [search, setSearch] = useState('');
   const [branchFilter, setBranchFilter] = useState('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
 
-  // Form State for Adding Staff
+  // Form State for Adding/Editing Staff
   const [name, setName] = useState('');
   const [staffRole, setStaffRole] = useState<StaffRole>('Aesthetic Physician');
   const [salary, setSalary] = useState<string>('12000');
@@ -84,6 +103,44 @@ export default function StaffPage() {
       s.email.toLowerCase().includes(search.toLowerCase());
     return matchesBranch && matchesSearch;
   });
+
+  const handleOpenEditModal = (member: Staff) => {
+    setEditingStaffId(member.id);
+    setName(member.name);
+    setStaffRole(member.role);
+    setSalary(String(member.salary));
+    setPhone(member.phone);
+    setEmail(member.email);
+    setStaffBranchId(member.branchId || '');
+    setPhoto(member.photo);
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStaffId) return;
+    try {
+      await updateStaff(editingStaffId, {
+        photo,
+        name,
+        role: staffRole,
+        salary: Number(salary) || 0,
+        phone,
+        email,
+        branchId: staffBranchId || undefined
+      });
+      setIsEditModalOpen(false);
+      setEditingStaffId(null);
+      setName('');
+      setPhone('');
+      setEmail('');
+      setStaffBranchId('');
+      showToast('Staff member updated successfully');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to update staff member', 'error');
+    }
+  };
 
   const handleAddStaff = (e: React.FormEvent) => {
     e.preventDefault();
@@ -217,7 +274,7 @@ export default function StaffPage() {
         </div>
       </div>
 
-      {role === 'staff' && (
+      {(role as string) === 'staff' && (
         <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-2xl flex items-center gap-3 text-xs text-amber-800 dark:text-amber-200">
           <Lock className="w-5 h-5 shrink-0 text-amber-600" />
           <span>
@@ -316,12 +373,22 @@ export default function StaffPage() {
                   </div>
 
                   {role === 'admin' && (
-                    <button
-                      onClick={() => deleteStaff(member.id)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleOpenEditModal(member)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors"
+                        title="Edit Staff Member"
+                      >
+                        <Edit2 className="w-4.5 h-4.5" />
+                      </button>
+                      <button
+                        onClick={() => deleteStaff(member.id)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors"
+                        title="Delete Staff Member"
+                      >
+                        <Trash2 className="w-4.5 h-4.5" />
+                      </button>
+                    </div>
                   )}
                 </div>
               </motion.div>
@@ -522,6 +589,101 @@ export default function StaffPage() {
             </Button>
             <Button type="submit" variant="primary">
               Save Staff Member
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit Staff Modal */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditingStaffId(null);
+        }}
+        title="Edit Staff Member Details"
+        description="Update contact information, roles, branch assignments, and payroll"
+        maxWidth="lg"
+      >
+        <form onSubmit={handleEditStaff} className="space-y-4">
+          <Input
+            label="Profile Picture URL"
+            value={photo}
+            onChange={(e) => setPhoto(e.target.value)}
+            required
+          />
+
+          <Input
+            label="Full Name"
+            placeholder="e.g. Dr. Ayesha Khan"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="sm:col-span-2">
+              <Select
+                label="Staff Role"
+                options={[
+                  { label: 'Medical Director', value: 'Medical Director' },
+                  { label: 'Senior Dermatologist', value: 'Senior Dermatologist' },
+                  { label: 'Aesthetic Physician', value: 'Aesthetic Physician' },
+                  { label: 'Hydrafacial Specialist', value: 'Hydrafacial Specialist' },
+                  { label: 'Laser Specialist', value: 'Laser Specialist' },
+                  { label: 'Cosmetic Nurse', value: 'Cosmetic Nurse' },
+                  { label: 'Clinic Manager', value: 'Clinic Manager' },
+                  { label: 'Receptionist', value: 'Receptionist' }
+                ]}
+                value={staffRole}
+                onChange={(e) => setStaffRole(e.target.value as any)}
+              />
+            </div>
+            <Select
+              label="Assigned Branch"
+              options={[
+                { label: 'Unassigned', value: '' },
+                ...branches.map(b => ({ label: b.name, value: b.id }))
+              ]}
+              value={staffBranchId}
+              onChange={(e) => setStaffBranchId(e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Monthly Salary (Rs)"
+              type="text"
+              value={salary}
+              onChange={(e) => setSalary(e.target.value.replace(/\D/g, ''))}
+              required
+            />
+            <Input
+              label="Phone Number"
+              placeholder="+92 (300) 123-4567"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              required
+            />
+          </div>
+          <Input
+            label="Email Address"
+            type="email"
+            placeholder="staff@dbsaesthetic.pk"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <Button type="button" variant="outline" onClick={() => {
+              setIsEditModalOpen(false);
+              setEditingStaffId(null);
+            }}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary">
+              Update Staff Member
             </Button>
           </div>
         </form>

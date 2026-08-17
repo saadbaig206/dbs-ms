@@ -23,7 +23,35 @@ import { Badge } from '../../components/ui/Badge';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 
 export default function DashboardPage() {
-  const { appointments, inventory, transactions, expenses, role, setPrintData, clinicInfo } = useClinic();
+  const { 
+    appointments: allAppointments, 
+    inventory: allInventory, 
+    transactions: allTransactions, 
+    expenses: allExpenses, 
+    branches,
+    selectedBranchId,
+    setSelectedBranchId,
+    role, 
+    setPrintData, 
+    clinicInfo 
+  } = useClinic();
+
+  // Filter collections if a specific branch is selected
+  const appointments = selectedBranchId 
+    ? allAppointments.filter(a => a.branchId === selectedBranchId)
+    : allAppointments;
+
+  const inventory = selectedBranchId 
+    ? allInventory.filter(i => i.branchId === selectedBranchId)
+    : allInventory;
+
+  const transactions = selectedBranchId 
+    ? allTransactions.filter(t => t.branchId === selectedBranchId)
+    : allTransactions;
+
+  const expenses = selectedBranchId 
+    ? allExpenses.filter(e => e.branchId === selectedBranchId)
+    : allExpenses;
 
   const todayStr = new Date().toISOString().split('T')[0];
   const todayAppointments = appointments.filter(a => a.date === todayStr);
@@ -66,7 +94,21 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {branches.length > 0 && (
+            <select
+              value={selectedBranchId || ''}
+              onChange={(e) => setSelectedBranchId(e.target.value || null)}
+              className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-950 dark:text-slate-50 text-sm font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-sm cursor-pointer"
+            >
+              <option value="">All Branches</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          )}
           <Link href="/pos">
             <Button variant="primary" icon={<CreditCard className="w-4 h-4" />}>
               Open Billing

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app.core.deps import get_db, get_staff_user, get_admin_user
+from app.core.deps import get_db, get_staff_user, get_admin_user, get_user_branch_id
 from app.models.client import Client
 from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse
 
@@ -14,9 +14,12 @@ router = APIRouter()
 async def list_clients(
     search: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_staff_user)
+    current_user = Depends(get_staff_user),
+    branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
     query = select(Client)
+    if branch_id:
+        query = query.where(Client.branch_id == branch_id)
     if search:
         query = query.where(Client.name.ilike(f"%{search}%") | Client.phone.ilike(f"%{search}%") | Client.cnic.ilike(f"%{search}%"))
         
@@ -27,7 +30,8 @@ async def list_clients(
 async def create_client(
     client_in: ClientCreate,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_staff_user)
+    current_user = Depends(get_staff_user),
+    user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
     count_result = await db.execute(select(Client))
     count = len(count_result.scalars().all())
@@ -49,7 +53,7 @@ async def create_client(
         visits_count=1,
         history=[],
         joined_date=datetime.now().strftime("%Y-%m-%d"),
-        branch_id=client_in.branch_id
+        branch_id=user_branch_id or client_in.branch_id
     )
     db.add(db_client)
     await db.commit()
@@ -61,9 +65,13 @@ async def update_client(
     client_id: str,
     client_in: ClientUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_staff_user)
+    current_user = Depends(get_staff_user),
+    branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
-    result = await db.execute(select(Client).where(Client.id == client_id))
+    query = select(Client).where(Client.id == client_id)
+    if branch_id:
+        query = query.where(Client.branch_id == branch_id)
+    result = await db.execute(query)
     db_client = result.scalars().first()
     if not db_client:
         raise HTTPException(status_code=404, detail="Client not found")

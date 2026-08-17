@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Calendar as CalendarIcon,
@@ -41,7 +41,17 @@ function toDateStr(year: number, month: number, day: number) {
 }
 
 export default function AppointmentsPage() {
-  const { appointments, addAppointment, updateAppointmentStatus, deleteAppointment, staff, services, setPrintData } = useClinic();
+  const { appointments, addAppointment, updateAppointmentStatus, deleteAppointment, staff, services, setPrintData, branches, selectedBranchId, userBranchId } = useClinic();
+
+  const [filterBranchId, setFilterBranchId] = useState<string>('');
+
+  useEffect(() => {
+    if (userBranchId) {
+      setFilterBranchId(userBranchId);
+    } else if (selectedBranchId) {
+      setFilterBranchId(selectedBranchId);
+    }
+  }, [userBranchId, selectedBranchId]);
 
   const [activeView, setActiveView] = useState<'list' | 'calendar'>('list');
   const [dateFilter, setDateFilter] = useState<'All' | 'Today' | 'Tomorrow' | 'Week'>('All');
@@ -106,6 +116,8 @@ export default function AppointmentsPage() {
 
   // Filtered list for table view
   const filteredAppointments = appointments.filter((apt) => {
+    const matchesBranch = !filterBranchId || apt.branchId === filterBranchId;
+
     const matchesSearch =
       apt.clientName.toLowerCase().includes(search.toLowerCase()) ||
       apt.serviceName.toLowerCase().includes(search.toLowerCase()) ||
@@ -123,10 +135,10 @@ export default function AppointmentsPage() {
       matchesDate = apt.date === tomorrow.toISOString().split('T')[0];
     }
 
-    return matchesSearch && matchesStatus && matchesDate;
+    return matchesBranch && matchesSearch && matchesStatus && matchesDate;
   });
 
-  const selectedAppointments = selectedDate ? appointments.filter(a => a.date === selectedDate) : [];
+  const selectedAppointments = selectedDate ? appointments.filter(a => a.date === selectedDate && (!filterBranchId || a.branchId === filterBranchId)) : [];
 
   const handleCreateAppointment = (e: React.FormEvent) => {
     e.preventDefault();
@@ -170,7 +182,22 @@ export default function AppointmentsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {branches.length > 0 && (
+            <select
+              value={filterBranchId}
+              onChange={(e) => setFilterBranchId(e.target.value)}
+              className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-950 dark:text-slate-50 text-sm font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-sm cursor-pointer"
+            >
+              <option value="">All Branches</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          )}
+
           <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
             <button
               onClick={() => setActiveView('list')}
@@ -372,7 +399,7 @@ export default function AppointmentsPage() {
 
                 {monthDays.map(dayNum => {
                   const dayStr = toDateStr(viewYear, viewMonth, dayNum);
-                  const dayAppointments = appointments.filter(a => a.date === dayStr);
+                  const dayAppointments = appointments.filter(a => a.date === dayStr && (!filterBranchId || a.branchId === filterBranchId));
                   const todayFlag = isToday(dayNum);
                   const isSelected = selectedDate === dayStr;
 

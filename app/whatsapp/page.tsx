@@ -15,6 +15,8 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { apiFetch } from '../../lib/api/client';
+import { useClinic } from '../../lib/context/ClinicContext';
+import { useRouter } from 'next/navigation';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 import { Button } from '../../components/ui/Button';
 
@@ -41,7 +43,25 @@ interface Settings {
 }
 
 export default function WhatsAppPage() {
+  const { role, isLoading } = useClinic();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && role !== 'admin') {
+      router.push('/dashboard');
+    }
+  }, [role, isLoading, router]);
+
   const [activeTab, setActiveTab] = useState<'chat' | 'settings'>('chat');
+
+  if (isLoading || role !== 'admin') {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-slate-500 animate-pulse font-bold">Loading...</div>
+      </div>
+    );
+  }
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConv, setSelectedConv] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);

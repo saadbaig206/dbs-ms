@@ -24,6 +24,7 @@ class WhatsAppMessage(Base):
 class WhatsAppSettings(Base):
     __tablename__ = "whatsapp_settings"
 
-    id = Column(Integer, primary_key=True, default=1)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    branch_id = Column(String, ForeignKey("branches.id"), nullable=True, unique=True)
     system_prompt = Column(Text, nullable=True)
     knowledge_base = Column(Text, nullable=True)

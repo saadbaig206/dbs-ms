@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app.core.deps import get_db, get_staff_user, get_admin_user
+from app.core.deps import get_db, get_staff_user, get_admin_user, get_user_branch_id
 from app.models.staff import Staff
 from app.models.user import User
 from app.schemas.staff import StaffCreate, StaffUpdate, StaffResponse
@@ -16,9 +16,12 @@ router = APIRouter()
 async def list_staff(
     search: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_staff_user)
+    current_user = Depends(get_staff_user),
+    branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
     query = select(Staff)
+    if branch_id:
+        query = query.where(Staff.branch_id == branch_id)
     if search:
         query = query.where(Staff.name.ilike(f"%{search}%") | Staff.role.ilike(f"%{search}%"))
     

@@ -23,13 +23,6 @@ async def lifespan(app: FastAPI):
             # 1. Create tables on startup dynamically
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
-                # Ensure branch_id columns exist in staff and clients tables
-                await conn.execute(text(
-                    "ALTER TABLE staff ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
-                ))
-                await conn.execute(text(
-                    "ALTER TABLE clients ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
-                ))
                 
             # 2. Seed default users and settings if none exist
             async_session = sessionmaker(
@@ -54,7 +47,6 @@ async def lifespan(app: FastAPI):
                 settings_result = await session.execute(select(WhatsAppSettings))
                 if not settings_result.scalars().first():
                     default_settings = WhatsAppSettings(
-                        id=1,
                         system_prompt="You are a helpful customer service assistant for DBS Aesthetics Clinic. Be professional, polite, and direct.",
                         knowledge_base="Aura Luxury / DBS Aesthetics Clinic is a premium luxury clinic. We offer advanced skincare, laser treatments, hair transplants, dental aesthetics, and cosmetic surgery."
                     )

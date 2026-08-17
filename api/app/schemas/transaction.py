@@ -23,12 +23,14 @@ class FinancialTransactionBase(CamelModel):
     card_last_four: Optional[str] = None
     card_type: Optional[str] = None
     bank_txn_id: Optional[str] = None
+    branch_id: Optional[str] = None
 
 class FinancialTransactionCreate(CamelModel):
     client_name: str
     payment_method: str
     discount_percent: float = Field(default=0.0, ge=0)
     tax_percent: float = Field(default=0.0, ge=0)
+    branch_id: Optional[str] = None
 
 class FinancialTransactionResponse(FinancialTransactionBase):
     id: str

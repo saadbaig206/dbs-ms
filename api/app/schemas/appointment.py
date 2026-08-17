@@ -15,6 +15,7 @@ class AppointmentBase(CamelModel):
     status: str = "Pending"
     notes: Optional[str] = None
     price: float = Field(ge=0)
+    branch_id: Optional[str] = None
 
 class AppointmentCreate(AppointmentBase):
     pass
@@ -32,6 +33,7 @@ class AppointmentUpdate(CamelModel):
     status: Optional[str] = None
     notes: Optional[str] = None
     price: Optional[float] = Field(None, ge=0)
+    branch_id: Optional[str] = None
 
 class AppointmentResponse(AppointmentBase):
     id: str

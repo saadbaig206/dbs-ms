@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app.core.deps import get_db, get_admin_user
+from app.core.deps import get_db, get_admin_user, get_user_branch_id
 from app.models.expense import ExpenseItem
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate, ExpenseResponse
 
@@ -12,12 +12,17 @@ router = APIRouter()
 @router.get("", response_model=List[ExpenseResponse])
 async def list_expenses(
     search: Optional[str] = None,
+    branch_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_admin_user)
+    current_user = Depends(get_admin_user),
+    user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
     query = select(ExpenseItem)
     if search:
         query = query.where(ExpenseItem.title.ilike(f"%{search}%") | ExpenseItem.category.ilike(f"%{search}%"))
+    active_branch_id = user_branch_id or branch_id
+    if active_branch_id:
+        query = query.where(ExpenseItem.branch_id == active_branch_id)
         
     result = await db.execute(query.order_by(ExpenseItem.id.desc()))
     return result.scalars().all()
@@ -41,7 +46,8 @@ async def create_expense(
         status=expense_in.status,
         payment_method=expense_in.payment_method,
         notes=expense_in.notes,
-        staff_id=expense_in.staff_id
+        staff_id=expense_in.staff_id,
+        branch_id=expense_in.branch_id
     )
     db.add(db_expense)
     await db.commit()

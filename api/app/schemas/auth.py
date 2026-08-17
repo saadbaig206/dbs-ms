@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr
+from typing import Optional
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -14,6 +15,7 @@ class UserResponse(BaseModel):
     id: int
     email: EmailStr
     role: str
+    branch_id: Optional[str] = None
 
     class Config:
         from_attributes = True

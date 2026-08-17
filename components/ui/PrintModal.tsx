@@ -99,7 +99,12 @@ function InvoicePrintContent({ data }: { data: any }) {
 }
 
 function PrintDocument({ type, data }: { type: string; data: any }) {
-  const { clinicInfo } = useClinic();
+  const { clinicInfo, branches } = useClinic();
+
+  const branch = branches.find(b => b.id === data.branchId);
+  const displayClinicName = branch ? `${clinicInfo.name} (${branch.name})` : clinicInfo.name;
+  const displayAddress = branch ? branch.location : clinicInfo.address;
+  const displayPhone = branch ? branch.phone || clinicInfo.phone : clinicInfo.phone;
 
   return (
     <div className="bg-white text-slate-900 p-8 font-sans max-w-[210mm] mx-auto space-y-6">
@@ -117,14 +122,14 @@ function PrintDocument({ type, data }: { type: string; data: any }) {
             />
             <div>
               <h1 className="text-xl font-black tracking-tight text-slate-950 uppercase leading-none">
-                {clinicInfo.name}
+                {displayClinicName}
               </h1>
               <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1 block">Aesthetics & Wellness Spa</span>
             </div>
           </div>
-          <p className="text-xs text-slate-500 max-w-[340px] leading-relaxed">{clinicInfo.address}</p>
+          <p className="text-xs text-slate-500 max-w-[340px] leading-relaxed">{displayAddress}</p>
           <p className="text-xs text-slate-500 font-semibold mt-1">
-            Phone: {clinicInfo.phone} • Email: {clinicInfo.email}
+            Phone: {displayPhone} • Email: {clinicInfo.email}
           </p>
         </div>
         <div className="text-right flex flex-col items-end">

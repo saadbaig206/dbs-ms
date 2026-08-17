@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app.core.deps import get_db, get_staff_user
+from app.core.deps import get_db, get_staff_user, get_user_branch_id
 from app.models.appointment import Appointment
 from app.models.notification import NotificationItem
 from app.schemas.appointment import AppointmentCreate, AppointmentUpdate, AppointmentResponse
@@ -32,12 +32,17 @@ async def check_double_booking(db: AsyncSession, staff_id: str, date: str, time:
 @router.get("", response_model=List[AppointmentResponse])
 async def list_appointments(
     search: Optional[str] = None,
+    branch_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_staff_user)
+    current_user = Depends(get_staff_user),
+    user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
     query = select(Appointment)
     if search:
         query = query.where(Appointment.client_name.ilike(f"%{search}%") | Appointment.staff_name.ilike(f"%{search}%"))
+    active_branch_id = user_branch_id or branch_id
+    if active_branch_id:
+        query = query.where(Appointment.branch_id == active_branch_id)
         
     result = await db.execute(query.order_by(Appointment.id.desc()))
     return result.scalars().all()
@@ -68,7 +73,8 @@ async def create_appointment(
         time=apt_in.time,
         status=apt_in.status,
         notes=apt_in.notes,
-        price=apt_in.price
+        price=apt_in.price,
+        branch_id=apt_in.branch_id
     )
     db.add(db_apt)
     

@@ -16,6 +16,7 @@ export interface Appointment {
   status: AppointmentStatus;
   notes?: string;
   price: number;
+  branchId?: string;
 }
 
 export interface ClientHistoryItem {
@@ -77,6 +78,8 @@ export interface Branch {
   name: string;
   location: string;
   phone?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export type ServiceCategory = 
@@ -120,6 +123,7 @@ export interface InventoryItem {
   price: number;
   status: 'In Stock' | 'Low Stock' | 'Out of Stock';
   lastRestocked: string;
+  branchId?: string;
 }
 
 export type ExpenseCategory = 
@@ -142,6 +146,7 @@ export interface ExpenseItem {
   paymentMethod: 'Bank Transfer' | 'Cash' | 'Card' | 'Cheque';
   notes?: string;
   staffId?: string;
+  branchId?: string;
 }
 
 export type PaymentMethod = 'Cash' | 'Card' | 'Bank' | 'Online';
@@ -166,6 +171,7 @@ export interface FinancialTransaction {
   paymentMethod: PaymentMethod;
   status: 'Paid' | 'Refunded' | 'Pending';
   items?: InvoiceLineItem[];
+  branchId?: string;
 }
 
 export type AttendanceStatus = 'Present' | 'Late' | 'Leave' | 'Absent';

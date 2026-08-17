@@ -11,6 +11,7 @@ class ExpenseBase(CamelModel):
     payment_method: str
     notes: Optional[str] = None
     staff_id: Optional[str] = None
+    branch_id: Optional[str] = None
 
 class ExpenseCreate(ExpenseBase):
     pass
@@ -24,6 +25,7 @@ class ExpenseUpdate(CamelModel):
     payment_method: Optional[str] = None
     notes: Optional[str] = None
     staff_id: Optional[str] = None
+    branch_id: Optional[str] = None
 
 class ExpenseResponse(ExpenseBase):
     id: str

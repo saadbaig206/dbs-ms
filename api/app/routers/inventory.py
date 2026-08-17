@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app.core.deps import get_db, get_staff_user, get_admin_user
+from app.core.deps import get_db, get_staff_user, get_admin_user, get_user_branch_id
 from app.models.inventory import InventoryItem
 from app.schemas.inventory import InventoryCreate, InventoryUpdate, InventoryResponse
 
@@ -13,12 +13,17 @@ router = APIRouter()
 @router.get("", response_model=List[InventoryResponse])
 async def list_inventory(
     search: Optional[str] = None,
+    branch_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_staff_user)
+    current_user = Depends(get_staff_user),
+    user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
     query = select(InventoryItem)
     if search:
         query = query.where(InventoryItem.item_name.ilike(f"%{search}%") | InventoryItem.supplier.ilike(f"%{search}%"))
+    active_branch_id = user_branch_id or branch_id
+    if active_branch_id:
+        query = query.where(InventoryItem.branch_id == active_branch_id)
         
     result = await db.execute(query.order_by(InventoryItem.id.desc()))
     return result.scalars().all()
@@ -41,7 +46,8 @@ async def create_inventory_item(
         min_stock=item_in.min_stock,
         supplier=item_in.supplier,
         price=item_in.price,
-        last_restocked=item_in.last_restocked
+        last_restocked=item_in.last_restocked,
+        branch_id=item_in.branch_id
     )
     db.add(db_item)
     await db.commit()
@@ -86,6 +92,21 @@ async def adjust_quantity(
         db_item.last_restocked = datetime.now().strftime("%Y-%m-%d")
         
     db.add(db_item)
+    
+    # Trigger low stock alert
+    if db_item.quantity <= db_item.min_stock:
+        from app.models.notification import NotificationItem
+        alert_id = f"NOT-INV-{int(datetime.now().timestamp() * 1000)}"
+        stock_alert = NotificationItem(
+            id=alert_id,
+            title=f"Low Stock Alert: {db_item.item_name}",
+            message=f"Stock for '{db_item.item_name}' has fallen to {db_item.quantity} (Min threshold: {db_item.min_stock}). Please restock.",
+            time="Just now",
+            type="inventory",
+            read=False
+        )
+        db.add(stock_alert)
+        
     await db.commit()
     await db.refresh(db_item)
     return db_item

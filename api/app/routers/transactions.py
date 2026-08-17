@@ -12,12 +12,15 @@ router = APIRouter()
 @router.get("", response_model=List[FinancialTransactionResponse])
 async def list_transactions(
     search: Optional[str] = None,
+    branch_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_admin_user)
 ):
     query = select(FinancialTransaction)
     if search:
         query = query.where(FinancialTransaction.client_name.ilike(f"%{search}%") | FinancialTransaction.invoice_id.ilike(f"%{search}%"))
+    if branch_id:
+        query = query.where(FinancialTransaction.branch_id == branch_id)
         
     result = await db.execute(query.order_by(FinancialTransaction.id.desc()))
     return result.scalars().all()
