@@ -20,7 +20,6 @@ import { useClinic } from '../../lib/context/ClinicContext';
 import { formatPKR } from '../../lib/utils/currency';
 import { ExpenseCategory } from '../../lib/types/clinic';
 import { StatCard } from '../../components/cards/StatCard';
-import { RevenueChart, ServiceDistributionChart, ExpenseBreakdownChart } from '../../components/charts/ClinicCharts';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
@@ -336,19 +335,6 @@ export default function FinanceReportsPage() {
                 />
               </div>
 
-              {/* Revenue Area Chart */}
-              <div className="luxury-card p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                      Monthly Revenue vs Operating Profit
-                    </h3>
-                    <p className="text-xs text-slate-500">2026 Fiscal Year Growth Chart</p>
-                  </div>
-                  <Badge variant="primary">Updated</Badge>
-                </div>
-                <RevenueChart />
-              </div>
 
               {/* Payment Transactions Table */}
               <div className="luxury-card p-6">
@@ -552,31 +538,73 @@ export default function FinanceReportsPage() {
                   <Badge variant="success" size="md">Verified Fiscal Data</Badge>
                 </div>
 
-                {/* Visual Charts Based on Selected Tab */}
+                {/* Data Summaries instead of Visual Charts */}
                 {(activeReport === 'Revenue' || activeReport === 'Profit') && (
                   <div className="space-y-4">
                     <p className="text-xs text-slate-500">
-                      Interactive monthly net revenue trajectory compared against operational overheads.
+                      Overview of gross receipts, discounts applied, and resulting net revenue.
                     </p>
-                    <RevenueChart />
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Gross Revenue</span>
+                        <span className="text-xl font-bold font-mono text-slate-900 dark:text-slate-100 mt-1 block">{formatPKR(totalRevenue + totalDiscounts)}</span>
+                      </div>
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Discounts</span>
+                        <span className="text-xl font-bold font-mono text-rose-600 mt-1 block">-{formatPKR(totalDiscounts)}</span>
+                      </div>
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Net Revenue</span>
+                        <span className="text-xl font-bold font-mono text-emerald-600 mt-1 block">{formatPKR(totalRevenue)}</span>
+                      </div>
+                    </div>
                   </div>
                 )}
 
                 {activeReport === 'Expense' && (
                   <div className="space-y-4">
                     <p className="text-xs text-slate-500">
-                      Breakdown of clinic operational costs across salaries, rent, machines, marketing, and products.
+                      Overhead and expenditure distribution grouped by operational category.
                     </p>
-                    <ExpenseBreakdownChart />
+                    <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                      <table className="w-full text-left text-xs sm:text-sm">
+                        <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[10px] font-bold text-slate-400 tracking-wider">
+                          <tr>
+                            <th className="py-2.5 px-4">Expense Category</th>
+                            <th className="py-2.5 px-4 text-right">Total Outflow (PKR)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-semibold text-slate-700 dark:text-slate-300">
+                          {['Salary', 'Electric Bill', 'Water Bill', 'Rent', 'Products', 'Machines', 'Marketing', 'Other'].map(cat => {
+                            const amt = expenses.filter(e => e.category === cat).reduce((sum, e) => sum + e.amount, 0);
+                            return (
+                              <tr key={cat}>
+                                <td className="py-2.5 px-4 font-bold">{cat}</td>
+                                <td className="py-2.5 px-4 text-right font-mono text-rose-600 font-bold">-{formatPKR(amt)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
 
                 {(activeReport === 'Service' || activeReport === 'Client' || activeReport === 'Inventory' || activeReport === 'Salary') && (
                   <div className="space-y-4">
                     <p className="text-xs text-slate-500">
-                      Share of treatment popularity and inventory utilization across key clinic categories.
+                      Summary metrics and itemizations of active database registers.
                     </p>
-                    <ServiceDistributionChart />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Transactions Count</span>
+                        <span className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-1 block">{transactions.length}</span>
+                      </div>
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Active Expense Outflows</span>
+                        <span className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-1 block">{expenses.length}</span>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
