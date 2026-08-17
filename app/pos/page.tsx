@@ -219,11 +219,20 @@ export default function POSPage() {
                   {filteredServices.map((srv) => (
                     <tr
                       key={srv.id}
-                      onClick={() => addToPosCart(srv)}
-                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
+                      onClick={() => srv.status !== 'Out of Stock' && addToPosCart(srv)}
+                      className={`transition-colors ${
+                        srv.status === 'Out of Stock'
+                          ? 'opacity-60 bg-slate-100/50 dark:bg-slate-900/40 cursor-not-allowed'
+                          : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40 cursor-pointer'
+                      }`}
                     >
                       <td className="py-2.5 px-3">
-                        <div className="font-bold text-slate-900 dark:text-slate-100">{srv.name}</div>
+                        <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                          {srv.name}
+                          {srv.status === 'Out of Stock' && (
+                            <Badge variant="danger" size="sm">Out of Stock</Badge>
+                          )}
+                        </div>
                         <div className="text-[10px] text-slate-400 font-normal">{srv.durationMinutes} min</div>
                       </td>
                       <td className="py-2.5 px-3">
@@ -233,9 +242,13 @@ export default function POSPage() {
                         {formatPKR(srv.price, { decimals: false })}
                       </td>
                       <td className="py-2.5 px-3 text-right">
-                        <button className="p-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white transition-colors">
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
+                        {srv.status === 'Out of Stock' ? (
+                          <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider">Empty</span>
+                        ) : (
+                          <button className="p-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white transition-colors">
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

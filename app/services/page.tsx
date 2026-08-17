@@ -13,14 +13,14 @@ import { Input, Select } from '../../components/ui/Input';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 
 export default function ServicesPage() {
-  const { services, addService, updateService, role } = useClinic();
+  const { services, addService, updateService, role, inventory } = useClinic();
 
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingService, setEditingService] = useState<ServiceItem | null>(null);
   const [editPrice, setEditPrice] = useState<string>('0');
-  const [editStatus, setEditStatus] = useState<'Active' | 'Inactive'>('Active');
+  const [editStatus, setEditStatus] = useState<'Active' | 'Inactive' | 'Out of Stock'>('Active');
 
   // Form State
   const [name, setName] = useState('');
@@ -29,6 +29,11 @@ export default function ServicesPage() {
   const [durationMinutes, setDurationMinutes] = useState<string>('60');
   const [description, setDescription] = useState('');
   const [image, setImage] = useState('https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&q=80&w=500');
+
+  // Mapping state
+  const [requiredInventory, setRequiredInventory] = useState<{ inventoryItemId: string; itemName: string; quantityUsed: number }[]>([]);
+  const [selectedProductToAdd, setSelectedProductToAdd] = useState('');
+  const [qtyToAdd, setQtyToAdd] = useState('1');
 
   const categories = ['All', 'Facial & Skin Care', 'Laser Treatments', 'Injectables & Anti-Aging', 'Body Contouring', 'IV Therapy', 'Rejuvenation', 'Packages'];
 
@@ -49,12 +54,14 @@ export default function ServicesPage() {
       assignedStaffNames: ['Dr. Elena Rostova'],
       status: 'Active',
       image,
-      description
+      description,
+      requiredInventory
     });
 
     setIsAddModalOpen(false);
     setName('');
     setDescription('');
+    setRequiredInventory([]);
   };
 
   const handleEditPrice = (srv: ServiceItem) => {
@@ -143,6 +150,15 @@ export default function ServicesPage() {
                     <td className="py-3.5 px-4">
                       <div className="font-bold text-slate-900 dark:text-slate-100">{srv.name}</div>
                       <div className="text-[11px] text-slate-400 font-normal leading-relaxed">{srv.description}</div>
+                      {srv.requiredInventory && srv.requiredInventory.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {srv.requiredInventory.map((item, idx) => (
+                            <span key={idx} className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 font-semibold border border-slate-200 dark:border-slate-800">
+                              {item.itemName} ({item.quantityUsed})
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td className="py-3.5 px-4">
                       <Badge variant="primary">{srv.category}</Badge>
@@ -242,6 +258,74 @@ export default function ServicesPage() {
             onChange={(e) => setDescription(e.target.value)}
             required
           />
+
+          {/* Inventory Mapping Section */}
+          <div className="space-y-3 border-t border-slate-100 dark:border-slate-800 pt-4">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Required Inventory Items</label>
+            <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
+              {requiredInventory.length === 0 ? (
+                <div className="text-[11px] text-slate-400 italic">No inventory consumption mapped yet.</div>
+              ) : (
+                requiredInventory.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                    <span className="font-bold text-slate-700 dark:text-slate-200">{item.itemName}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-slate-500 font-semibold">Qty: {item.quantityUsed}</span>
+                      <button
+                        type="button"
+                        onClick={() => setRequiredInventory(prev => prev.filter((_, i) => i !== idx))}
+                        className="text-[11px] text-rose-500 font-bold hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="flex items-end gap-2 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-2xl border border-slate-100 dark:border-slate-800">
+              <div className="flex-1">
+                <Select
+                  label="Map Product / Consumable"
+                  options={[
+                    { label: '-- Select Inventory Product --', value: '' },
+                    ...inventory.map(item => ({ label: `${item.itemName} (Stock: ${item.quantity})`, value: item.id }))
+                  ]}
+                  value={selectedProductToAdd}
+                  onChange={(e) => setSelectedProductToAdd(e.target.value)}
+                />
+              </div>
+              <div className="w-24">
+                <Input
+                  label="Qty Consumed"
+                  type="number"
+                  min="1"
+                  value={qtyToAdd}
+                  onChange={(e) => setQtyToAdd(e.target.value)}
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  if (!selectedProductToAdd) return;
+                  const item = inventory.find(i => i.id === selectedProductToAdd);
+                  if (item) {
+                    if (requiredInventory.some(r => r.inventoryItemId === item.id)) return;
+                    setRequiredInventory(prev => [
+                      ...prev,
+                      { inventoryItemId: item.id, itemName: item.itemName, quantityUsed: Number(qtyToAdd) || 1 }
+                    ]);
+                    setSelectedProductToAdd('');
+                    setQtyToAdd('1');
+                  }
+                }}
+              >
+                Add Link
+              </Button>
+            </div>
+          </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
             <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>

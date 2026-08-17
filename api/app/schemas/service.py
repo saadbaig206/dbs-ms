@@ -2,6 +2,11 @@ from typing import List, Optional
 from pydantic import Field
 from app.schemas.base import CamelModel
 
+class RequiredInventoryItem(CamelModel):
+    inventory_item_id: str
+    item_name: str
+    quantity_used: int
+
 class ServiceBase(CamelModel):
     name: str
     category: str
@@ -12,6 +17,7 @@ class ServiceBase(CamelModel):
     status: str = "Active"
     image: Optional[str] = None
     description: Optional[str] = None
+    required_inventory: List[RequiredInventoryItem] = Field(default_factory=list)
 
 class ServiceCreate(ServiceBase):
     pass
@@ -26,6 +32,7 @@ class ServiceUpdate(CamelModel):
     status: Optional[str] = None
     image: Optional[str] = None
     description: Optional[str] = None
+    required_inventory: Optional[List[RequiredInventoryItem]] = None
 
 class ServiceResponse(ServiceBase):
     id: str

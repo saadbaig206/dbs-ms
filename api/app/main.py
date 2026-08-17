@@ -45,6 +45,9 @@ async def lifespan(app: FastAPI):
                 await conn.execute(text(
                     "ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS branch_id VARCHAR UNIQUE REFERENCES branches(id) ON DELETE SET NULL;"
                 ))
+                await conn.execute(text(
+                    "ALTER TABLE services ADD COLUMN IF NOT EXISTS required_inventory JSON DEFAULT '[]';"
+                ))
                 
             # 2. Seed default users and settings if none exist
             async_session = sessionmaker(

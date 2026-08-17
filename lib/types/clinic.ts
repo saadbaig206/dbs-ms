@@ -91,6 +91,12 @@ export type ServiceCategory =
   | 'Rejuvenation'
   | 'Packages';
 
+export interface RequiredInventoryItem {
+  inventoryItemId: string;
+  itemName: string;
+  quantityUsed: number;
+}
+
 export interface ServiceItem {
   id: string;
   name: string;
@@ -99,9 +105,10 @@ export interface ServiceItem {
   durationMinutes: number;
   assignedStaffIds: string[];
   assignedStaffNames: string[];
-  status: 'Active' | 'Inactive';
+  status: 'Active' | 'Inactive' | 'Out of Stock';
   image: string;
   description: string;
+  requiredInventory?: RequiredInventoryItem[];
 }
 
 export type InventoryCategory = 

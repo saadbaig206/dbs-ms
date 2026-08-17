@@ -13,6 +13,7 @@ router = APIRouter()
 async def list_services(
     search: Optional[str] = None,
     category: Optional[str] = None,
+    branch_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_staff_user)
 ):
@@ -23,7 +24,27 @@ async def list_services(
         query = query.where(ServiceItem.category == category)
         
     result = await db.execute(query.order_by(ServiceItem.id.desc()))
-    return result.scalars().all()
+    services = result.scalars().all()
+    
+    if branch_id:
+        from app.models.inventory import InventoryItem
+        inv_result = await db.execute(select(InventoryItem).where(InventoryItem.branch_id == branch_id))
+        inventory_map = {item.id: item.quantity for item in inv_result.scalars().all()}
+        
+        for service in services:
+            if service.required_inventory:
+                out_of_stock = False
+                for req in service.required_inventory:
+                    req_id = req.get("inventory_item_id")
+                    req_qty = req.get("quantity_used", 1)
+                    available_qty = inventory_map.get(req_id, 0)
+                    if available_qty < req_qty:
+                        out_of_stock = True
+                        break
+                if out_of_stock:
+                    service.status = "Out of Stock"
+                    
+    return services
 
 @router.post("", response_model=ServiceResponse)
 async def create_service(

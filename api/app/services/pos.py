@@ -80,35 +80,77 @@ async def checkout(
     db.add(client)
         
     # 2. Decrement inventory where applicable
-    # We check if any inventory item matches the name of services in the cart
     for item in cart_items:
-        query = select(InventoryItem).where(InventoryItem.item_name.ilike(f"%{item['name']}%"))
-        if branch_id:
-            query = query.where(InventoryItem.branch_id == branch_id)
-            
-        inv_result = await db.execute(query)
-        inv_item = inv_result.scalars().first()
-        if inv_item:
-            if inv_item.quantity < item["quantity"]:
-                raise Exception(
-                    f"Insufficient stock for '{item['name']}' at this branch. "
-                    f"Available: {inv_item.quantity}, Requested: {item['quantity']}"
-                )
-            inv_item.quantity -= item["quantity"]
-            db.add(inv_item)
-            
-            # Trigger automated stock alerts
-            if inv_item.quantity <= inv_item.min_stock:
-                alert_id = f"NOT-INV-{int(datetime.now().timestamp() * 1000)}"
-                stock_alert = NotificationItem(
-                    id=alert_id,
-                    title=f"Low Stock Alert: {inv_item.item_name}",
-                    message=f"Stock for '{inv_item.item_name}' has fallen to {inv_item.quantity} (Min threshold: {inv_item.min_stock}). Please restock.",
-                    time="Just now",
-                    type="inventory",
-                    read=False
-                )
-                db.add(stock_alert)
+        service = None
+        if "serviceId" in item:
+            service_result = await db.execute(select(ServiceItem).where(ServiceItem.id == item["serviceId"]))
+            service = service_result.scalars().first()
+
+        # If it has mapped required inventory, deduct mapped items
+        if service and getattr(service, "required_inventory", None):
+            for req in service.required_inventory:
+                inv_item_id = req.get("inventory_item_id")
+                qty_used = req.get("quantity_used", 1)
+                
+                # Retrieve the branch inventory item
+                inv_query = select(InventoryItem).where(InventoryItem.id == inv_item_id)
+                if branch_id:
+                    inv_query = inv_query.where(InventoryItem.branch_id == branch_id)
+                
+                inv_result = await db.execute(inv_query)
+                inv_item = inv_result.scalars().first()
+                
+                if inv_item:
+                    total_needed = qty_used * item["quantity"]
+                    if inv_item.quantity < total_needed:
+                        raise Exception(
+                            f"Insufficient stock for '{inv_item.item_name}' at this branch. "
+                            f"Available: {inv_item.quantity}, Requested: {total_needed}"
+                        )
+                    inv_item.quantity -= total_needed
+                    db.add(inv_item)
+                    
+                    # Trigger stock alert
+                    if inv_item.quantity <= inv_item.min_stock:
+                        alert_id = f"NOT-INV-{int(datetime.now().timestamp() * 1000)}"
+                        stock_alert = NotificationItem(
+                            id=alert_id,
+                            title=f"Low Stock Alert: {inv_item.item_name}",
+                            message=f"Stock for '{inv_item.item_name}' has fallen to {inv_item.quantity} (Min threshold: {inv_item.min_stock}). Please restock.",
+                            time="Just now",
+                            type="inventory",
+                            read=False
+                        )
+                        db.add(stock_alert)
+        else:
+            # Fall back to legacy name-based match
+            query = select(InventoryItem).where(InventoryItem.item_name.ilike(f"%{item['name']}%"))
+            if branch_id:
+                query = query.where(InventoryItem.branch_id == branch_id)
+                
+            inv_result = await db.execute(query)
+            inv_item = inv_result.scalars().first()
+            if inv_item:
+                if inv_item.quantity < item["quantity"]:
+                    raise Exception(
+                        f"Insufficient stock for '{item['name']}' at this branch. "
+                        f"Available: {inv_item.quantity}, Requested: {item['quantity']}"
+                    )
+                inv_item.quantity -= item["quantity"]
+                db.add(inv_item)
+                
+                # Trigger automated stock alerts
+                if inv_item.quantity <= inv_item.min_stock:
+                    alert_id = f"NOT-INV-{int(datetime.now().timestamp() * 1000)}"
+                    stock_alert = NotificationItem(
+                        id=alert_id,
+                        title=f"Low Stock Alert: {inv_item.item_name}",
+                        message=f"Stock for '{inv_item.item_name}' has fallen to {inv_item.quantity} (Min threshold: {inv_item.min_stock}). Please restock.",
+                        time="Just now",
+                        type="inventory",
+                        read=False
+                    )
+                    db.add(stock_alert)
 
     # 3. Create the FinancialTransaction record
     transaction = FinancialTransaction(

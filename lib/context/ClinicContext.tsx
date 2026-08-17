@@ -268,7 +268,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       ] = await Promise.all([
         fetchSafe<Branch[]>('/branches', []),
         fetchSafe<Staff[]>('/staff', []),
-        fetchSafe<ServiceItem[]>('/services', []),
+        fetchSafe<ServiceItem[]>(`/services${selectedBranchId ? `?branch_id=${selectedBranchId}` : ''}`, []),
         fetchSafe<Client[]>('/clients', []),
         fetchSafe<Appointment[]>('/appointments', []),
         fetchSafe<InventoryItem[]>('/inventory', []),
@@ -308,7 +308,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Fetch data on load
   useEffect(() => {
     refreshData(true);
-  }, []);
+  }, [selectedBranchId]);
 
   // Branches CRUD
   const addBranch = async (newBranch: Omit<Branch, 'id'>) => {
