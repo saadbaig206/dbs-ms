@@ -12,7 +12,11 @@ export async function GET(request: Request) {
 
     const host = request.headers.get('host');
     const protocol = request.headers.get('x-forwarded-proto') || 'https';
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || (host ? `${protocol}://${host}` : 'http://localhost:8000');
+    let apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+    const isLocalhost = host && (host.includes('localhost') || host.includes('127.0.0.1'));
+    if (!apiUrl || (!isLocalhost && (apiUrl.includes('localhost') || apiUrl.includes('127.0.0.1')))) {
+      apiUrl = host ? `${protocol}://${host}` : 'http://localhost:8000';
+    }
     const res = await fetch(`${apiUrl}/api/v1/auth/me`, {
       headers: {
         'Authorization': `Bearer ${token}`

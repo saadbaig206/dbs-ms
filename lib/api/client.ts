@@ -5,16 +5,22 @@ export interface ApiResponse<T> {
 }
 
 const getApiBaseUrl = () => {
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
-  }
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
   if (typeof window !== 'undefined') {
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (isLocal && envUrl) {
+      return envUrl;
+    }
     return window.location.origin;
+  }
+  
+  if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    return envUrl;
   }
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}`;
   }
-  return 'http://localhost:8000';
+  return envUrl || 'http://localhost:8000';
 };
 
 const API_BASE_URL = getApiBaseUrl();
