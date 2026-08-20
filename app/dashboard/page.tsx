@@ -307,6 +307,7 @@ export default function DashboardPage() {
               subtitle="treatments list"
             />
           </>
+        )}
         {role === 'partner' ? (
           <Link href="/finance-reports" className="cursor-pointer block transition hover:-translate-y-0.5">
             <StatCard
