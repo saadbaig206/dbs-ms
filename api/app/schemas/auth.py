@@ -1,8 +1,8 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
 
 class TokenResponse(BaseModel):
@@ -13,9 +13,14 @@ class TokenResponse(BaseModel):
 
 class UserResponse(BaseModel):
     id: int
-    email: EmailStr
+    email: str
     role: str
     branch_id: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+class PartnerCreate(BaseModel):
+    username: str
+    password: str
+

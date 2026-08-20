@@ -45,11 +45,6 @@ export default function DashboardPage() {
     setMounted(true);
   }, []);
 
-  // Filter collections if a specific branch is selected
-  const appointments = selectedBranchId 
-    ? allAppointments.filter(a => a.branchId === selectedBranchId)
-    : allAppointments;
-
   if (!mounted) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -57,6 +52,11 @@ export default function DashboardPage() {
       </div>
     );
   }
+
+  // Filter collections if a specific branch is selected
+  const appointments = selectedBranchId 
+    ? allAppointments.filter(a => a.branchId === selectedBranchId)
+    : allAppointments;
 
   const inventory = selectedBranchId 
     ? allInventory.filter(i => i.branchId === selectedBranchId)
@@ -131,16 +131,20 @@ export default function DashboardPage() {
               ))}
             </select>
           )}
-          <Link href="/pos">
-            <Button variant="primary" icon={<CreditCard className="w-4 h-4" />}>
-              Open Billing
-            </Button>
-          </Link>
-          <Link href="/appointments">
-            <Button variant="outline" icon={<Plus className="w-4 h-4" />}>
-              New Appointment
-            </Button>
-          </Link>
+          {role !== 'partner' && (
+            <>
+              <Link href="/pos">
+                <Button variant="primary" icon={<CreditCard className="w-4 h-4" />}>
+                  Open Billing
+                </Button>
+              </Link>
+              <Link href="/appointments">
+                <Button variant="outline" icon={<Plus className="w-4 h-4" />}>
+                  New Appointment
+                </Button>
+              </Link>
+            </>
+          )}
         </div>
       </div>
 
@@ -239,7 +243,7 @@ export default function DashboardPage() {
 
       {/* Streamlined 4 KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {role === 'admin' ? (
+        {role === 'admin' || role === 'partner' ? (
           <>
             <Link href="/finance-reports" className="cursor-pointer block transition hover:-translate-y-0.5">
               <StatCard

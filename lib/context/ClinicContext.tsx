@@ -79,6 +79,8 @@ interface ClinicContextType {
   addAppointment: (newApt: Omit<Appointment, 'id'>) => Promise<void>;
   updateAppointmentStatus: (id: string, status: Appointment['status']) => Promise<void>;
   deleteAppointment: (id: string) => Promise<void>;
+  sendAppointmentReminder: (id: string) => Promise<void>;
+  rejectAppointmentReminder: (id: string) => Promise<void>;
 
   inventory: InventoryItem[];
   addInventoryItem: (item: Omit<InventoryItem, 'id' | 'status'>) => Promise<void>;
@@ -91,6 +93,7 @@ interface ClinicContextType {
 
   transactions: FinancialTransaction[];
   addTransaction: (txn: Omit<FinancialTransaction, 'id'>) => Promise<void>;
+  updateTransaction: (id: string, updated: Partial<FinancialTransaction>) => Promise<void>;
 
   attendance: AttendanceRecord[];
   markAttendance: (
@@ -130,6 +133,10 @@ interface ClinicContextType {
   userBranchId: string | null;
   userId: string | null;
   userEmail: string | null;
+
+  partners: { id: number; username: string }[];
+  addPartner: (username: string, password: string) => Promise<void>;
+  deletePartner: (id: number) => Promise<void>;
 }
 
 const ClinicContext = createContext<ClinicContextType | undefined>(undefined);
@@ -182,6 +189,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [partners, setPartners] = useState<{ id: number; username: string }[]>([]);
 
   // POS
   const [posCart, setPosCart] = useState<POSCartItem[]>([]);
@@ -223,7 +231,10 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const toggleRole = () => {
-    const nextRole = role === 'admin' ? 'staff' : 'admin';
+    let nextRole: UserRole = 'admin';
+    if (role === 'admin') nextRole = 'staff';
+    else if (role === 'staff') nextRole = 'partner';
+    else if (role === 'partner') nextRole = 'admin';
     setRole(nextRole);
   };
 
@@ -291,8 +302,8 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setAttendance(attendanceData);
       setNotifications(notificationsData);
 
-      // Financial data restricted to admin
-      if (activeRole === 'admin') {
+      // Financial data restricted to admin or partner
+      if (activeRole === 'admin' || activeRole === 'partner') {
         const [expensesData, transactionsData] = await Promise.all([
           fetchSafe<ExpenseItem[]>('/expenses', []),
           fetchSafe<FinancialTransaction[]>('/transactions', [])
@@ -302,6 +313,14 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       } else {
         setExpenses([]);
         setTransactions([]);
+      }
+
+      // Load partners only if admin
+      if (activeRole === 'admin') {
+        const partnersData = await fetchSafe<{ id: number; username: string }[]>('/auth/partners', []);
+        setPartners(partnersData);
+      } else {
+        setPartners([]);
       }
     } catch (err: any) {
       console.error('Failed to load clinic data:', err);
@@ -425,6 +444,20 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     await refreshData();
   };
 
+  const sendAppointmentReminder = async (id: string) => {
+    await apiFetch(`/appointments/${id}/reminder/send`, {
+      method: 'POST',
+    });
+    await refreshData();
+  };
+
+  const rejectAppointmentReminder = async (id: string) => {
+    await apiFetch(`/appointments/${id}/reminder/reject`, {
+      method: 'POST',
+    });
+    await refreshData();
+  };
+
   // Inventory CRUD
   const addInventoryItem = async (item: Omit<InventoryItem, 'id' | 'status'>) => {
     await apiFetch('/inventory', {
@@ -472,6 +505,29 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Transactions
   const addTransaction = async (txn: Omit<FinancialTransaction, 'id'>) => {
     // Add transaction directly (if needed, though mostly done via POS checkout)
+    await refreshData();
+  };
+
+  const updateTransaction = async (id: string, updated: Partial<FinancialTransaction>) => {
+    await apiFetch(`/transactions/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updated),
+    });
+    await refreshData();
+  };
+
+  const addPartner = async (username: string, password: string) => {
+    await apiFetch('/auth/partners', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+    await refreshData();
+  };
+
+  const deletePartner = async (id: number) => {
+    await apiFetch(`/auth/partners/${id}`, {
+      method: 'DELETE',
+    });
     await refreshData();
   };
 
@@ -597,6 +653,8 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         addAppointment,
         updateAppointmentStatus,
         deleteAppointment,
+        sendAppointmentReminder,
+        rejectAppointmentReminder,
 
         inventory,
         addInventoryItem,
@@ -609,9 +667,14 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         transactions,
         addTransaction,
+        updateTransaction,
 
         attendance,
         markAttendance,
+
+        partners,
+        addPartner,
+        deletePartner,
 
         notifications,
         markNotificationRead,

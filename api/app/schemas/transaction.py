@@ -34,3 +34,21 @@ class FinancialTransactionCreate(CamelModel):
 
 class FinancialTransactionResponse(FinancialTransactionBase):
     id: str
+
+class FinancialTransactionUpdate(CamelModel):
+    client_name: Optional[str] = None
+    service_name: Optional[str] = None
+    amount: Optional[float] = None
+    discount: Optional[float] = None
+    tax: Optional[float] = None
+    tax_percent: Optional[float] = None
+    grand_total: Optional[float] = None
+    date: Optional[str] = None
+    payment_method: Optional[str] = None
+    status: Optional[str] = None
+    items: Optional[List[InvoiceLineItemSchema]] = None
+    card_last_four: Optional[str] = None
+    card_type: Optional[str] = None
+    bank_txn_id: Optional[str] = None
+    branch_id: Optional[str] = None
+

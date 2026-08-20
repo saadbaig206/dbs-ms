@@ -108,3 +108,51 @@ async def debug_db(db: AsyncSession = Depends(get_db)):
             "error_detail": str(e)
         }
 
+from typing import List
+from app.core.deps import get_admin_user
+from app.schemas.auth import PartnerCreate
+
+@router.get("/partners", response_model=List[dict])
+async def list_partners(
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_admin_user)
+):
+    result = await db.execute(select(User).where(User.role == "partner"))
+    users = result.scalars().all()
+    return [{"id": u.id, "username": u.email} for u in users]
+
+@router.post("/partners", response_model=dict)
+async def create_partner(
+    partner_in: PartnerCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_admin_user)
+):
+    result = await db.execute(select(User).where(User.email == partner_in.username))
+    if result.scalars().first():
+        raise HTTPException(status_code=400, detail="Partner username already exists")
+    
+    from app.core.security import get_password_hash
+    db_user = User(
+        email=partner_in.username,
+        hashed_password=get_password_hash(partner_in.password),
+        role="partner"
+    )
+    db.add(db_user)
+    await db.commit()
+    return {"id": db_user.id, "username": db_user.email}
+
+@router.delete("/partners/{partner_id}")
+async def delete_partner(
+    partner_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_admin_user)
+):
+    result = await db.execute(select(User).where((User.id == partner_id) & (User.role == "partner")))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Partner not found")
+    await db.delete(user)
+    await db.commit()
+    return {"message": "Partner deleted successfully"}
+
+

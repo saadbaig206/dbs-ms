@@ -27,7 +27,6 @@ export function proxy(request: NextRequest) {
 
   // Admin-only paths
   const isAdminOnlyPath = 
-    path.startsWith('/dashboard') || 
     path.startsWith('/expenses') || 
     path.startsWith('/finance') || 
     path.startsWith('/reports');

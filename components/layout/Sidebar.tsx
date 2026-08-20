@@ -26,7 +26,8 @@ import {
   X,
   ShieldCheck,
   MapPin,
-  MessageSquare
+  MessageSquare,
+  Bell
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { Badge } from '../ui/Badge';
@@ -58,9 +59,8 @@ export const Sidebar: React.FC = () => {
     { title: 'Inventory', href: '/inventory', icon: Package, adminOnly: false },
     { title: 'Branches', href: '/branches', icon: MapPin, adminOnly: true },
     { title: 'Finance & Reports', href: '/finance-reports', icon: DollarSign, adminOnly: true },
-    { title: 'Staff', href: '/staff', icon: Users2, adminOnly: true },
-    { title: 'WhatsApp Bot', href: '/whatsapp', icon: MessageSquare, adminOnly: true },
-    { title: 'Settings', href: '/settings', icon: Settings, adminOnly: true },
+    {title: 'Staff', href: '/staff', icon: Users2, adminOnly: true },
+    { title: 'Reminders', href: '/reminders', icon: Bell, adminOnly: false },
   ];
 
   const shortName = clinicInfo.name.split(' ')[0] || 'Clinic';
@@ -94,7 +94,15 @@ export const Sidebar: React.FC = () => {
       {/* Navigation List */}
       <div className="flex-1 py-4 px-3 space-y-1 overflow-y-auto custom-scrollbar">
         {menuItems
-          .filter((item) => !(role === 'staff' && item.adminOnly))
+          .filter((item) => {
+            if (role === 'partner') {
+              return item.href === '/dashboard' || item.href === '/finance-reports';
+            }
+            if (role === 'staff') {
+              return !item.adminOnly;
+            }
+            return true;
+          })
           .map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;

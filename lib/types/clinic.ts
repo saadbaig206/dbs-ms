@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'staff';
+export type UserRole = 'admin' | 'staff' | 'partner';
 
 export type AppointmentStatus = 'Confirmed' | 'In-Progress' | 'Completed' | 'Cancelled' | 'Pending';
 
@@ -14,6 +14,7 @@ export interface Appointment {
   date: string; // YYYY-MM-DD
   time: string;
   status: AppointmentStatus;
+  reminderStatus?: 'Pending' | 'Sent' | 'Rejected';
   notes?: string;
   price: number;
   branchId?: string;

@@ -13,6 +13,7 @@ class AppointmentBase(CamelModel):
     date: str
     time: str
     status: str = "Pending"
+    reminder_status: Optional[str] = "Pending"
     notes: Optional[str] = None
     price: float = Field(ge=0)
     branch_id: Optional[str] = None
@@ -31,6 +32,7 @@ class AppointmentUpdate(CamelModel):
     date: Optional[str] = None
     time: Optional[str] = None
     status: Optional[str] = None
+    reminder_status: Optional[str] = None
     notes: Optional[str] = None
     price: Optional[float] = Field(None, ge=0)
     branch_id: Optional[str] = None

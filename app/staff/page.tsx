@@ -32,7 +32,7 @@ import { Input, Select } from '../../components/ui/Input';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 
 export default function StaffPage() {
-  const { staff, addStaff, updateStaff, deleteStaff, attendance, markAttendance, role, branches, isLoading } = useClinic();
+  const { staff, addStaff, updateStaff, deleteStaff, attendance, markAttendance, role, branches, isLoading, partners, addPartner, deletePartner } = useClinic();
   const router = useRouter();
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export default function StaffPage() {
     }
   }, [role, isLoading, router]);
 
-  const [activeTab, setActiveTab] = useState<'directory' | 'attendance'>('directory');
+  const [activeTab, setActiveTab] = useState<'directory' | 'attendance' | 'partners'>('directory');
 
   if (isLoading || role !== 'admin') {
     return (
@@ -55,6 +55,11 @@ export default function StaffPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
+
+  // Partners management state
+  const [isAddPartnerModalOpen, setIsAddPartnerModalOpen] = useState(false);
+  const [partnerUsername, setPartnerUsername] = useState('');
+  const [partnerPassword, setPartnerPassword] = useState('');
 
   // Form State for Adding/Editing Staff
   const [name, setName] = useState('');
@@ -198,6 +203,31 @@ export default function StaffPage() {
     }
   };
 
+  const handleAddPartner = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await addPartner(partnerUsername, partnerPassword);
+      setPartnerUsername('');
+      setPartnerPassword('');
+      setIsAddPartnerModalOpen(false);
+      showToast('Partner added successfully');
+    } catch (err: any) {
+      console.error(err);
+      showToast('Failed to add partner', 'error');
+    }
+  };
+
+  const handleDeletePartner = async (id: number) => {
+    if (!window.confirm('Are you sure you want to delete this partner?')) return;
+    try {
+      await deletePartner(id);
+      showToast('Partner deleted successfully');
+    } catch (err: any) {
+      console.error(err);
+      showToast('Failed to delete partner', 'error');
+    }
+  };
+
   const handleOpenBulkModal = () => {
     const todayStr = new Date().toISOString().split('T')[0];
     const todayRecords = attendance.filter(a => a.date === todayStr);
@@ -265,11 +295,27 @@ export default function StaffPage() {
             >
               Attendance
             </button>
+            <button
+              onClick={() => setActiveTab('partners')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === 'partners'
+                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+              }`}
+            >
+              Partners
+            </button>
           </div>
 
           {activeTab === 'directory' && role === 'admin' && (
             <Button onClick={() => setIsAddModalOpen(true)} variant="primary" icon={<Plus className="w-4 h-4" />}>
               Add Practitioner
+            </Button>
+          )}
+
+          {activeTab === 'partners' && role === 'admin' && (
+            <Button onClick={() => setIsAddPartnerModalOpen(true)} variant="primary" icon={<Plus className="w-4 h-4" />}>
+              Add Partner
             </Button>
           )}
 
@@ -295,7 +341,7 @@ export default function StaffPage() {
         </div>
       )}
 
-      {activeTab === 'directory' ? (
+      {activeTab === 'directory' && (
         <>
           {/* Search & Branch Filter */}
           <div className="luxury-card p-4 flex flex-col sm:flex-row gap-4 items-center justify-between">
@@ -318,59 +364,45 @@ export default function StaffPage() {
             </div>
           </div>
 
-          {/* Staff Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Directory Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredStaff.map((member) => (
               <motion.div
                 key={member.id}
-                whileHover={{ y: -4 }}
-                className="luxury-card p-5 space-y-4 flex flex-col justify-between"
+                layout
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="luxury-card overflow-hidden hover:shadow-xl hover:shadow-slate-100 dark:hover:shadow-none transition-all flex flex-col justify-between"
               >
-                <div>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <Avatar src={member.photo} name={member.name} size="lg" statusDot="online" />
-                      <div>
-                        <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">{member.name}</h3>
-                        <p className="text-xs font-semibold text-blue-600 dark:text-blue-400">{member.role}</p>
-                        <span className="text-[10px] text-slate-400 font-mono">ID: {member.id}</span>
-                        {member.branchId && (
-                          <div className="mt-1">
-                            <Badge variant="gold" size="sm">
-                              <MapPin className="w-2.5 h-2.5 mr-1 inline" />
-                              {branches.find(b => b.id === member.branchId)?.name || 'Branch'}
-                            </Badge>
-                          </div>
-                        )}
+                <div className="p-5 space-y-4">
+                  <div className="flex items-start gap-4">
+                    <Avatar src={member.photo} name={member.name} size="md" statusDot={member.status === 'Active' ? 'online' : 'offline'} />
+                    <div className="space-y-0.5">
+                      <h4 className="font-bold text-slate-900 dark:text-slate-100">{member.name}</h4>
+                      <p className="text-xs font-semibold text-blue-600 dark:text-blue-400">{member.role}</p>
+                      <div className="flex items-center gap-1 text-[10px] text-slate-400 font-medium">
+                        <MapPin className="w-3 h-3 text-slate-400" />
+                        <span>{branches.find(b => b.id === member.branchId)?.name || 'Main Clinic'}</span>
                       </div>
                     </div>
-                    <Badge variant={member.status === 'Active' ? 'success' : 'warning'}>
-                      {member.status}
-                    </Badge>
                   </div>
 
-                  <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2 text-xs text-slate-600 dark:text-slate-300">
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 text-slate-400">
-                        <Phone className="w-3.5 h-3.5" /> Phone:
-                      </span>
-                      <span className="font-mono">{member.phone}</span>
+                  <div className="space-y-2 text-xs font-semibold">
+                    <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300">
+                      <Phone className="w-4 h-4 text-slate-400" />
+                      <span>{member.phone}</span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 text-slate-400">
-                        <Mail className="w-3.5 h-3.5" /> Email:
-                      </span>
-                      <span className="font-mono truncate max-w-[150px]">{member.email}</span>
+                    <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300">
+                      <Mail className="w-4 h-4 text-slate-400" />
+                      <span className="truncate">{member.email}</span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 text-slate-400">
-                        <Calendar className="w-3.5 h-3.5" /> Joined:
-                      </span>
-                      <span>{member.joiningDate}</span>
+                    <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300">
+                      <Calendar className="w-4 h-4 text-slate-400" />
+                      <span>Joined {member.joiningDate}</span>
                     </div>
-
                     {role === 'admin' && (
-                      <div className="flex items-center justify-between font-bold text-slate-900 dark:text-slate-100 pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                      <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300 pt-2 border-t border-slate-100 dark:border-slate-800">
                         <span>Monthly Salary:</span>
                         <span className="font-mono text-emerald-600 dark:text-emerald-400">{formatPKR(member.salary, { decimals: false })}</span>
                       </div>
@@ -378,27 +410,18 @@ export default function StaffPage() {
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <div className="flex items-center gap-1 text-xs font-bold text-amber-500">
-                    <Star className="w-4 h-4 fill-amber-400 stroke-none" />
-                    <span>{member.performanceRating.toFixed(1)} / 5.0</span>
+                <div className="px-5 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-500">
+                    <Star className="w-3.5 h-3.5 fill-amber-400 stroke-none" />
+                    <span>{member.performanceRating.toFixed(1)}</span>
                   </div>
-
                   {role === 'admin' && (
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => handleOpenEditModal(member)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors"
-                        title="Edit Staff Member"
-                      >
-                        <Edit2 className="w-4.5 h-4.5" />
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => handleOpenEditModal(member)} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-white dark:hover:bg-slate-700 transition-colors">
+                        <Edit2 className="w-4 h-4" />
                       </button>
-                      <button
-                        onClick={() => deleteStaff(member.id)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors"
-                        title="Delete Staff Member"
-                      >
-                        <Trash2 className="w-4.5 h-4.5" />
+                      <button onClick={() => deleteStaff(member.id)} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-white dark:hover:bg-slate-700 transition-colors">
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   )}
@@ -407,7 +430,9 @@ export default function StaffPage() {
             ))}
           </div>
         </>
-      ) : (
+      )}
+
+      {activeTab === 'attendance' && (
         <>
           {/* Attendance Summary Widgets */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -513,6 +538,54 @@ export default function StaffPage() {
             </div>
           </div>
         </>
+      )}
+
+      {activeTab === 'partners' && (
+        <div className="luxury-card p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+              Clinic Partners
+            </h3>
+            <Badge variant="primary">{partners.length} Active Accounts</Badge>
+          </div>
+
+          {partners.length === 0 ? (
+            <p className="text-xs text-slate-400 text-center py-8">No partner accounts created yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs sm:text-sm">
+                <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[11px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
+                  <tr>
+                    <th className="py-3.5 px-4 rounded-l-xl">Username</th>
+                    <th className="py-3.5 px-4">Role Permission</th>
+                    <th className="py-3.5 px-4 text-right rounded-r-xl">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
+                  {partners.map((p) => (
+                    <tr key={p.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-slate-100">
+                        {p.username}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
+                        <Badge variant="neutral">Partner Mode</Badge>
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <button
+                          onClick={() => handleDeletePartner(p.id)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors"
+                          title="Delete Partner Account"
+                        >
+                          <Trash2 className="w-4.5 h-4.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Add Staff Modal */}
@@ -793,6 +866,43 @@ export default function StaffPage() {
             </Button>
             <Button type="submit" variant="primary">
               Save Bulk Attendance
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Add Partner Modal */}
+      <Modal
+        isOpen={isAddPartnerModalOpen}
+        onClose={() => setIsAddPartnerModalOpen(false)}
+        title="Add Clinic Partner Account"
+        description="Register a new partner account with custom username credentials"
+        maxWidth="md"
+      >
+        <form onSubmit={handleAddPartner} className="space-y-4">
+          <Input
+            label="Username"
+            placeholder="e.g. saadbaig"
+            value={partnerUsername}
+            onChange={(e) => setPartnerUsername(e.target.value)}
+            required
+          />
+
+          <Input
+            label="Password"
+            type="password"
+            placeholder="••••••••"
+            value={partnerPassword}
+            onChange={(e) => setPartnerPassword(e.target.value)}
+            required
+          />
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <Button type="button" variant="outline" onClick={() => setIsAddPartnerModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary">
+              Create Partner Account
             </Button>
           </div>
         </form>

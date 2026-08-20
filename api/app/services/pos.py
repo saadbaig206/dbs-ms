@@ -29,14 +29,23 @@ async def checkout(
     
     today_str = datetime.now().strftime("%Y-%m-%d")
     
-    # Generate Invoice ID
-    # Query current count of transactions efficiently using count
+    # Generate Invoice ID and Transaction ID sequentially, checking for uniqueness to avoid collisions
     count_stmt = select(func.count()).select_from(FinancialTransaction)
     txn_count_result = await db.execute(count_stmt)
     txn_count = txn_count_result.scalar() or 0
-    
-    invoice_id = f"INV-{datetime.now().year}-{str(txn_count + 1).zfill(3)}"
-    txn_id = f"TXN-{900 + txn_count + 1}"
+
+    txn_index = txn_count + 1
+    txn_id = f"TXN-{900 + txn_index}"
+    invoice_id = f"INV-{datetime.now().year}-{str(txn_index).zfill(3)}"
+
+    while True:
+        exists_stmt = select(FinancialTransaction).where(FinancialTransaction.id == txn_id)
+        exists_result = await db.execute(exists_stmt)
+        if not exists_result.scalars().first():
+            break
+        txn_index += 1
+        txn_id = f"TXN-{900 + txn_index}"
+        invoice_id = f"INV-{datetime.now().year}-{str(txn_index).zfill(3)}"
     
     # 1. Update client totals and history (creating client on the fly if needed)
     client_result = await db.execute(select(Client).where(Client.name.ilike(client_name)))
@@ -117,7 +126,7 @@ async def checkout(
                             id=alert_id,
                             title=f"Low Stock Alert: {inv_item.item_name}",
                             message=f"Stock for '{inv_item.item_name}' has fallen to {inv_item.quantity} (Min threshold: {inv_item.min_stock}). Please restock.",
-                            time="Just now",
+                            time=datetime.now().strftime("%Y-%m-%d %I:%M %p"),
                             type="inventory",
                             read=False
                         )
@@ -146,7 +155,7 @@ async def checkout(
                         id=alert_id,
                         title=f"Low Stock Alert: {inv_item.item_name}",
                         message=f"Stock for '{inv_item.item_name}' has fallen to {inv_item.quantity} (Min threshold: {inv_item.min_stock}). Please restock.",
-                        time="Just now",
+                        time=datetime.now().strftime("%Y-%m-%d %I:%M %p"),
                         type="inventory",
                         read=False
                     )

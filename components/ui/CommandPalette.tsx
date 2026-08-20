@@ -18,7 +18,8 @@ import {
   LayoutDashboard,
   ShieldCheck,
   Plus,
-  MapPin
+  MapPin,
+  Bell
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 
@@ -42,10 +43,13 @@ export const CommandPalette: React.FC = () => {
     { title: 'Financial Analytics', href: '/finance', icon: DollarSign, category: 'Navigation', adminOnly: true },
     { title: 'Expense Tracker', href: '/expenses', icon: Receipt, category: 'Navigation', adminOnly: true },
     { title: 'Reports Hub', href: '/reports', icon: BarChart3, category: 'Navigation', adminOnly: true },
-    { title: 'Clinic Settings', href: '/settings', icon: SettingsIcon, category: 'Navigation', adminOnly: true },
+    { title: 'Appointment Reminders', href: '/reminders', icon: Bell, category: 'Navigation', adminOnly: false },
   ];
 
   const filteredItems = navItems.filter(item => {
+    if (role === 'partner') {
+      return item.href === '/dashboard' || item.href === '/finance';
+    }
     if (role === 'staff' && item.adminOnly) return false;
     return item.title.toLowerCase().includes(query.toLowerCase());
   });

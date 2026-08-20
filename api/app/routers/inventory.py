@@ -101,7 +101,7 @@ async def adjust_quantity(
             id=alert_id,
             title=f"Low Stock Alert: {db_item.item_name}",
             message=f"Stock for '{db_item.item_name}' has fallen to {db_item.quantity} (Min threshold: {db_item.min_stock}). Please restock.",
-            time="Just now",
+            time=datetime.now().strftime("%Y-%m-%d %I:%M %p"),
             type="inventory",
             read=False
         )

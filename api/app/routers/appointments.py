@@ -83,7 +83,7 @@ async def create_appointment(
         id=f"NOT-{int(datetime.now().timestamp() * 1000)}",
         title="New Booking Created",
         message=f"{apt_in.client_name} booked {apt_in.service_name} with {apt_in.staff_name} for {apt_in.date} at {apt_in.time}.",
-        time="Just now",
+        time=datetime.now().strftime("%Y-%m-%d %I:%M %p"),
         type="appointment",
         read=False
     )
@@ -137,3 +137,55 @@ async def delete_appointment(
     await db.delete(db_apt)
     await db.commit()
     return {"message": "Appointment deleted successfully"}
+
+from app.services.whatsapp_service import WhatsAppService
+from app.models.branch import Branch
+
+@router.post("/{apt_id}/reminder/send", response_model=AppointmentResponse)
+async def send_appointment_reminder(
+    apt_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_staff_user)
+):
+    result = await db.execute(select(Appointment).where(Appointment.id == apt_id))
+    db_apt = result.scalars().first()
+    if not db_apt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+        
+    branch_name = "our clinic"
+    if db_apt.branch_id:
+        branch_result = await db.execute(select(Branch).where(Branch.id == db_apt.branch_id))
+        branch = branch_result.scalars().first()
+        if branch:
+            branch_name = f"our {branch.name} branch"
+            
+    message = (
+        f"Dear {db_apt.client_name}, this is a reminder for your upcoming appointment for "
+        f"{db_apt.service_name} scheduled on {db_apt.date} at {db_apt.time} at {branch_name} "
+        f"with specialist {db_apt.staff_name}. Thank you!"
+    )
+    
+    await WhatsAppService.send_message(db_apt.phone, message)
+    
+    db_apt.reminder_status = "Sent"
+    db.add(db_apt)
+    await db.commit()
+    await db.refresh(db_apt)
+    return db_apt
+
+@router.post("/{apt_id}/reminder/reject", response_model=AppointmentResponse)
+async def reject_appointment_reminder(
+    apt_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_staff_user)
+):
+    result = await db.execute(select(Appointment).where(Appointment.id == apt_id))
+    db_apt = result.scalars().first()
+    if not db_apt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+        
+    db_apt.reminder_status = "Rejected"
+    db.add(db_apt)
+    await db.commit()
+    await db.refresh(db_apt)
+    return db_apt

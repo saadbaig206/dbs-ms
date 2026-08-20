@@ -57,7 +57,8 @@ def require_role(allowed_roles: list[str]):
 
 # Helper dependencies
 get_admin_user = require_role(["admin"])
-get_staff_user = require_role(["admin", "staff"])
+get_admin_or_partner_user = require_role(["admin", "partner"])
+get_staff_user = require_role(["admin", "staff", "partner"])
 
 async def get_user_branch_id(
     request: Request,
@@ -72,7 +73,7 @@ async def get_user_branch_id(
         if staff_member:
             return staff_member.branch_id
         return None
-    elif current_user.role == "admin":
+    elif current_user.role in ("admin", "partner"):
         branch_id = request.query_params.get("branch_id")
         if not branch_id:
             branch_id = request.headers.get("X-Branch-ID")

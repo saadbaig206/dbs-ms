@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app.core.deps import get_db, get_admin_user, get_user_branch_id
+from app.core.deps import get_db, get_admin_or_partner_user, get_user_branch_id
 from app.models.expense import ExpenseItem
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate, ExpenseResponse
 
@@ -14,7 +14,7 @@ async def list_expenses(
     search: Optional[str] = None,
     branch_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_admin_user),
+    current_user = Depends(get_admin_or_partner_user),
     user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
     query = select(ExpenseItem)
@@ -31,7 +31,7 @@ async def list_expenses(
 async def create_expense(
     expense_in: ExpenseCreate,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_admin_user)
+    current_user = Depends(get_admin_or_partner_user)
 ):
     count_result = await db.execute(select(ExpenseItem))
     count = len(count_result.scalars().all())
@@ -58,7 +58,7 @@ async def create_expense(
 async def delete_expense(
     expense_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_admin_user)
+    current_user = Depends(get_admin_or_partner_user)
 ):
     result = await db.execute(select(ExpenseItem).where(ExpenseItem.id == expense_id))
     db_expense = result.scalars().first()
@@ -74,7 +74,7 @@ async def update_expense(
     expense_id: str,
     expense_in: ExpenseUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_admin_user)
+    current_user = Depends(get_admin_or_partner_user)
 ):
     result = await db.execute(select(ExpenseItem).where(ExpenseItem.id == expense_id))
     db_expense = result.scalars().first()

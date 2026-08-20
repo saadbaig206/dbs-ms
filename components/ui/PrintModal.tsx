@@ -2,7 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Printer, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Printer } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { formatPKR } from '../../lib/utils/currency';
 import { Button } from './Button';

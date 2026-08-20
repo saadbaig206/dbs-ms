@@ -54,14 +54,6 @@ export default function WhatsAppPage() {
 
   const [activeTab, setActiveTab] = useState<'chat' | 'settings'>('chat');
 
-  if (isLoading || role !== 'admin') {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-slate-500 animate-pulse font-bold">Loading...</div>
-      </div>
-    );
-  }
-
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConv, setSelectedConv] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -92,7 +84,6 @@ export default function WhatsAppPage() {
     try {
       const data = await apiFetch<Conversation[]>('/whatsapp/conversations');
       setConversations(data);
-      // Update selected conversation status if already open
       if (selectedConv) {
         const updated = data.find(c => c.id === selectedConv.id);
         if (updated) setSelectedConv(updated);
@@ -180,7 +171,6 @@ export default function WhatsAppPage() {
       });
       setMessages(prev => [...prev, newMsg]);
       setReplyText('');
-      // Refresh conversation list to update timestamp
       fetchConversations(true);
     } catch (err: any) {
       showToast(err.message || 'Failed to send message', 'error');
@@ -191,17 +181,18 @@ export default function WhatsAppPage() {
 
   // Poll for updates in active conversation
   useEffect(() => {
-    fetchConversations();
-    fetchSettings();
-  }, []);
+    if (role === 'admin') {
+      fetchConversations();
+      fetchSettings();
+    }
+  }, [role]);
 
   // Poll active chat and conversation list every 5 seconds
   useEffect(() => {
+    if (!selectedConv) return;
     const interval = setInterval(() => {
       fetchConversations(true);
-      if (selectedConv) {
-        fetchMessages(selectedConv.id, true);
-      }
+      fetchMessages(selectedConv.id, true);
     }, 5000);
     return () => clearInterval(interval);
   }, [selectedConv]);
@@ -211,47 +202,55 @@ export default function WhatsAppPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  if (isLoading || role !== 'admin') {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-slate-500 animate-pulse font-bold">Loading...</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-full bg-[#0B0F19] text-slate-100 p-6 min-h-screen">
+    <div className="space-y-6 pb-10 text-slate-900 dark:text-slate-100">
       {/* Toast Alert */}
       <AnimatePresence>
         {toast && (
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className={`fixed top-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-2xl border text-sm font-medium ${
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className={`fixed top-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-xl border text-xs font-semibold ${
               toast.type === 'error'
-                ? 'bg-rose-950/95 border-rose-800 text-rose-200'
-                : 'bg-emerald-950/95 border-emerald-800 text-emerald-200'
+                ? 'bg-rose-50 dark:bg-rose-950 border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-200'
+                : 'bg-emerald-50 dark:bg-emerald-950 border-emerald-200 dark:border-emerald-900 text-emerald-800 dark:text-emerald-200'
             }`}
           >
-            {toast.type === 'error' ? <AlertCircle className="w-4 h-4 text-rose-400" /> : <Check className="w-4 h-4 text-emerald-400" />}
+            {toast.type === 'error' ? <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" /> : <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
             {toast.message}
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <Breadcrumb />
-          <h1 className="text-2xl font-extrabold text-white tracking-wide mt-1">
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
             WhatsApp AI Chatbot & Agent
           </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             Manage incoming inquiries, toggle AI automated reply mode, and configure the business knowledge base.
           </p>
         </div>
 
         {/* Tab Selection */}
-        <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 p-1.5 rounded-2xl self-start md:self-auto shadow-inner">
+        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 p-1.5 rounded-2xl self-start md:self-auto shadow-sm">
           <button
             onClick={() => setActiveTab('chat')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold tracking-wide transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'chat'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <MessageSquare className="w-3.5 h-3.5" />
@@ -259,10 +258,10 @@ export default function WhatsAppPage() {
           </button>
           <button
             onClick={() => setActiveTab('settings')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold tracking-wide transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'settings'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <Sliders className="w-3.5 h-3.5" />
@@ -273,17 +272,17 @@ export default function WhatsAppPage() {
 
       {activeTab === 'chat' ? (
         /* Chat Console Split View */
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-210px)] max-h-[800px]">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-230px)] min-h-[550px] max-h-[750px]">
           {/* Left panel: Conversation List */}
-          <div className="lg:col-span-4 bg-[#0F172A] border border-slate-800/80 rounded-3xl flex flex-col overflow-hidden shadow-2xl">
-            <div className="p-4 border-b border-slate-800/80 flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-300 uppercase tracking-widest">
+          <div className="lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-3xl flex flex-col overflow-hidden shadow-sm">
+            <div className="p-4 border-b border-slate-100 dark:border-slate-800/85 flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
                 Active Chats ({conversations.length})
               </span>
               <button
                 onClick={() => fetchConversations()}
                 disabled={loadingConvs}
-                className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 hover:text-white text-slate-400 transition-colors disabled:opacity-50"
+                className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors disabled:opacity-50 cursor-pointer"
                 title="Refresh Chats"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loadingConvs ? 'animate-spin' : ''}`} />
@@ -298,8 +297,8 @@ export default function WhatsAppPage() {
                 </div>
               ) : conversations.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center p-6">
-                  <MessageSquare className="w-8 h-8 text-slate-600 mb-2" />
-                  <p className="text-xs font-semibold text-slate-400">No conversations yet</p>
+                  <MessageSquare className="w-8 h-8 text-slate-400 mb-2" />
+                  <p className="text-xs font-bold text-slate-400">No conversations yet</p>
                   <p className="text-[10px] text-slate-500 mt-1">Meta WhatsApp Webhook messages will appear here.</p>
                 </div>
               ) : (
@@ -314,19 +313,19 @@ export default function WhatsAppPage() {
                       }}
                       className={`p-3.5 rounded-2xl cursor-pointer border transition-all flex flex-col gap-1.5 ${
                         isSelected
-                          ? 'bg-blue-600/10 border-blue-600/40'
-                          : 'bg-slate-900/60 border-slate-800/60 hover:bg-slate-800/40 hover:border-slate-800'
+                          ? 'bg-blue-50 dark:bg-blue-600/10 border-blue-200 dark:border-blue-600/40'
+                          : 'bg-slate-50/50 dark:bg-slate-900/60 border-slate-100 dark:border-slate-800/60 hover:bg-slate-100/70 dark:hover:bg-slate-800/40 hover:border-slate-300 dark:hover:border-slate-700'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs tracking-wide text-white">
+                        <span className="font-bold text-xs tracking-wide text-slate-900 dark:text-slate-100">
                           {conv.name || conv.phone}
                         </span>
                         <span
                           className={`text-[9px] px-2 py-0.5 rounded-full font-bold tracking-wider uppercase border flex items-center gap-1 ${
                             conv.mode === 'agent'
-                              ? 'bg-blue-950/80 text-blue-400 border-blue-800/80'
-                              : 'bg-orange-950/80 text-orange-400 border-orange-800/80'
+                              ? 'bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800/80'
+                              : 'bg-orange-50 dark:bg-orange-950/80 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800/80'
                           }`}
                         >
                           {conv.mode === 'agent' ? (
@@ -342,7 +341,7 @@ export default function WhatsAppPage() {
                           )}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between text-[10px] text-slate-400">
+                      <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 font-medium">
                         <span>{conv.phone}</span>
                         <span>{new Date(conv.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
@@ -354,31 +353,31 @@ export default function WhatsAppPage() {
           </div>
 
           {/* Right panel: Active Chat Window */}
-          <div className="lg:col-span-8 bg-[#0F172A] border border-slate-800/80 rounded-3xl flex flex-col overflow-hidden shadow-2xl">
+          <div className="lg:col-span-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-3xl flex flex-col overflow-hidden shadow-sm">
             {selectedConv ? (
               <>
                 {/* Chat Header */}
-                <div className="p-4 border-b border-slate-800/80 flex items-center justify-between bg-slate-900/40">
+                <div className="p-4 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/40">
                   <div className="flex flex-col">
-                    <span className="text-xs font-extrabold text-white tracking-wide">
+                    <span className="text-xs font-extrabold text-slate-900 dark:text-white tracking-wide">
                       {selectedConv.name || selectedConv.phone}
                     </span>
-                    <span className="text-[10px] text-slate-400 mt-0.5">
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
                       Phone: {selectedConv.phone}
                     </span>
                   </div>
 
                   {/* Mode Selector Toggle */}
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase hidden sm:inline">
+                    <span className="text-[10px] text-slate-400 font-bold tracking-wider uppercase hidden sm:inline">
                       Chat Mode:
                     </span>
                     <button
                       onClick={() => toggleMode(selectedConv)}
-                      className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-[10px] font-bold tracking-wider uppercase transition-all ${
+                      className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-[10px] font-bold tracking-wider uppercase transition-all cursor-pointer ${
                         selectedConv.mode === 'agent'
-                          ? 'bg-blue-600/10 border-blue-600/30 text-blue-400 hover:bg-blue-600/20'
-                          : 'bg-orange-600/10 border-orange-600/30 text-orange-400 hover:bg-orange-600/20'
+                          ? 'bg-blue-50 dark:bg-blue-600/10 border-blue-200 dark:border-blue-600/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-600/20'
+                          : 'bg-orange-50 dark:bg-orange-600/10 border-orange-200 dark:border-orange-600/30 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-600/20'
                       }`}
                     >
                       {selectedConv.mode === 'agent' ? (
@@ -397,7 +396,7 @@ export default function WhatsAppPage() {
                 </div>
 
                 {/* Chat History Panel */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#0B0F19]/40 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/30 dark:bg-slate-950/20 custom-scrollbar">
                   {loadingMsgs && messages.length === 0 ? (
                     <div className="h-full flex items-center justify-center text-xs text-slate-500">
                       <RefreshCw className="w-4 h-4 animate-spin mr-2" />
@@ -414,14 +413,14 @@ export default function WhatsAppPage() {
                           <div
                             className={`max-w-[80%] p-3.5 rounded-2xl text-xs leading-relaxed border ${
                               isUser
-                                ? 'bg-slate-900 border-slate-800 text-slate-200 rounded-tl-none'
+                                ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-tl-none'
                                 : 'bg-blue-600 text-white border-blue-500/20 rounded-tr-none shadow-lg shadow-blue-600/10'
                             }`}
                           >
                             <p>{msg.content}</p>
                             <span
                               className={`block text-[8px] mt-1.5 text-right ${
-                                isUser ? 'text-slate-500' : 'text-blue-200'
+                                isUser ? 'text-slate-400 dark:text-slate-500' : 'text-blue-200'
                               }`}
                             >
                               {new Date(msg.created_at).toLocaleTimeString([], {
@@ -438,7 +437,7 @@ export default function WhatsAppPage() {
                 </div>
 
                 {/* Message Input Panel */}
-                <div className="p-4 border-t border-slate-800/80 bg-slate-900/30">
+                <div className="p-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/20 dark:bg-slate-900/30">
                   <form onSubmit={handleSendMessage} className="flex gap-2">
                     <input
                       type="text"
@@ -450,7 +449,7 @@ export default function WhatsAppPage() {
                           : "Type your manual reply here..."
                       }
                       disabled={selectedConv.mode === 'agent' || sendingMsg}
-                      className="flex-1 bg-slate-900 border border-slate-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 transition-all outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 transition-all outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                     <Button
                       type="submit"
@@ -466,7 +465,7 @@ export default function WhatsAppPage() {
                   </form>
                   {selectedConv.mode === 'agent' && (
                     <div className="flex items-center gap-1.5 mt-2 text-[10px] text-slate-500 font-medium">
-                      <HelpCircle className="w-3.5 h-3.5 text-slate-600" />
+                      <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
                       <span>The agent is responding automatically. Click the chatbot toggle above to take over.</span>
                     </div>
                   )}
@@ -474,9 +473,9 @@ export default function WhatsAppPage() {
               </>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
-                <Bot className="w-12 h-12 text-slate-700 mb-3 animate-pulse" />
-                <h3 className="font-bold text-sm text-slate-400">No Chat Selected</h3>
-                <p className="text-xs text-slate-500 mt-1 max-w-[280px]">
+                <Bot className="w-12 h-12 text-slate-400 dark:text-slate-600 mb-3 animate-pulse" />
+                <h3 className="font-bold text-sm text-slate-500">No Chat Selected</h3>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-[280px]">
                   Select an active customer conversation from the list to view history, toggle modes, or reply.
                 </p>
               </div>
@@ -485,10 +484,10 @@ export default function WhatsAppPage() {
         </div>
       ) : (
         /* Knowledge Base and Settings Tab */
-        <div className="bg-[#0F172A] border border-slate-800/80 rounded-3xl shadow-2xl p-6 max-w-4xl">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-3xl shadow-sm p-6 max-w-4xl">
           <div className="flex items-center gap-2 mb-6">
-            <BookOpen className="w-5 h-5 text-blue-400" />
-            <h2 className="text-base font-extrabold text-white uppercase tracking-wider">
+            <BookOpen className="w-5 h-5 text-blue-500" />
+            <h2 className="text-base font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">
               Chatbot Configuration & FAQ Knowledge Base
             </h2>
           </div>
@@ -502,7 +501,7 @@ export default function WhatsAppPage() {
             <form onSubmit={handleSaveSettings} className="space-y-6">
               {/* System Prompt Field */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-300 uppercase tracking-widest">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                   System Prompt (AI Persona & Directives)
                 </label>
                 <textarea
@@ -510,17 +509,17 @@ export default function WhatsAppPage() {
                   onChange={(e) => setSystemPrompt(e.target.value)}
                   placeholder="You are an AI receptionist for Aura Luxury Clinic. Keep responses brief, luxury-themed, and helpful. Guide users to make appointments."
                   rows={4}
-                  className="bg-slate-900 border border-slate-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 rounded-2xl p-4 text-xs text-white placeholder-slate-500 transition-all outline-none leading-relaxed"
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 rounded-2xl p-4 text-xs text-slate-950 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 transition-all outline-none leading-relaxed"
                   required
                 />
-                <span className="text-[10px] text-slate-500 leading-normal">
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 leading-normal">
                   Sets the core behavior, tone of voice, and guidelines for the AI Agent when responding to clients.
                 </span>
               </div>
 
               {/* Knowledge Base Info Field */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-300 uppercase tracking-widest">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                   FAQ & Knowledge Base Context
                 </label>
                 <textarea
@@ -531,10 +530,10 @@ SERVICES: Advanced Laser Hair Removal (PKR 5,000/session), Hydrafacial (PKR 8,00
 DOCTORS: Dr. Ali Imran (Aesthetic Consultant).
 POLICIES: Appointments must be booked 24h in advance."
                   rows={10}
-                  className="bg-slate-900 border border-slate-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 rounded-2xl p-4 text-xs text-white placeholder-slate-500 transition-all outline-none leading-relaxed font-mono"
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 rounded-2xl p-4 text-xs text-slate-950 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 transition-all outline-none leading-relaxed font-mono"
                   required
                 />
-                <span className="text-[10px] text-slate-500 leading-normal">
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 leading-normal">
                   Provide detailed information about services, pricing, operating hours, doctors, and frequently asked questions. The chatbot will query this context to answer customers accurately.
                 </span>
               </div>
