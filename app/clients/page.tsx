@@ -35,7 +35,7 @@ export default function ClientsPage() {
   // Add Client Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState('+92');
   const [gender, setGender] = useState<'Female' | 'Male' | 'Other'>('Female');
   const [age, setAge] = useState<string>('32');
   const [address, setAddress] = useState('');
@@ -57,11 +57,33 @@ export default function ClientsPage() {
     e.preventDefault();
     const staffObj = staff.find(st => st.id === assignedStaffId);
 
+    if (name.trim().length < 3) {
+      alert("Full Name must be at least 3 characters long");
+      return;
+    }
+    if (!/^[A-Za-z\s]+$/.test(name.trim())) {
+      alert("Full Name must contain only letters and spaces");
+      return;
+    }
+    if (!/^\+92\d{9,10}$/.test(phone)) {
+      alert("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)");
+      return;
+    }
+    const ageNum = Number(age);
+    if (isNaN(ageNum) || ageNum < 1 || ageNum > 120) {
+      alert("Please enter a valid age between 1 and 120");
+      return;
+    }
+    if (address.trim().length === 0) {
+      alert("Please enter a residential address");
+      return;
+    }
+
     addClient({
       name,
       phone,
       gender,
-      age: Number(age) || 32,
+      age: ageNum,
       address,
       assignedStaffId: staffObj?.id,
       assignedStaffName: staffObj?.name,
@@ -72,7 +94,7 @@ export default function ClientsPage() {
 
     setIsAddModalOpen(false);
     setName('');
-    setPhone('');
+    setPhone('+92');
     setAge('32');
     setAddress('');
     setNotes('');
@@ -206,9 +228,18 @@ export default function ClientsPage() {
             />
             <Input
               label="Phone Number"
-              placeholder="+1 (555) 987-1234"
+              placeholder="e.g. +923001234567"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => {
+                let val = e.target.value;
+                if (!val.startsWith('+92')) {
+                  if (val.startsWith('92')) val = '+' + val;
+                  else if (val.startsWith('0')) val = '+92' + val.substring(1);
+                  else val = '+92' + val.replace(/\D/g, '');
+                }
+                const digits = val.substring(3).replace(/\D/g, '');
+                setPhone('+92' + digits.substring(0, 10));
+              }}
               required
             />
           </div>

@@ -185,18 +185,11 @@ function PrintDocument({ type, data }: { type: string; data: any }) {
       )}
 
       {/* Signature & Stamp Blocks */}
-      <div className="grid grid-cols-2 gap-12 pt-8 border-t border-slate-200/60 text-xs">
-        <div className="space-y-8">
-          <p className="text-slate-400 font-bold uppercase tracking-wider text-[9px]">Client Acknowledgement</p>
+      <div className="flex justify-end pt-8 border-t border-slate-200/60 text-xs">
+        <div className="w-48 text-right space-y-8">
+          <p className="text-slate-400 font-bold uppercase tracking-wider text-[9px] text-left">Authorized Representative</p>
           <div className="border-b border-slate-350 w-48 pt-2" />
-          <p className="text-slate-500 text-[10px] font-medium">Signature of Client</p>
-        </div>
-        <div className="space-y-8 flex flex-col items-end">
-          <div className="w-48 text-right space-y-8">
-            <p className="text-slate-400 font-bold uppercase tracking-wider text-[9px] text-left">Authorized Representative</p>
-            <div className="border-b border-slate-350 w-48 pt-2" />
-            <p className="text-slate-500 text-[10px] font-medium text-left">Clinic Stamp & Signature</p>
-          </div>
+          <p className="text-slate-500 text-[10px] font-medium text-left">Clinic Stamp & Signature</p>
         </div>
       </div>
 

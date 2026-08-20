@@ -42,14 +42,6 @@ export default function StaffPage() {
   }, [role, isLoading, router]);
 
   const [activeTab, setActiveTab] = useState<'directory' | 'attendance' | 'partners'>('directory');
-
-  if (isLoading || role !== 'admin') {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-slate-500 animate-pulse font-bold">Loading...</div>
-      </div>
-    );
-  }
   const [search, setSearch] = useState('');
   const [branchFilter, setBranchFilter] = useState('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -65,7 +57,7 @@ export default function StaffPage() {
   const [name, setName] = useState('');
   const [staffRole, setStaffRole] = useState<StaffRole>('Aesthetic Physician');
   const [salary, setSalary] = useState<string>('12000');
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState('+92');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [staffBranchId, setStaffBranchId] = useState('');
@@ -97,6 +89,14 @@ export default function StaffPage() {
     }
   }, [staff]);
 
+  if (isLoading || role !== 'admin') {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-slate-500 animate-pulse font-bold">Loading...</div>
+      </div>
+    );
+  }
+
   const todayStr = new Date().toISOString().split('T')[0];
 
   const presentCount = attendance.filter((a) => a.status === 'Present').length;
@@ -117,7 +117,15 @@ export default function StaffPage() {
     setName(member.name);
     setStaffRole(member.role);
     setSalary(String(member.salary));
-    setPhone(member.phone);
+    
+    let memberPhone = member.phone || '';
+    if (!memberPhone.startsWith('+92')) {
+      if (memberPhone.startsWith('92')) memberPhone = '+' + memberPhone;
+      else if (memberPhone.startsWith('0')) memberPhone = '+92' + memberPhone.substring(1);
+      else memberPhone = '+92' + memberPhone.replace(/\D/g, '');
+    }
+    setPhone(memberPhone);
+    
     setEmail(member.email);
     setStaffBranchId(member.branchId || '');
     setPhoto(member.photo);
@@ -127,6 +135,28 @@ export default function StaffPage() {
   const handleEditStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingStaffId) return;
+
+    if (name.trim().length < 3) {
+      showToast("Full Name must be at least 3 characters long", "error");
+      return;
+    }
+    if (!/^[A-Za-z\s]+$/.test(name.trim())) {
+      showToast("Full Name must contain only letters and spaces", "error");
+      return;
+    }
+    if (!/^\+92\d{9,10}$/.test(phone)) {
+      showToast("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)", "error");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      showToast("Please enter a valid email address", "error");
+      return;
+    }
+    if (Number(salary) <= 0) {
+      showToast("Salary must be a positive number", "error");
+      return;
+    }
+
     try {
       await updateStaff(editingStaffId, {
         photo,
@@ -140,7 +170,7 @@ export default function StaffPage() {
       setIsEditModalOpen(false);
       setEditingStaffId(null);
       setName('');
-      setPhone('');
+      setPhone('+92');
       setEmail('');
       setStaffBranchId('');
       showToast('Staff member updated successfully');
@@ -152,6 +182,32 @@ export default function StaffPage() {
 
   const handleAddStaff = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (name.trim().length < 3) {
+      showToast("Full Name must be at least 3 characters long", "error");
+      return;
+    }
+    if (!/^[A-Za-z\s]+$/.test(name.trim())) {
+      showToast("Full Name must contain only letters and spaces", "error");
+      return;
+    }
+    if (!/^\+92\d{9,10}$/.test(phone)) {
+      showToast("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)", "error");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      showToast("Please enter a valid email address", "error");
+      return;
+    }
+    if (Number(salary) <= 0) {
+      showToast("Salary must be a positive number", "error");
+      return;
+    }
+    if (password.length < 6) {
+      showToast("Password must be at least 6 characters long", "error");
+      return;
+    }
+
     addStaff({
       photo,
       name,
@@ -170,7 +226,7 @@ export default function StaffPage() {
 
     setIsAddModalOpen(false);
     setName('');
-    setPhone('');
+    setPhone('+92');
     setEmail('');
     setPassword('');
     setStaffBranchId('');
@@ -492,6 +548,7 @@ export default function StaffPage() {
                   <tr>
                     <th className="py-3.5 px-4 rounded-l-xl">Staff Member</th>
                     <th className="py-3.5 px-4">Role</th>
+                    <th className="py-3.5 px-4">Branch</th>
                     <th className="py-3.5 px-4">Check-In</th>
                     <th className="py-3.5 px-4">Check-Out</th>
                     <th className="py-3.5 px-4">Status</th>
@@ -499,40 +556,49 @@ export default function StaffPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-                  {attendance.map((rec) => (
-                    <tr key={rec.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-slate-100">
-                        {rec.staffName}
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
-                        {rec.role}
-                      </td>
-                      <td className="py-3.5 px-4 font-mono text-slate-600 dark:text-slate-300">
-                        {rec.checkInTime || '--:--'}
-                      </td>
-                      <td className="py-3.5 px-4 font-mono text-slate-600 dark:text-slate-300">
-                        {rec.checkOutTime || '--:--'}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <Badge
-                          variant={
-                            rec.status === 'Present'
-                              ? 'success'
-                              : rec.status === 'Late'
-                              ? 'warning'
-                              : rec.status === 'Leave'
-                              ? 'primary'
-                              : 'danger'
-                          }
-                        >
-                          {rec.status}
-                        </Badge>
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-500 italic">
-                        {rec.notes || 'No remarks'}
-                      </td>
-                    </tr>
-                  ))}
+                  {attendance.map((rec) => {
+                    const member = staff.find(s => s.id === rec.staffId);
+                    const branch = member ? branches.find(b => b.id === member.branchId) : null;
+                    const branchName = branch ? branch.name : 'Unassigned';
+
+                    return (
+                      <tr key={rec.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                        <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-slate-100">
+                          {rec.staffName}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
+                          {rec.role}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
+                          <Badge variant="neutral">{branchName}</Badge>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono text-slate-600 dark:text-slate-300">
+                          {rec.checkInTime || '--:--'}
+                        </td>
+                        <td className="py-3.5 px-4 font-mono text-slate-600 dark:text-slate-300">
+                          {rec.checkOutTime || '--:--'}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <Badge
+                            variant={
+                              rec.status === 'Present'
+                                ? 'success'
+                                : rec.status === 'Late'
+                                ? 'warning'
+                                : rec.status === 'Leave'
+                                ? 'primary'
+                                : 'danger'
+                            }
+                          >
+                            {rec.status}
+                          </Badge>
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-500 italic">
+                          {rec.notes || 'No remarks'}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -644,9 +710,18 @@ export default function StaffPage() {
             />
             <Input
               label="Phone Number"
-              placeholder="+92 (300) 123-4567"
+              placeholder="e.g. +923001234567"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => {
+                let val = e.target.value;
+                if (!val.startsWith('+92')) {
+                  if (val.startsWith('92')) val = '+' + val;
+                  else if (val.startsWith('0')) val = '+92' + val.substring(1);
+                  else val = '+92' + val.replace(/\D/g, '');
+                }
+                const digits = val.substring(3).replace(/\D/g, '');
+                setPhone('+92' + digits.substring(0, 10));
+              }}
               required
             />
           </div>
@@ -745,9 +820,18 @@ export default function StaffPage() {
             />
             <Input
               label="Phone Number"
-              placeholder="+92 (300) 123-4567"
+              placeholder="e.g. +923001234567"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => {
+                let val = e.target.value;
+                if (!val.startsWith('+92')) {
+                  if (val.startsWith('92')) val = '+' + val;
+                  else if (val.startsWith('0')) val = '+92' + val.substring(1);
+                  else val = '+92' + val.replace(/\D/g, '');
+                }
+                const digits = val.substring(3).replace(/\D/g, '');
+                setPhone('+92' + digits.substring(0, 10));
+              }}
               required
             />
           </div>

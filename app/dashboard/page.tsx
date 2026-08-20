@@ -307,16 +307,29 @@ export default function DashboardPage() {
               subtitle="treatments list"
             />
           </>
+        {role === 'partner' ? (
+          <Link href="/finance-reports" className="cursor-pointer block transition hover:-translate-y-0.5">
+            <StatCard
+              title="Total Expense"
+              value={formatPKR(totalExpenses)}
+              trend="All-time clinic costs"
+              trendDirection="neutral"
+              colorVariant="rose"
+              icon={<DollarSign className="w-5 h-5" />}
+              subtitle="POS & operating costs"
+            />
+          </Link>
+        ) : (
+          <StatCard
+            title="Inventory Alerts"
+            value={lowStockCount}
+            trend="Action required"
+            trendDirection="down"
+            colorVariant="rose"
+            icon={<AlertTriangle className="w-5 h-5" />}
+            subtitle="Low stock items"
+          />
         )}
-        <StatCard
-          title="Inventory Alerts"
-          value={lowStockCount}
-          trend="Action required"
-          trendDirection="down"
-          colorVariant="rose"
-          icon={<AlertTriangle className="w-5 h-5" />}
-          subtitle="Low stock items"
-        />
       </div>
 
       {/* Today's Schedule Table */}

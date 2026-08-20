@@ -15,7 +15,8 @@ import {
   User,
   ShoppingBag,
   Percent,
-  AlertCircle
+  AlertCircle,
+  Edit2
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { ServiceItem, PaymentMethod } from '../../lib/types/clinic';
@@ -39,6 +40,7 @@ export default function POSPage() {
     setPrintData,
     addClient,
     transactions,
+    updateTransaction,
     role
   } = useClinic();
 
@@ -56,6 +58,8 @@ export default function POSPage() {
   const [cardLastFour, setCardLastFour] = useState('');
   const [cardType, setCardType] = useState('Visa');
   const [bankTxnId, setBankTxnId] = useState('');
+  const [cvc, setCvc] = useState('');
+  const [expMonth, setExpMonth] = useState('01');
   
   // Local recent transactions list to guarantee reprint works for staff
   const [localRecentTransactions, setLocalRecentTransactions] = useState<any[]>([]);
@@ -85,27 +89,99 @@ export default function POSPage() {
   // Quick Client Registration State
   const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
   const [quickClientName, setQuickClientName] = useState('');
-  const [quickClientPhone, setQuickClientPhone] = useState('');
+  const [quickClientPhone, setQuickClientPhone] = useState('+92');
   const [quickClientAge, setQuickClientAge] = useState<string>('30');
   const [quickClientGender, setQuickClientGender] = useState<string>('Female');
+
+  // Edit Transaction Modal State
+  const [isEditTxnModalOpen, setIsEditTxnModalOpen] = useState(false);
+  const [editingTxnId, setEditingTxnId] = useState<string | null>(null);
+  const [editClientName, setEditClientName] = useState('');
+  const [editPaymentMethod, setEditPaymentMethod] = useState<PaymentMethod>('Cash');
+  const [editGrandTotal, setEditGrandTotal] = useState<string>('0');
+  const [editDate, setEditDate] = useState('');
+
+  const handleOpenEditTxnModal = (txn: any) => {
+    setEditingTxnId(txn.id);
+    setEditClientName(txn.clientName);
+    setEditPaymentMethod(txn.paymentMethod);
+    setEditGrandTotal(String(txn.grandTotal));
+    setEditDate(txn.date);
+    setIsEditTxnModalOpen(true);
+  };
+
+  const handleSaveEditTxn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTxnId) return;
+
+    if (editClientName.trim().length < 3) {
+      showToast("Client Name must be at least 3 characters long", "error");
+      return;
+    }
+    if (!/^[A-Za-z\s]+$/.test(editClientName.trim())) {
+      showToast("Client Name must contain only letters and spaces", "error");
+      return;
+    }
+    if (Number(editGrandTotal) < 0) {
+      showToast("Total Amount cannot be negative", "error");
+      return;
+    }
+    if (!editDate) {
+      showToast("Date is required", "error");
+      return;
+    }
+
+    try {
+      await updateTransaction(editingTxnId, {
+        clientName: editClientName,
+        paymentMethod: editPaymentMethod,
+        grandTotal: Number(editGrandTotal) || 0,
+        date: editDate
+      });
+      setIsEditTxnModalOpen(false);
+      setEditingTxnId(null);
+      showToast("Transaction updated successfully!");
+    } catch (err: any) {
+      showToast("Failed to update transaction: " + err.message, "error");
+    }
+  };
 
   const handleQuickAddClient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!quickClientName || !quickClientPhone) return;
+
+    if (quickClientName.trim().length < 3) {
+      showToast("Full Name must be at least 3 characters long", "error");
+      return;
+    }
+    if (!/^[A-Za-z\s]+$/.test(quickClientName.trim())) {
+      showToast("Full Name must contain only letters and spaces", "error");
+      return;
+    }
+    if (!/^\+92\d{9,10}$/.test(quickClientPhone)) {
+      showToast("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)", "error");
+      return;
+    }
+    const ageNum = Number(quickClientAge);
+    if (isNaN(ageNum) || ageNum < 1 || ageNum > 120) {
+      showToast("Please enter a valid age between 1 and 120", "error");
+      return;
+    }
+
     try {
       await addClient({
         name: quickClientName,
         phone: quickClientPhone,
         cnic: 'N/A',
         gender: quickClientGender as 'Female' | 'Male' | 'Other',
-        age: Number(quickClientAge) || 30,
+        age: ageNum,
         address: 'N/A',
         notes: 'Quick POS Register'
       });
       setClientName(quickClientName);
       setIsAddClientModalOpen(false);
       setQuickClientName('');
-      setQuickClientPhone('');
+      setQuickClientPhone('+92');
       setQuickClientAge('30');
       setQuickClientGender('Female');
       showToast("Client registered successfully!");
@@ -131,9 +207,9 @@ export default function POSPage() {
   const handleCheckout = async () => {
     if (posCart.length === 0) return;
     try {
-      const cardDetails = paymentMethod === 'Card' ? {
-        cardLastFour,
-        cardType,
+      const cardDetails = (paymentMethod === 'Card' || paymentMethod === 'Online') ? {
+        cardLastFour: paymentMethod === 'Card' ? cardLastFour : undefined,
+        cardType: paymentMethod === 'Card' ? cardType : undefined,
         bankTxnId
       } : undefined;
       const txn = await completePosCheckout(clientName, paymentMethod, Number(discountPercent) || 0, Number(taxPercent) || 0, cardDetails);
@@ -144,6 +220,8 @@ export default function POSPage() {
       setCardLastFour('');
       setCardType('Visa');
       setBankTxnId('');
+      setCvc('');
+      setExpMonth('01');
 
       setTimeout(() => {
         setIsPaidSuccess(false);
@@ -167,10 +245,6 @@ export default function POSPage() {
             Create and print client receipts.
           </p>
         </div>
-
-        <Badge variant="gold" size="md">
-          <Sparkles className="w-4 h-4 mr-1.5 inline" /> Luxury Checkout Active
-        </Badge>
       </div>
 
       {/* POS Grid: Left Service Catalog (60%) | Right Invoice Checkout Ticket (40%) */}
@@ -443,8 +517,8 @@ export default function POSPage() {
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
                 Payment Method
               </label>
-              <div className="grid grid-cols-4 gap-2">
-                {(['Cash', 'Card', 'Bank', 'Online'] as const).map((pm) => (
+              <div className="grid grid-cols-3 gap-2">
+                {(['Cash', 'Card', 'Online'] as const).map((pm) => (
                   <button
                     key={pm}
                     onClick={() => setPaymentMethod(pm)}
@@ -487,11 +561,34 @@ export default function POSPage() {
                       className="w-full rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs py-1.5 px-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     >
                       <option value="Visa">Visa</option>
-                      <option value="Mastercard">Mastercard</option>
-                      <option value="American Express">American Express</option>
-                      <option value="UnionPay">UnionPay</option>
                       <option value="PayPak">PayPak</option>
+                      <option value="Mastercard">Mastercard</option>
                     </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Exp Month</label>
+                    <select
+                      value={expMonth}
+                      onChange={(e) => setExpMonth(e.target.value)}
+                      className="w-full rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs py-1.5 px-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">CVC#</label>
+                    <input
+                      type="text"
+                      maxLength={3}
+                      placeholder="e.g. 123"
+                      value={cvc}
+                      onChange={(e) => setCvc(e.target.value.replace(/\D/g, ''))}
+                      className="w-full rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs py-1.5 px-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
                   </div>
                 </div>
                 <div>
@@ -499,6 +596,26 @@ export default function POSPage() {
                   <input
                     type="text"
                     placeholder="e.g. TXN-129841"
+                    value={bankTxnId}
+                    onChange={(e) => setBankTxnId(e.target.value)}
+                    className="w-full rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs py-1.5 px-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              </motion.div>
+            )}
+
+            {/* Online details sub-form */}
+            {paymentMethod === 'Online' && (
+              <motion.div 
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3"
+              >
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">TRXID (Online Transaction ID)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. TRX-987410"
                     value={bankTxnId}
                     onChange={(e) => setBankTxnId(e.target.value)}
                     className="w-full rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs py-1.5 px-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -542,9 +659,18 @@ export default function POSPage() {
           />
           <Input
             label="Phone Number"
-            placeholder="e.g. +92 (300) 123-4567"
+            placeholder="e.g. +923001234567"
             value={quickClientPhone}
-            onChange={(e) => setQuickClientPhone(e.target.value)}
+            onChange={(e) => {
+              let val = e.target.value;
+              if (!val.startsWith('+92')) {
+                if (val.startsWith('92')) val = '+' + val;
+                else if (val.startsWith('0')) val = '+92' + val.substring(1);
+                else val = '+92' + val.replace(/\D/g, '');
+              }
+              const digits = val.substring(3).replace(/\D/g, '');
+              setQuickClientPhone('+92' + digits.substring(0, 10));
+            }}
             required
           />
           <div className="grid grid-cols-2 gap-4">
@@ -617,14 +743,24 @@ export default function POSPage() {
                       <td className="py-3 px-4 font-mono text-blue-600 dark:text-blue-400">{formatPKR(txn.grandTotal)}</td>
                       <td className="py-3 px-4 text-slate-400">{txn.date}</td>
                       <td className="py-3 px-4 text-right">
-                        <Button
-                          onClick={() => setPrintData({ title: `Invoice ${txn.invoiceId}`, type: 'invoice', data: txn })}
-                          variant="outline"
-                          size="sm"
-                          icon={<Printer className="w-3.5 h-3.5" />}
-                        >
-                          Reprint
-                        </Button>
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            onClick={() => setPrintData({ title: `Invoice ${txn.invoiceId}`, type: 'invoice', data: txn })}
+                            variant="outline"
+                            size="sm"
+                            icon={<Printer className="w-3.5 h-3.5" />}
+                          >
+                            Reprint
+                          </Button>
+                          <Button
+                            onClick={() => handleOpenEditTxnModal(txn)}
+                            variant="secondary"
+                            size="sm"
+                            icon={<Edit2 className="w-3.5 h-3.5" />}
+                          >
+                            Edit
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -634,6 +770,69 @@ export default function POSPage() {
           );
         })()}
       </div>
+
+      {/* Edit Transaction Modal */}
+      <Modal
+        isOpen={isEditTxnModalOpen}
+        onClose={() => {
+          setIsEditTxnModalOpen(false);
+          setEditingTxnId(null);
+        }}
+        title="Edit Transaction Details"
+      >
+        <form onSubmit={handleSaveEditTxn} className="space-y-4">
+          <Input
+            label="Client Name"
+            value={editClientName}
+            onChange={(e) => setEditClientName(e.target.value)}
+            required
+          />
+          
+          <Select
+            label="Payment Method"
+            options={[
+              { label: 'Cash', value: 'Cash' },
+              { label: 'Card', value: 'Card' },
+              { label: 'Bank', value: 'Bank' },
+              { label: 'Online', value: 'Online' }
+            ]}
+            value={editPaymentMethod}
+            onChange={(e) => setEditPaymentMethod(e.target.value as PaymentMethod)}
+          />
+
+          <Input
+            label="Total Amount (Rs)"
+            type="number"
+            value={editGrandTotal}
+            onChange={(e) => setEditGrandTotal(e.target.value)}
+            required
+          />
+
+          <Input
+            label="Transaction Date"
+            type="date"
+            value={editDate}
+            onChange={(e) => setEditDate(e.target.value)}
+            required
+          />
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsEditTxnModalOpen(false);
+                setEditingTxnId(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary">
+              Save Changes
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Toast Notification */}
       <AnimatePresence>
