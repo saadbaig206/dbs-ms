@@ -129,7 +129,8 @@ function InvoicePrintContent({ data, clinicInfo }: { data: any; clinicInfo: any 
  
       {/* Thank you */}
       <div className="pt-4 text-center space-y-0.5">
-        <p className="font-black">Thank you for choosing DBS Aesthetic Clinic & Salon</p>
+        <p className="font-black">Thank you for choosing</p>
+        <p className="font-black">DBS Aesthetic Clinic & Salon</p>
       </div>
     </div>
   );
