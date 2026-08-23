@@ -633,9 +633,12 @@ export default function FinanceReportsPage() {
                       </head>
                       <body>
                         <div class="header">
-                          <div>
-                            <h1>DBS Aesthetic Clinic & Salon</h1>
-                            <p>Financial Audit Report • Timeframe: ${reportStartDate} to ${reportEndDate}</p>
+                          <div style="display: flex; align-items: center; gap: 15px;">
+                            <img src="/logo.png" alt="DBS Logo" style="height: 60px; width: auto; object-fit: contain;" />
+                            <div>
+                              <h1>DBS Aesthetic Clinic & Salon</h1>
+                              <p>Financial Audit Report • Timeframe: ${reportStartDate} to ${reportEndDate}</p>
+                            </div>
                           </div>
                           <div class="badge">Audit Report</div>
                         </div>
