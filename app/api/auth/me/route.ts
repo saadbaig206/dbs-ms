@@ -27,6 +27,11 @@ export async function GET(request: Request) {
     const setBypassCookie = request.headers.get('x-vercel-set-bypass-cookie');
     if (setBypassCookie) fetchHeaders['x-vercel-set-bypass-cookie'] = setBypassCookie;
 
+    // Use Vercel Automation Bypass Secret if configured
+    if (process.env.VERCEL_AUTOMATION_BYPASS_SECRET) {
+      fetchHeaders['x-vercel-protection-bypass'] = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+    }
+
     const res = await fetch(`${apiUrl}/api/v1/auth/me`, {
       headers: fetchHeaders
     });

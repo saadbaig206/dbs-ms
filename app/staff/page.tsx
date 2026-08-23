@@ -57,7 +57,7 @@ export default function StaffPage() {
   const [name, setName] = useState('');
   const [staffRole, setStaffRole] = useState<StaffRole>('Aesthetic Physician');
   const [salary, setSalary] = useState<string>('12000');
-  const [phone, setPhone] = useState('+92');
+  const [phone, setPhone] = useState('+92 ');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [staffBranchId, setStaffBranchId] = useState('');
@@ -144,8 +144,8 @@ export default function StaffPage() {
       showToast("Full Name must contain only letters and spaces", "error");
       return;
     }
-    if (!/^\+92\d{9,10}$/.test(phone)) {
-      showToast("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)", "error");
+    if (!/^\+92\s\d{9,10}$/.test(phone)) {
+      showToast("Please enter a valid Pakistani phone number (+92 followed by a space and 9-10 digits)", "error");
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -163,14 +163,14 @@ export default function StaffPage() {
         name,
         role: staffRole,
         salary: Number(salary) || 0,
-        phone,
+        phone: phone.replace(/\s+/g, ''),
         email,
         branchId: staffBranchId || undefined
       });
       setIsEditModalOpen(false);
       setEditingStaffId(null);
       setName('');
-      setPhone('+92');
+      setPhone('+92 ');
       setEmail('');
       setStaffBranchId('');
       showToast('Staff member updated successfully');
@@ -191,8 +191,8 @@ export default function StaffPage() {
       showToast("Full Name must contain only letters and spaces", "error");
       return;
     }
-    if (!/^\+92\d{9,10}$/.test(phone)) {
-      showToast("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)", "error");
+    if (!/^\+92\s\d{9,10}$/.test(phone)) {
+      showToast("Please enter a valid Pakistani phone number (+92 followed by a space and 9-10 digits)", "error");
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -213,7 +213,7 @@ export default function StaffPage() {
       name,
       role: staffRole,
       salary: Number(salary) || 0,
-      phone,
+      phone: phone.replace(/\s+/g, ''),
       email,
       password,
       joiningDate: new Date().toISOString().split('T')[0],
@@ -226,7 +226,7 @@ export default function StaffPage() {
 
     setIsAddModalOpen(false);
     setName('');
-    setPhone('+92');
+    setPhone('+92 ');
     setEmail('');
     setPassword('');
     setStaffBranchId('');
@@ -709,17 +709,23 @@ export default function StaffPage() {
             />
             <Input
               label="Phone Number"
-              placeholder="e.g. +923001234567"
+              placeholder="e.g. +92 3001234567"
               value={phone}
               onChange={(e) => {
                 let val = e.target.value;
-                if (!val.startsWith('+92')) {
-                  if (val.startsWith('92')) val = '+' + val;
-                  else if (val.startsWith('0')) val = '+92' + val.substring(1);
-                  else val = '+92' + val.replace(/\D/g, '');
+                if (!val.startsWith('+92 ')) {
+                  if (val.startsWith('+92')) {
+                    val = '+92 ' + val.substring(3);
+                  } else if (val.startsWith('92')) {
+                    val = '+92 ' + val.substring(2);
+                  } else if (val.startsWith('0')) {
+                    val = '+92 ' + val.substring(1);
+                  } else {
+                    val = '+92 ' + val.replace(/\D/g, '');
+                  }
                 }
-                const digits = val.substring(3).replace(/\D/g, '');
-                setPhone('+92' + digits.substring(0, 10));
+                const digits = val.substring(4).replace(/\D/g, '');
+                setPhone('+92 ' + digits.substring(0, 10));
               }}
               required
             />
@@ -812,17 +818,23 @@ export default function StaffPage() {
             />
             <Input
               label="Phone Number"
-              placeholder="e.g. +923001234567"
+              placeholder="e.g. +92 3001234567"
               value={phone}
               onChange={(e) => {
                 let val = e.target.value;
-                if (!val.startsWith('+92')) {
-                  if (val.startsWith('92')) val = '+' + val;
-                  else if (val.startsWith('0')) val = '+92' + val.substring(1);
-                  else val = '+92' + val.replace(/\D/g, '');
+                if (!val.startsWith('+92 ')) {
+                  if (val.startsWith('+92')) {
+                    val = '+92 ' + val.substring(3);
+                  } else if (val.startsWith('92')) {
+                    val = '+92 ' + val.substring(2);
+                  } else if (val.startsWith('0')) {
+                    val = '+92 ' + val.substring(1);
+                  } else {
+                    val = '+92 ' + val.replace(/\D/g, '');
+                  }
                 }
-                const digits = val.substring(3).replace(/\D/g, '');
-                setPhone('+92' + digits.substring(0, 10));
+                const digits = val.substring(4).replace(/\D/g, '');
+                setPhone('+92 ' + digits.substring(0, 10));
               }}
               required
             />
