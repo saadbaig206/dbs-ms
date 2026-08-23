@@ -129,8 +129,7 @@ function InvoicePrintContent({ data, clinicInfo }: { data: any; clinicInfo: any 
  
       {/* Thank you */}
       <div className="pt-4 text-center space-y-0.5">
-        <p>Thank you for choosing</p>
-        <p className="font-black">{clinicInfo?.name || 'DBS Aesthetic Clinic and Salon'}.</p>
+        <p className="font-black">Thank you for choosing DBS Aesthetic Clinic & Salon</p>
       </div>
     </div>
   );
@@ -198,6 +197,11 @@ function PrintDocument({ type, data }: { type: string; data: any }) {
             <p className="mt-1 pt-1 border-t border-dashed border-slate-200 text-[9px] text-slate-500">
               We maintain high standards, but no refunds for skin reactions or any allergies. Inform us on time. Patch tests available on request.
             </p>
+          </div>
+
+          <div className="border-t border-dashed border-slate-400 mt-4" />
+          <div className="pt-4 text-center space-y-0.5">
+            <p className="font-black text-slate-900">Thank you for choosing DBS Aesthetic Clinic & Salon</p>
           </div>
         </div>
       )}
