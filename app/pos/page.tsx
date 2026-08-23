@@ -218,7 +218,7 @@ export default function POSPage() {
       // number never ends up on the transaction — look the client back up
       // by name and attach it before this gets handed to the print modal.
       const matchedClient = clients.find(c => c.name === clientName);
-      const txnWithPhone = { ...txn, phone: txn.phone || matchedClient?.phone };
+      const txnWithPhone = { ...txn, phone: (txn as any).phone || matchedClient?.phone };
 
       setLocalRecentTransactions(prev => [txnWithPhone, ...prev].slice(0, 5));
       setIsPaidSuccess(true);
