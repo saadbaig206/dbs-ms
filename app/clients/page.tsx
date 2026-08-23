@@ -35,7 +35,7 @@ export default function ClientsPage() {
   // Add Client Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('+92 ');
+  const [phone, setPhone] = useState('+92');
   const [gender, setGender] = useState<'Female' | 'Male' | 'Other'>('Female');
   const [age, setAge] = useState<string>('32');
   const [address, setAddress] = useState('');
@@ -47,7 +47,7 @@ export default function ClientsPage() {
   const filteredClients = (clients || []).filter((c) => {
     if (!c) return false;
     const matchesBranch = branchFilter === 'All' || c.branchId === branchFilter;
-    const matchesSearch = 
+    const matchesSearch =
       (c.name && c.name.toLowerCase().includes(search.toLowerCase())) ||
       (c.phone && c.phone.includes(search));
     return matchesBranch && matchesSearch;
@@ -65,8 +65,8 @@ export default function ClientsPage() {
       alert("Full Name must contain only letters and spaces");
       return;
     }
-    if (!/^\+92\s\d{9,10}$/.test(phone)) {
-      alert("Please enter a valid Pakistani phone number (+92 followed by a space and 9-10 digits)");
+    if (!/^\+92\d{9,10}$/.test(phone)) {
+      alert("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)");
       return;
     }
     const ageNum = Number(age);
@@ -81,7 +81,7 @@ export default function ClientsPage() {
 
     addClient({
       name,
-      phone: phone.replace(/\s+/g, ''),
+      phone,
       gender,
       age: ageNum,
       address,
@@ -94,7 +94,7 @@ export default function ClientsPage() {
 
     setIsAddModalOpen(false);
     setName('');
-    setPhone('+92 ');
+    setPhone('+92');
     setAge('32');
     setAddress('');
     setNotes('');
@@ -221,28 +221,22 @@ export default function ClientsPage() {
             />
             <Input
               label="Phone Number"
-              placeholder="e.g. +92 3001234567"
+              placeholder="e.g. +923001234567"
               value={phone}
               onChange={(e) => {
                 let val = e.target.value;
-                if (!val.startsWith('+92 ')) {
-                  if (val.startsWith('+92')) {
-                    val = '+92 ' + val.substring(3);
-                  } else if (val.startsWith('92')) {
-                    val = '+92 ' + val.substring(2);
-                  } else if (val.startsWith('0')) {
-                    val = '+92 ' + val.substring(1);
-                  } else {
-                    val = '+92 ' + val.replace(/\D/g, '');
-                  }
+                if (!val.startsWith('+92')) {
+                  if (val.startsWith('92')) val = '+' + val;
+                  else if (val.startsWith('0')) val = '+92' + val.substring(1);
+                  else val = '+92' + val.replace(/\D/g, '');
                 }
-                const digits = val.substring(4).replace(/\D/g, '');
-                setPhone('+92 ' + digits.substring(0, 10));
+                const digits = val.substring(3).replace(/\D/g, '');
+                setPhone('+92' + digits.substring(0, 10));
               }}
               required
             />
           </div>
- 
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
               label="Gender"
@@ -262,7 +256,7 @@ export default function ClientsPage() {
               required
             />
           </div>
- 
+
           <Input
             label="Residential Address"
             placeholder="e.g. House 45-B, Clifton Block 5, Karachi"

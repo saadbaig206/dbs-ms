@@ -112,11 +112,10 @@ function FinanceDatePicker({
                   onChange(dateKey(date));
                   setIsOpen(false);
                 }}
-                className={`h-8 rounded-lg text-xs font-bold transition ${
-                  dateKey(date) === value
+                className={`h-8 rounded-lg text-xs font-bold transition ${dateKey(date) === value
                     ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
                     : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-blue-300'
-                }`}
+                  }`}
               >
                 {date.getDate()}
               </button>
@@ -129,13 +128,13 @@ function FinanceDatePicker({
 }
 
 export default function FinanceReportsPage() {
-  const { 
-    transactions: allTransactions, 
-    expenses: allExpenses, 
-    addExpense, 
-    updateExpense, 
+  const {
+    transactions: allTransactions,
+    expenses: allExpenses,
+    addExpense,
+    updateExpense,
     updateTransaction,
-    role, 
+    role,
     setPrintData,
     branches,
     selectedBranchId,
@@ -151,11 +150,11 @@ export default function FinanceReportsPage() {
     }
   }, [role, isLoading, router]);
 
-  const transactions = selectedBranchId 
+  const transactions = selectedBranchId
     ? allTransactions.filter(t => t.branchId === selectedBranchId)
     : allTransactions;
 
-  const expenses = selectedBranchId 
+  const expenses = selectedBranchId
     ? allExpenses.filter(e => e.branchId === selectedBranchId)
     : allExpenses;
 
@@ -306,8 +305,8 @@ export default function FinanceReportsPage() {
   // Margin Target Subtitle
   const overallMargin = totalRevenue > 0 ? ((totalRevenue - totalExpenseAmount) / totalRevenue) * 100 : 0;
   const marginTargetDiff = 70 - overallMargin;
-  const marginSubtitle = marginTargetDiff > 0 
-    ? `${marginTargetDiff.toFixed(1)}% below target (70%)` 
+  const marginSubtitle = marginTargetDiff > 0
+    ? `${marginTargetDiff.toFixed(1)}% below target (70%)`
     : `Target reached! (70%)`;
 
   const filteredTxns = transactions.filter((t) => {
@@ -428,31 +427,28 @@ export default function FinanceReportsPage() {
           <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
             <button
               onClick={() => setActiveTab('transactions')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === 'transactions'
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'transactions'
                   ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-              }`}
+                }`}
             >
               Ledger
             </button>
             <button
               onClick={() => setActiveTab('expenses')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === 'expenses'
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'expenses'
                   ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-              }`}
+                }`}
             >
               Expenses
             </button>
             <button
               onClick={() => setActiveTab('reports')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === 'reports'
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'reports'
                   ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-              }`}
+                }`}
             >
               Analytics
             </button>
@@ -633,12 +629,9 @@ export default function FinanceReportsPage() {
                       </head>
                       <body>
                         <div class="header">
-                          <div style="display: flex; align-items: center; gap: 15px;">
-                            <img src="/logo.png" alt="DBS Logo" style="height: 60px; width: auto; object-fit: contain;" />
-                            <div>
-                              <h1>DBS Aesthetic Clinic & Salon</h1>
-                              <p>Financial Audit Report • Timeframe: ${reportStartDate} to ${reportEndDate}</p>
-                            </div>
+                          <div>
+                            <h1>DBS Aesthetic Clinic & Salon</h1>
+                            <p>Financial Audit Report • Timeframe: ${reportStartDate} to ${reportEndDate}</p>
                           </div>
                           <div class="badge">Audit Report</div>
                         </div>
@@ -739,7 +732,7 @@ export default function FinanceReportsPage() {
 
                   doc.close();
                   iframe.contentWindow?.focus();
-                  
+
                   setTimeout(() => {
                     iframe.contentWindow?.print();
                     document.body.removeChild(iframe);
@@ -1046,11 +1039,10 @@ export default function FinanceReportsPage() {
                     <button
                       key={tab}
                       onClick={() => setActiveReport(tab)}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                        activeReport === tab
+                      className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${activeReport === tab
                           ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
                           : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                      }`}
+                        }`}
                     >
                       {tab} Report
                     </button>

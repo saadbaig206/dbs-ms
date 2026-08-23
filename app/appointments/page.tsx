@@ -165,11 +165,10 @@ export default function AppointmentsPage() {
             <button
               key={tab}
               onClick={() => setDateFilter(tab)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                dateFilter === tab
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${dateFilter === tab
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-              }`}
+                }`}
             >
               {tab}
             </button>

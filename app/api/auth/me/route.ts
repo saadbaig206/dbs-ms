@@ -17,23 +17,10 @@ export async function GET(request: Request) {
     if (!apiUrl || (!isLocalhost && (apiUrl.includes('localhost') || apiUrl.includes('127.0.0.1')))) {
       apiUrl = host ? `${protocol}://${host}` : 'http://localhost:8000';
     }
-    const fetchHeaders: Record<string, string> = {
-      'Authorization': `Bearer ${token}`
-    };
-    const cookieHeader = request.headers.get('cookie');
-    if (cookieHeader) fetchHeaders['cookie'] = cookieHeader;
-    const bypassHeader = request.headers.get('x-vercel-protection-bypass');
-    if (bypassHeader) fetchHeaders['x-vercel-protection-bypass'] = bypassHeader;
-    const setBypassCookie = request.headers.get('x-vercel-set-bypass-cookie');
-    if (setBypassCookie) fetchHeaders['x-vercel-set-bypass-cookie'] = setBypassCookie;
-
-    // Use Vercel Automation Bypass Secret if configured
-    if (process.env.VERCEL_AUTOMATION_BYPASS_SECRET) {
-      fetchHeaders['x-vercel-protection-bypass'] = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
-    }
-
     const res = await fetch(`${apiUrl}/api/v1/auth/me`, {
-      headers: fetchHeaders
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
     });
 
     if (!res.ok) {
@@ -45,4 +32,9 @@ export async function GET(request: Request) {
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
+}
+return NextResponse.json(data);
+  } catch (error: any) {
+  return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
+}
 }

@@ -15,24 +15,11 @@ export async function POST(request: Request) {
     console.log("DEBUG: Host header =", host);
     console.log("DEBUG: Protocol =", protocol);
     console.log("DEBUG: Using apiUrl =", apiUrl);
-    console.log("DEBUG: Attempting backend fetch to =", `${apiUrl}/api/v1/auth/login` , "for email =", email);
-
-    const fetchHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-    const cookieHeader = request.headers.get('cookie');
-    if (cookieHeader) fetchHeaders['cookie'] = cookieHeader;
-    const bypassHeader = request.headers.get('x-vercel-protection-bypass');
-    if (bypassHeader) fetchHeaders['x-vercel-protection-bypass'] = bypassHeader;
-    const setBypassCookie = request.headers.get('x-vercel-set-bypass-cookie');
-    if (setBypassCookie) fetchHeaders['x-vercel-set-bypass-cookie'] = setBypassCookie;
-
-    // Use Vercel Automation Bypass Secret if configured
-    if (process.env.VERCEL_AUTOMATION_BYPASS_SECRET) {
-      fetchHeaders['x-vercel-protection-bypass'] = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
-    }
+    console.log("DEBUG: Attempting backend fetch to =", `${apiUrl}/api/v1/auth/login`, "for email =", email);
 
     const res = await fetch(`${apiUrl}/api/v1/auth/login`, {
       method: 'POST',
-      headers: fetchHeaders,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
 
@@ -41,8 +28,8 @@ export async function POST(request: Request) {
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
       console.log("DEBUG: FastAPI Error payload =", errData);
-      const fallbackError = res.status === 401 
-        ? 'Invalid email or password' 
+      const fallbackError = res.status === 401
+        ? 'Invalid email or password'
         : `Backend error (${res.status}): ${res.statusText || 'Unable to connect'}`;
       return NextResponse.json(
         { error: errData.detail || fallbackError },
@@ -82,4 +69,9 @@ export async function POST(request: Request) {
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
+}
+return response;
+  } catch (error: any) {
+  return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
+}
 }

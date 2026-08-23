@@ -27,7 +27,7 @@ export default function LoginPage() {
     try {
       const data = await authClient.login(email, password);
       setRole(data.role);
-      
+
       // Force refreshing the context data now that we are logged in
       await refreshData();
 
@@ -63,7 +63,7 @@ export default function LoginPage() {
             <img
               src="/logo.png"
               alt="DBS Logo"
-              className="h-16 w-auto object-contain invert mix-blend-screen"
+              className="h-16 w-auto object-contain"
             />
           </div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white uppercase font-sans leading-tight">

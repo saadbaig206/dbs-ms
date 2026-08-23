@@ -57,7 +57,7 @@ export default function StaffPage() {
   const [name, setName] = useState('');
   const [staffRole, setStaffRole] = useState<StaffRole>('Aesthetic Physician');
   const [salary, setSalary] = useState<string>('12000');
-  const [phone, setPhone] = useState('+92 ');
+  const [phone, setPhone] = useState('+92');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [staffBranchId, setStaffBranchId] = useState('');
@@ -68,7 +68,7 @@ export default function StaffPage() {
   const [selectedStaffId, setSelectedStaffId] = useState(staff[0]?.id || '');
   const [attStatus, setAttStatus] = useState<AttendanceStatus>('Present');
   const [attNotes, setAttNotes] = useState('');
-  
+
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [bulkList, setBulkList] = useState<Record<string, 'Present' | 'Absent' | 'Late' | 'Unmarked'>>({});
 
@@ -117,7 +117,7 @@ export default function StaffPage() {
     setName(member.name);
     setStaffRole(member.role);
     setSalary(String(member.salary));
-    
+
     let memberPhone = member.phone || '';
     if (!memberPhone.startsWith('+92')) {
       if (memberPhone.startsWith('92')) memberPhone = '+' + memberPhone;
@@ -125,7 +125,7 @@ export default function StaffPage() {
       else memberPhone = '+92' + memberPhone.replace(/\D/g, '');
     }
     setPhone(memberPhone);
-    
+
     setEmail(member.email);
     setStaffBranchId(member.branchId || '');
     setPhoto(member.photo);
@@ -144,8 +144,8 @@ export default function StaffPage() {
       showToast("Full Name must contain only letters and spaces", "error");
       return;
     }
-    if (!/^\+92\s\d{9,10}$/.test(phone)) {
-      showToast("Please enter a valid Pakistani phone number (+92 followed by a space and 9-10 digits)", "error");
+    if (!/^\+92\d{9,10}$/.test(phone)) {
+      showToast("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)", "error");
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -163,14 +163,14 @@ export default function StaffPage() {
         name,
         role: staffRole,
         salary: Number(salary) || 0,
-        phone: phone.replace(/\s+/g, ''),
+        phone,
         email,
         branchId: staffBranchId || undefined
       });
       setIsEditModalOpen(false);
       setEditingStaffId(null);
       setName('');
-      setPhone('+92 ');
+      setPhone('+92');
       setEmail('');
       setStaffBranchId('');
       showToast('Staff member updated successfully');
@@ -191,8 +191,8 @@ export default function StaffPage() {
       showToast("Full Name must contain only letters and spaces", "error");
       return;
     }
-    if (!/^\+92\s\d{9,10}$/.test(phone)) {
-      showToast("Please enter a valid Pakistani phone number (+92 followed by a space and 9-10 digits)", "error");
+    if (!/^\+92\d{9,10}$/.test(phone)) {
+      showToast("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)", "error");
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -213,7 +213,7 @@ export default function StaffPage() {
       name,
       role: staffRole,
       salary: Number(salary) || 0,
-      phone: phone.replace(/\s+/g, ''),
+      phone,
       email,
       password,
       joiningDate: new Date().toISOString().split('T')[0],
@@ -226,7 +226,7 @@ export default function StaffPage() {
 
     setIsAddModalOpen(false);
     setName('');
-    setPhone('+92 ');
+    setPhone('+92');
     setEmail('');
     setPassword('');
     setStaffBranchId('');
@@ -303,7 +303,7 @@ export default function StaffPage() {
       await Promise.all(
         Object.entries(bulkList)
           .filter(([_, status]) => status !== 'Unmarked')
-          .map(([staffId, status]) => 
+          .map(([staffId, status]) =>
             markAttendance(staffId, status as AttendanceStatus, 'Bulk Admin Mark')
           )
       );
@@ -333,31 +333,28 @@ export default function StaffPage() {
           <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
             <button
               onClick={() => setActiveTab('directory')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === 'directory'
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'directory'
                   ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-              }`}
+                }`}
             >
               Directory
             </button>
             <button
               onClick={() => setActiveTab('attendance')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === 'attendance'
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'attendance'
                   ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-              }`}
+                }`}
             >
               Attendance
             </button>
             <button
               onClick={() => setActiveTab('partners')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === 'partners'
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'partners'
                   ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-              }`}
+                }`}
             >
               Partners
             </button>
@@ -583,10 +580,10 @@ export default function StaffPage() {
                               rec.status === 'Present'
                                 ? 'success'
                                 : rec.status === 'Late'
-                                ? 'warning'
-                                : rec.status === 'Leave'
-                                ? 'primary'
-                                : 'danger'
+                                  ? 'warning'
+                                  : rec.status === 'Leave'
+                                    ? 'primary'
+                                    : 'danger'
                             }
                           >
                             {rec.status}
@@ -709,43 +706,37 @@ export default function StaffPage() {
             />
             <Input
               label="Phone Number"
-              placeholder="e.g. +92 3001234567"
+              placeholder="e.g. +923001234567"
               value={phone}
               onChange={(e) => {
                 let val = e.target.value;
-                if (!val.startsWith('+92 ')) {
-                  if (val.startsWith('+92')) {
-                    val = '+92 ' + val.substring(3);
-                  } else if (val.startsWith('92')) {
-                    val = '+92 ' + val.substring(2);
-                  } else if (val.startsWith('0')) {
-                    val = '+92 ' + val.substring(1);
-                  } else {
-                    val = '+92 ' + val.replace(/\D/g, '');
-                  }
+                if (!val.startsWith('+92')) {
+                  if (val.startsWith('92')) val = '+' + val;
+                  else if (val.startsWith('0')) val = '+92' + val.substring(1);
+                  else val = '+92' + val.replace(/\D/g, '');
                 }
-                const digits = val.substring(4).replace(/\D/g, '');
-                setPhone('+92 ' + digits.substring(0, 10));
+                const digits = val.substring(3).replace(/\D/g, '');
+                setPhone('+92' + digits.substring(0, 10));
               }}
               required
             />
           </div>
-            <Input
-              label="Email Address"
-              type="email"
-              placeholder="staff@dbsaesthetic.pk"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-            <Input
-              label="Portal Password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+          <Input
+            label="Email Address"
+            type="email"
+            placeholder="staff@dbsaesthetic.pk"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+          <Input
+            label="Portal Password"
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
 
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -818,23 +809,17 @@ export default function StaffPage() {
             />
             <Input
               label="Phone Number"
-              placeholder="e.g. +92 3001234567"
+              placeholder="e.g. +923001234567"
               value={phone}
               onChange={(e) => {
                 let val = e.target.value;
-                if (!val.startsWith('+92 ')) {
-                  if (val.startsWith('+92')) {
-                    val = '+92 ' + val.substring(3);
-                  } else if (val.startsWith('92')) {
-                    val = '+92 ' + val.substring(2);
-                  } else if (val.startsWith('0')) {
-                    val = '+92 ' + val.substring(1);
-                  } else {
-                    val = '+92 ' + val.replace(/\D/g, '');
-                  }
+                if (!val.startsWith('+92')) {
+                  if (val.startsWith('92')) val = '+' + val;
+                  else if (val.startsWith('0')) val = '+92' + val.substring(1);
+                  else val = '+92' + val.replace(/\D/g, '');
                 }
-                const digits = val.substring(4).replace(/\D/g, '');
-                setPhone('+92 ' + digits.substring(0, 10));
+                const digits = val.substring(3).replace(/\D/g, '');
+                setPhone('+92' + digits.substring(0, 10));
               }}
               required
             />
@@ -930,15 +915,14 @@ export default function StaffPage() {
                       key={status}
                       type="button"
                       onClick={() => setBulkList(prev => ({ ...prev, [s.id]: status as any }))}
-                      className={`px-3 py-1.5 rounded-xl font-bold text-[10px] transition-all cursor-pointer ${
-                        bulkList[s.id] === status
+                      className={`px-3 py-1.5 rounded-xl font-bold text-[10px] transition-all cursor-pointer ${bulkList[s.id] === status
                           ? status === 'Present'
                             ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
                             : status === 'Absent'
-                            ? 'bg-rose-600 text-white shadow-md shadow-rose-500/20'
-                            : 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
+                              ? 'bg-rose-600 text-white shadow-md shadow-rose-500/20'
+                              : 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
                           : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                      }`}
+                        }`}
                     >
                       {status}
                     </button>
@@ -1003,11 +987,10 @@ export default function StaffPage() {
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className={`fixed top-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl border shadow-xl ${
-              toastMessage.type === 'success'
+            className={`fixed top-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl border shadow-xl ${toastMessage.type === 'success'
                 ? 'bg-emerald-50 dark:bg-emerald-950/90 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800'
                 : 'bg-rose-50 dark:bg-rose-950/90 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-800'
-            }`}
+              }`}
           >
             {toastMessage.type === 'success' ? (
               <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 animate-pulse" />
