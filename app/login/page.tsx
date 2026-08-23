@@ -63,7 +63,7 @@ export default function LoginPage() {
             <img
               src="/logo.png"
               alt="DBS Logo"
-              className="h-16 w-auto object-contain"
+              className="h-16 w-auto object-contain invert mix-blend-screen"
             />
           </div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white uppercase font-sans leading-tight">
