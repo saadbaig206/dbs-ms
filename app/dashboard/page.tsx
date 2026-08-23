@@ -342,11 +342,13 @@ export default function DashboardPage() {
               </h3>
               <p className="text-xs text-slate-500">Active client bookings and specialist assignments</p>
             </div>
-            <Link href="/appointments">
-              <Button variant="ghost" size="sm" icon={<ArrowRight className="w-4 h-4" />}>
-                View All Bookings
-              </Button>
-            </Link>
+            {role !== 'partner' && (
+              <Link href="/appointments">
+                <Button variant="ghost" size="sm" icon={<ArrowRight className="w-4 h-4" />}>
+                  View All Bookings
+                </Button>
+              </Link>
+            )}
           </div>
 
           <div className="overflow-x-auto">
