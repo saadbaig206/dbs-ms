@@ -194,13 +194,6 @@ export default function ClientsPage() {
                     >
                       <Eye className="w-4 h-4" />
                     </button>
-                    <button
-                      onClick={() => setPrintData({ title: `Client ${client.name}`, type: 'client', data: client })}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors"
-                      title="Print Client Voucher"
-                    >
-                      <Printer className="w-4 h-4" />
-                    </button>
                   </td>
                 </tr>
               ))}
@@ -221,7 +214,7 @@ export default function ClientsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Full Name"
-              placeholder="e.g. Victoria Beckham"
+              placeholder="e.g. Ayesha Khan"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
@@ -243,7 +236,7 @@ export default function ClientsPage() {
               required
             />
           </div>
-
+ 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
               label="Gender"
@@ -263,10 +256,10 @@ export default function ClientsPage() {
               required
             />
           </div>
-
+ 
           <Input
             label="Residential Address"
-            placeholder="e.g. Penthouse 4B, Beverly Hills Crest, CA"
+            placeholder="e.g. House 45-B, Clifton Block 5, Karachi"
             value={address}
             onChange={(e) => setAddress(e.target.value)}
           />
@@ -367,16 +360,6 @@ export default function ClientsPage() {
                   ))}
                 </div>
               )}
-            </div>
-
-            <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-800">
-              <Button
-                variant="primary"
-                icon={<Printer className="w-4 h-4" />}
-                onClick={() => setPrintData({ title: `Client ${selectedClient.name}`, type: 'client', data: selectedClient })}
-              >
-                Print Client File Voucher
-              </Button>
             </div>
           </div>
         </Modal>

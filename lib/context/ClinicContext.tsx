@@ -81,6 +81,7 @@ interface ClinicContextType {
   deleteAppointment: (id: string) => Promise<void>;
   sendAppointmentReminder: (id: string) => Promise<void>;
   rejectAppointmentReminder: (id: string) => Promise<void>;
+  markAppointmentReminderSent: (id: string) => Promise<void>;
 
   inventory: InventoryItem[];
   addInventoryItem: (item: Omit<InventoryItem, 'id' | 'status'>) => Promise<void>;
@@ -107,6 +108,7 @@ interface ClinicContextType {
   notifications: NotificationItem[];
   markNotificationRead: (id: string) => Promise<void>;
   markAllNotificationsRead: () => Promise<void>;
+  deleteNotification: (id: string) => Promise<void>;
 
   // POS State
   posCart: POSCartItem[];
@@ -458,6 +460,13 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     await refreshData();
   };
 
+  const markAppointmentReminderSent = async (id: string) => {
+    await apiFetch(`/appointments/${id}/reminder/mark-sent`, {
+      method: 'POST',
+    });
+    await refreshData();
+  };
+
   // Inventory CRUD
   const addInventoryItem = async (item: Omit<InventoryItem, 'id' | 'status'>) => {
     await apiFetch('/inventory', {
@@ -560,6 +569,13 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     await refreshData();
   };
 
+  const deleteNotification = async (id: string) => {
+    await apiFetch(`/notifications/${id}`, {
+      method: 'DELETE',
+    });
+    await refreshData();
+  };
+
   // POS Cart logic (local client side cart)
   const addToPosCart = (service: ServiceItem) => {
     setPosCart(prev => {
@@ -655,6 +671,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         deleteAppointment,
         sendAppointmentReminder,
         rejectAppointmentReminder,
+        markAppointmentReminderSent,
 
         inventory,
         addInventoryItem,
@@ -679,6 +696,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         notifications,
         markNotificationRead,
         markAllNotificationsRead,
+        deleteNotification,
 
         posCart,
         addToPosCart,

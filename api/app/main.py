@@ -34,6 +34,9 @@ async def lifespan(app: FastAPI):
                     "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
                 ))
                 await conn.execute(text(
+                    "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_status VARCHAR DEFAULT 'Pending';"
+                ))
+                await conn.execute(text(
                     "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
                 ))
                 await conn.execute(text(

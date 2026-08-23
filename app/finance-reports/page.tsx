@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
+
 import {
   DollarSign,
   TrendingUp,
@@ -10,12 +10,12 @@ import {
   Lock,
   Search,
   Printer,
-  Receipt,
   Plus,
-  BarChart3,
   Download,
-  FileSpreadsheet,
-  Edit
+  Edit,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { formatPKR } from '../../lib/utils/currency';
@@ -26,6 +26,107 @@ import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { Input, Select } from '../../components/ui/Input';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
+
+function FinanceDatePicker({
+  label,
+  value,
+  onChange
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const selectedDate = new Date(`${value}T00:00:00`);
+  const [viewDate, setViewDate] = useState(selectedDate);
+  const monthStart = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+  const firstDay = monthStart.getDay();
+  const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
+  const calendarDays = Array.from({ length: Math.ceil((firstDay + daysInMonth) / 7) * 7 }, (_, index) => {
+    const day = index - firstDay + 1;
+    return day > 0 && day <= daysInMonth ? new Date(viewDate.getFullYear(), viewDate.getMonth(), day) : null;
+  });
+  const dateKey = (date: Date) => {
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${date.getFullYear()}-${month}-${day}`;
+  };
+
+  useEffect(() => {
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick);
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        aria-label={`Select ${label.toLowerCase()}`}
+        aria-expanded={isOpen}
+        onClick={() => {
+          setViewDate(selectedDate);
+          setIsOpen((open) => !open);
+        }}
+        className="finance-date-input flex w-[138px] items-center justify-between gap-2 px-3 py-2 bg-gradient-to-br from-white to-blue-50/70 dark:from-slate-900 dark:to-blue-950/30 border border-blue-100 dark:border-blue-900/60 text-slate-950 dark:text-slate-50 text-xs font-bold rounded-xl focus:outline-none transition-all"
+      >
+        <span>{value}</span>
+        <CalendarDays className="w-3.5 h-3.5 shrink-0 text-blue-500" />
+      </button>
+
+      {isOpen && (
+        <div className="finance-calendar-popover absolute right-0 z-30 mt-2 w-[270px] rounded-2xl border border-blue-100 bg-white p-3 shadow-2xl shadow-blue-900/15 dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-center justify-between px-1 pb-3">
+            <button
+              type="button"
+              aria-label="Previous month"
+              onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))}
+              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-slate-800"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <div className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+              {viewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </div>
+            <button
+              type="button"
+              aria-label="Next month"
+              onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))}
+              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-slate-800"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-black uppercase text-slate-400">
+            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => <span key={day} className="py-1">{day}</span>)}
+          </div>
+          <div className="grid grid-cols-7 gap-1 text-center">
+            {calendarDays.map((date, index) => date ? (
+              <button
+                key={dateKey(date)}
+                type="button"
+                onClick={() => {
+                  onChange(dateKey(date));
+                  setIsOpen(false);
+                }}
+                className={`h-8 rounded-lg text-xs font-bold transition ${
+                  dateKey(date) === value
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
+                    : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-blue-300'
+                }`}
+              >
+                {date.getDate()}
+              </button>
+            ) : <span key={`empty-${index}`} className="h-8" />)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function FinanceReportsPage() {
   const { 
@@ -312,7 +413,7 @@ export default function FinanceReportsPage() {
             <select
               value={selectedBranchId || ''}
               onChange={(e) => setSelectedBranchId(e.target.value || null)}
-              className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-950 dark:text-slate-50 text-sm font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-sm cursor-pointer animate-fade-in"
+              className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-950 dark:text-slate-50 text-sm font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-sm cursor-pointer"
             >
               <option value="">All Branches</option>
               {branches.map((b) => (
@@ -364,28 +465,17 @@ export default function FinanceReportsPage() {
           )}
 
           {activeTab === 'reports' && (
-            <div className="flex items-center gap-3 flex-wrap animate-fade-in">
+            <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-500 dark:text-slate-400">From:</span>
-                <input
-                  type="date"
-                  value={reportStartDate}
-                  onChange={(e) => setReportStartDate(e.target.value)}
-                  className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-950 dark:text-slate-50 text-xs font-semibold rounded-xl focus:outline-none cursor-pointer"
-                />
+                <FinanceDatePicker label="report start date" value={reportStartDate} onChange={setReportStartDate} />
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-500 dark:text-slate-400">To:</span>
-                <input
-                  type="date"
-                  value={reportEndDate}
-                  onChange={(e) => setReportEndDate(e.target.value)}
-                  className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-950 dark:text-slate-50 text-xs font-semibold rounded-xl focus:outline-none cursor-pointer"
-                />
+                <FinanceDatePicker label="report end date" value={reportEndDate} onChange={setReportEndDate} />
               </div>
               <Button
                 onClick={() => {
-                  // Direct string comparisons are robust and timezone-insensitive for YYYY-MM-DD strings
                   const filteredTxns = transactions.filter(t => t.date >= reportStartDate && t.date <= reportEndDate);
                   const filteredExps = expenses.filter(e => e.date >= reportStartDate && e.date <= reportEndDate);
 
@@ -418,14 +508,14 @@ export default function FinanceReportsPage() {
                         <style>
                           body {
                             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                            color: #0f172a;
+                            color: #000000;
                             padding: 40px;
                             margin: 0;
                             line-height: 1.5;
                             background: white;
                           }
                           .header {
-                            border-bottom: 2px solid #e2e8f0;
+                            border-bottom: 2px solid #000000;
                             padding-bottom: 20px;
                             margin-bottom: 30px;
                             display: flex;
@@ -438,17 +528,17 @@ export default function FinanceReportsPage() {
                             font-weight: 900;
                             text-transform: uppercase;
                             letter-spacing: -0.5px;
-                            color: #0b0f17;
+                            color: #000000;
                           }
                           .header p {
                             margin: 5px 0 0 0;
                             font-size: 13px;
-                            color: #64748b;
+                            color: #333333;
                             font-weight: 500;
                           }
                           .badge {
-                            background: #2563eb;
-                            color: white;
+                            border: 2px solid #000000;
+                            color: #000000;
                             font-size: 10px;
                             font-weight: 800;
                             padding: 6px 12px;
@@ -465,15 +555,15 @@ export default function FinanceReportsPage() {
                             flex: 1;
                           }
                           .card {
-                            background: #f8fafc;
-                            border: 1px solid #e2e8f0;
+                            background: #ffffff;
+                            border: 1px solid #000000;
                             border-radius: 16px;
                             padding: 20px;
                           }
                           .card-title {
                             font-size: 10px;
                             font-weight: 800;
-                            color: #94a3b8;
+                            color: #666666;
                             text-transform: uppercase;
                             letter-spacing: 0.5px;
                             display: block;
@@ -483,10 +573,8 @@ export default function FinanceReportsPage() {
                             font-weight: 900;
                             margin-top: 6px;
                             display: block;
+                            color: #000000;
                           }
-                          .emerald { color: #16a34a; }
-                          .rose { color: #dc2626; }
-                          .indigo { color: #4f46e5; }
                           h2 {
                             font-size: 15px;
                             font-weight: 800;
@@ -494,9 +582,9 @@ export default function FinanceReportsPage() {
                             letter-spacing: 0.5px;
                             margin-top: 35px;
                             margin-bottom: 15px;
-                            border-bottom: 2px solid #f1f5f9;
+                            border-bottom: 2px solid #000000;
                             padding-bottom: 8px;
-                            color: #0b0f17;
+                            color: #000000;
                           }
                           table {
                             width: 100%;
@@ -505,8 +593,8 @@ export default function FinanceReportsPage() {
                             margin-bottom: 30px;
                           }
                           th {
-                            background: #0f172a;
-                            color: white;
+                            background: #000000;
+                            color: #ffffff;
                             font-weight: 700;
                             text-transform: uppercase;
                             font-size: 10px;
@@ -516,17 +604,30 @@ export default function FinanceReportsPage() {
                           }
                           td {
                             padding: 12px;
-                            border-bottom: 1px solid #e2e8f0;
-                            color: #334155;
-                          }
-                          tr:nth-child(even) {
-                            background-color: #f8fafc;
+                            border-bottom: 1px solid #000000;
+                            color: #000000;
                           }
                           .text-right { text-align: right; }
                           .font-mono { font-family: monospace; font-weight: 700; }
                           .double-underline {
-                            border-bottom: 3px double #0f172a;
+                            border-bottom: 3px double #000000;
                             padding-bottom: 2px;
+                          }
+                          @media print {
+                            body {
+                              color: #000000 !important;
+                              background: #ffffff !important;
+                            }
+                            * {
+                              color: #000000 !important;
+                              border-color: #000000 !important;
+                            }
+                            th {
+                              background: #000000 !important;
+                              color: #ffffff !important;
+                              -webkit-print-color-adjust: exact;
+                              print-color-adjust: exact;
+                            }
                           }
                         </style>
                       </head>
@@ -558,19 +659,19 @@ export default function FinanceReportsPage() {
                           <div class="grid-item">
                             <div class="card">
                               <span class="card-title">Net Revenue</span>
-                              <span class="card-value emerald">${formatFinancial(totalRev)}</span>
+                              <span class="card-value">${formatFinancial(totalRev)}</span>
                             </div>
                           </div>
                           <div class="grid-item">
                             <div class="card">
                               <span class="card-title">Total Expenses</span>
-                              <span class="card-value rose">${formatFinancial(-totalExp)}</span>
+                              <span class="card-value">${formatFinancial(-totalExp)}</span>
                             </div>
                           </div>
                           <div class="grid-item">
                             <div class="card">
                               <span class="card-title">Net Profit</span>
-                              <span class="card-value ${netProfit >= 0 ? 'indigo' : 'rose'}">
+                              <span class="card-value">
                                 <span class="double-underline">${formatFinancial(netProfit)}</span>
                               </span>
                             </div>
@@ -591,7 +692,7 @@ export default function FinanceReportsPage() {
                           <tbody>
                             ${filteredTxns.map(t => `
                               <tr>
-                                <td style="font-weight: bold; color: #2563eb;">${t.invoiceId || 'N/A'}</td>
+                                <td style="font-weight: bold;">${t.invoiceId || 'N/A'}</td>
                                 <td style="font-weight: bold;">${t.clientName || 'Valued Client'}</td>
                                 <td>${t.date}</td>
                                 <td>${t.paymentMethod}</td>
@@ -618,12 +719,12 @@ export default function FinanceReportsPage() {
                               <tr>
                                 <td>
                                   <span style="font-weight: bold; display: block;">${e.title}</span>
-                                  <span style="font-size: 10px; color: #64748b;">${e.category}</span>
+                                  <span style="font-size: 10px; color: #333333;">${e.category}</span>
                                 </td>
                                 <td>${e.date}</td>
                                 <td>${e.paymentMethod}</td>
                                 <td>${e.status}</td>
-                                <td class="text-right font-mono font-bold rose">${formatFinancial(-e.amount)}</td>
+                                <td class="text-right font-mono font-bold">${formatFinancial(-e.amount)}</td>
                               </tr>
                             `).join('')}
                             ${filteredExps.length === 0 ? '<tr><td colspan="5" style="text-align: center; color: #94a3b8;">No expenses in range.</td></tr>' : ''}
@@ -688,17 +789,13 @@ export default function FinanceReportsPage() {
                 <StatCard
                   title="Net Operating Profit Margin"
                   value={`${totalRevenue > 0 ? (((totalRevenue - totalExpenseAmount) / totalRevenue) * 100).toFixed(1) : '0.0'}%`}
-                  trend={dynamicTrend}
-                  trendDirection={trendDirection}
                   colorVariant="indigo"
                   icon={<TrendingUp className="w-5 h-5" />}
-                  subtitle={marginSubtitle}
                 />
               </div>
 
-
               {/* Payment Transactions Table */}
-              <div className="luxury-card p-6">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
                   <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
                     Recent Payment Transactions
@@ -827,7 +924,7 @@ export default function FinanceReportsPage() {
           {activeTab === 'expenses' && (
             <div className="space-y-6">
               {/* Total Card */}
-              <div className="luxury-card p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Recorded Operational Expenses</span>
                   <h2 className="text-3xl font-black text-slate-900 dark:text-slate-100 font-mono mt-1">
@@ -838,7 +935,7 @@ export default function FinanceReportsPage() {
               </div>
 
               {/* Filter & Search Bar */}
-              <div className="luxury-card p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <Input
                   placeholder="Search expenses by title..."
                   value={expSearch}
@@ -866,7 +963,7 @@ export default function FinanceReportsPage() {
               </div>
 
               {/* Expenses Table */}
-              <div className="luxury-card p-6">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs sm:text-sm">
                     <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[11px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
@@ -940,7 +1037,7 @@ export default function FinanceReportsPage() {
           {activeTab === 'reports' && (
             <div className="space-y-6">
               {/* Reports Navigation Tabs */}
-              <div className="luxury-card p-4">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
                 <div className="flex items-center gap-2 overflow-x-auto pb-1">
                   {reportTabs.map((tab) => (
                     <button
@@ -959,7 +1056,7 @@ export default function FinanceReportsPage() {
               </div>
 
               {/* Active Report Visual Panel */}
-              <div className="luxury-card p-8 space-y-6">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 shadow-sm space-y-6">
                 <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
                   <div>
                     <span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">
@@ -1023,8 +1120,6 @@ export default function FinanceReportsPage() {
                     </div>
                   </div>
                 )}
-
-
               </div>
             </div>
           )}

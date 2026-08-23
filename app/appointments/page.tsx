@@ -6,7 +6,9 @@ import {
   Plus,
   Search,
   Printer,
-  Trash2
+  Trash2,
+  CalendarDays,
+  Clock3
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { formatPKR } from '../../lib/utils/currency';
@@ -36,7 +38,7 @@ export default function AppointmentsPage() {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newClientName, setNewClientName] = useState('');
-  const [newPhone, setNewPhone] = useState('+92');
+  const [newPhone, setNewPhone] = useState('+92 ');
   const [selectedServiceId, setSelectedServiceId] = useState(services[0]?.id || '');
   const [selectedStaffId, setSelectedStaffId] = useState(staff[0]?.id || '');
   const [aptDate, setAptDate] = useState(new Date().toISOString().split('T')[0]);
@@ -90,8 +92,8 @@ export default function AppointmentsPage() {
       alert("Client Name must contain only letters and spaces");
       return;
     }
-    if (!/^\+92\d{9,10}$/.test(newPhone)) {
-      alert("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)");
+    if (!/^\+92\s\d{9,10}$/.test(newPhone)) {
+      alert("Please enter a valid Pakistani phone number (+92 followed by a space and 9-10 digits)");
       return;
     }
     if (!aptDate) {
@@ -102,7 +104,7 @@ export default function AppointmentsPage() {
     addAppointment({
       clientId: `CLT-${Math.floor(Math.random() * 900) + 100}`,
       clientName: newClientName,
-      phone: newPhone,
+      phone: newPhone.replace(/\s+/g, ''),
       serviceId: serviceObj.id,
       serviceName: serviceObj.name,
       staffId: staffObj.id,
@@ -116,7 +118,7 @@ export default function AppointmentsPage() {
 
     setIsModalOpen(false);
     setNewClientName('');
-    setNewPhone('+92');
+    setNewPhone('+92 ');
     setAptNotes('');
   };
 
@@ -286,31 +288,37 @@ export default function AppointmentsPage() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title="Schedule New Treatment Appointment"
-        description="Book a luxury treatment session for a VIP client"
         maxWidth="xl"
       >
         <form onSubmit={handleCreateAppointment} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
-              label="Client Name"
-              placeholder="e.g. Victoria Beckham"
+              label="Full Name"
+              placeholder="e.g. Ayesha Khan"
               value={newClientName}
               onChange={(e) => setNewClientName(e.target.value)}
               required
             />
             <Input
               label="Phone Number"
-              placeholder="e.g. +923001234567"
+              placeholder="e.g. +92 3001234567"
               value={newPhone}
               onChange={(e) => {
                 let val = e.target.value;
-                if (!val.startsWith('+92')) {
-                  if (val.startsWith('92')) val = '+' + val;
-                  else if (val.startsWith('0')) val = '+92' + val.substring(1);
-                  else val = '+92' + val.replace(/\D/g, '');
+                // Enforce starts with +92 
+                if (!val.startsWith('+92 ')) {
+                  if (val.startsWith('+92')) {
+                    val = '+92 ' + val.substring(3);
+                  } else if (val.startsWith('92')) {
+                    val = '+92 ' + val.substring(2);
+                  } else if (val.startsWith('0')) {
+                    val = '+92 ' + val.substring(1);
+                  } else {
+                    val = '+92 ' + val.replace(/\D/g, '');
+                  }
                 }
-                const digits = val.substring(3).replace(/\D/g, '');
-                setNewPhone('+92' + digits.substring(0, 10));
+                const digits = val.substring(4).replace(/\D/g, '');
+                setNewPhone('+92 ' + digits.substring(0, 10));
               }}
               required
             />
@@ -337,23 +345,36 @@ export default function AppointmentsPage() {
               type="date"
               value={aptDate}
               onChange={(e) => setAptDate(e.target.value)}
+              rightIcon={<CalendarDays className="w-4 h-4 text-blue-500" />}
+              className="booking-date-input cursor-pointer bg-gradient-to-br from-white to-blue-50/70 dark:from-slate-900 dark:to-blue-950/30 border-blue-100 dark:border-blue-900/60 font-semibold tracking-wide"
               required
             />
-            <Select
-              label="Time Slot"
-              options={[
-                { label: '09:00 AM', value: '09:00 AM' },
-                { label: '10:30 AM', value: '10:30 AM' },
-                { label: '11:30 AM', value: '11:30 AM' },
-                { label: '01:00 PM', value: '01:00 PM' },
-                { label: '02:30 PM', value: '02:30 PM' },
-                { label: '04:00 PM', value: '04:00 PM' },
-                { label: '05:30 PM', value: '05:30 PM' }
-              ]}
-              value={aptTime}
-              onChange={(e) => setAptTime(e.target.value)}
-            />
+            <div className="w-full space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                Time Slot
+              </label>
+              <div className="relative flex items-center">
+                <Clock3 className="absolute left-3.5 z-10 w-4 h-4 text-blue-500 pointer-events-none" />
+                <Select
+                  aria-label="Time Slot"
+                  options={[
+                    { label: '09:00 AM', value: '09:00 AM' },
+                    { label: '10:30 AM', value: '10:30 AM' },
+                    { label: '11:30 AM', value: '11:30 AM' },
+                    { label: '01:00 PM', value: '01:00 PM' },
+                    { label: '02:30 PM', value: '02:30 PM' },
+                    { label: '04:00 PM', value: '04:00 PM' },
+                    { label: '05:30 PM', value: '05:30 PM' }
+                  ]}
+                  value={aptTime}
+                  onChange={(e) => setAptTime(e.target.value)}
+                  className="booking-time-select pl-10 bg-gradient-to-br from-white to-blue-50/70 dark:from-slate-900 dark:to-blue-950/30 border-blue-100 dark:border-blue-900/60 font-semibold tracking-wide cursor-pointer"
+                />
+              </div>
+            </div>
           </div>
+
+
 
           <Input
             label="Special Clinical Notes"

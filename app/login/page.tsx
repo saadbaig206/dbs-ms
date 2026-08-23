@@ -59,8 +59,12 @@ export default function LoginPage() {
       >
         {/* Brand */}
         <div className="text-center mb-8">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-xl shadow-blue-500/30 mb-4">
-            <Sparkles className="w-7 h-7" />
+          <div className="flex justify-center mb-4">
+            <img
+              src="/logo.png"
+              alt="DBS Logo"
+              className="h-16 w-auto object-contain"
+            />
           </div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white uppercase font-sans leading-tight">
             {clinicInfo.name}

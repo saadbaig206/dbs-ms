@@ -14,7 +14,8 @@ import {
   LogOut,
   Calendar,
   Sparkles,
-  Command
+  Command,
+  Trash2
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { Avatar } from '../ui/Avatar';
@@ -30,6 +31,7 @@ export const Navbar: React.FC = () => {
     notifications,
     markNotificationRead,
     markAllNotificationsRead,
+    deleteNotification,
     clinicInfo,
     appointments
   } = useClinic();
@@ -65,7 +67,6 @@ export const Navbar: React.FC = () => {
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight">
               {clinicInfo.name}
             </span>
@@ -125,8 +126,15 @@ export const Navbar: React.FC = () => {
                     )}
                   </div>
                   <button
-                    onClick={markAllNotificationsRead}
-                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        await markAllNotificationsRead();
+                      } catch (err) {
+                        console.error("Failed to mark all read:", err);
+                      }
+                    }}
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium cursor-pointer"
                   >
                     Mark all read
                   </button>
@@ -142,15 +150,32 @@ export const Navbar: React.FC = () => {
                       <div
                         key={notif.id}
                         onClick={() => markNotificationRead(notif.id)}
-                        className={`p-4 transition-colors cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60 ${
+                        className={`p-4 transition-colors cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60 flex justify-between items-start gap-3 group relative ${
                           !notif.read ? 'bg-blue-50/40 dark:bg-blue-950/20' : ''
                         }`}
                       >
-                        <div className="flex items-start justify-between mb-1">
-                          <h5 className="text-xs font-bold text-slate-900 dark:text-slate-100">{notif.title}</h5>
-                          <span className="text-[10px] text-slate-400 font-mono">{notif.time}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between mb-1">
+                            <h5 className="text-xs font-bold text-slate-900 dark:text-slate-100">{notif.title}</h5>
+                            <span className="text-[10px] text-slate-400 font-mono shrink-0 ml-2">{notif.time}</span>
+                          </div>
+                          <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed pr-6">{notif.message}</p>
                         </div>
-                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{notif.message}</p>
+                        <button
+                          type="button"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              await deleteNotification(notif.id);
+                            } catch (err) {
+                              console.error("Failed to delete notification:", err);
+                            }
+                          }}
+                          className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0 self-center opacity-0 group-hover:opacity-100 focus:opacity-100"
+                          title="Delete notification"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     ))
                   )}

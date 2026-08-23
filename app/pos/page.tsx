@@ -213,7 +213,14 @@ export default function POSPage() {
         bankTxnId
       } : undefined;
       const txn = await completePosCheckout(clientName, paymentMethod, Number(discountPercent) || 0, Number(taxPercent) || 0, cardDetails);
-      setLocalRecentTransactions(prev => [txn, ...prev].slice(0, 5));
+
+      // completePosCheckout only forwards the client's name, so the phone
+      // number never ends up on the transaction — look the client back up
+      // by name and attach it before this gets handed to the print modal.
+      const matchedClient = clients.find(c => c.name === clientName);
+      const txnWithPhone = { ...txn, phone: txn.phone || matchedClient?.phone };
+
+      setLocalRecentTransactions(prev => [txnWithPhone, ...prev].slice(0, 5));
       setIsPaidSuccess(true);
       
       // Clear inputs
@@ -225,7 +232,7 @@ export default function POSPage() {
 
       setTimeout(() => {
         setIsPaidSuccess(false);
-        setPrintData({ title: `Invoice ${txn.invoiceId}`, type: 'invoice', data: txn });
+        setPrintData({ title: `Invoice ${txnWithPhone.invoiceId}`, type: 'invoice', data: txnWithPhone });
       }, 800);
     } catch (e: any) {
       showToast("Checkout failed: " + e.message, "error");
@@ -652,7 +659,7 @@ export default function POSPage() {
         <form onSubmit={handleQuickAddClient} className="space-y-4">
           <Input
             label="Client Full Name"
-            placeholder="e.g. Amanda Seyfried"
+            placeholder="e.g. Ayesha Khan"
             value={quickClientName}
             onChange={(e) => setQuickClientName(e.target.value)}
             required
@@ -745,7 +752,11 @@ export default function POSPage() {
                       <td className="py-3 px-4 text-right">
                         <div className="flex gap-2 justify-end">
                           <Button
-                            onClick={() => setPrintData({ title: `Invoice ${txn.invoiceId}`, type: 'invoice', data: txn })}
+                            onClick={() => {
+                              const matchedClient = clients.find(c => c.name === txn.clientName);
+                              const txnWithPhone = { ...txn, phone: txn.phone || matchedClient?.phone };
+                              setPrintData({ title: `Invoice ${txnWithPhone.invoiceId}`, type: 'invoice', data: txnWithPhone });
+                            }}
                             variant="outline"
                             size="sm"
                             icon={<Printer className="w-3.5 h-3.5" />}

@@ -57,8 +57,17 @@ async def create_appointment(
     await check_double_booking(db, apt_in.staff_id, apt_in.date, apt_in.time)
     
     count_result = await db.execute(select(Appointment))
-    count = len(count_result.scalars().all())
-    apt_id = f"APT-{1000 + count + 1}"
+    appointments = count_result.scalars().all()
+    max_num = 1000
+    for apt in appointments:
+        if apt.id and apt.id.startswith("APT-"):
+            try:
+                num = int(apt.id.split("-")[1])
+                if num > max_num:
+                    max_num = num
+            except (ValueError, IndexError):
+                pass
+    apt_id = f"APT-{max_num + 1}"
     
     db_apt = Appointment(
         id=apt_id,
@@ -189,3 +198,21 @@ async def reject_appointment_reminder(
     await db.commit()
     await db.refresh(db_apt)
     return db_apt
+
+@router.post("/{apt_id}/reminder/mark-sent", response_model=AppointmentResponse)
+async def mark_appointment_reminder_sent(
+    apt_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_staff_user)
+):
+    result = await db.execute(select(Appointment).where(Appointment.id == apt_id))
+    db_apt = result.scalars().first()
+    if not db_apt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+        
+    db_apt.reminder_status = "Sent"
+    db.add(db_apt)
+    await db.commit()
+    await db.refresh(db_apt)
+    return db_apt
+

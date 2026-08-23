@@ -27,6 +27,8 @@ export default function RemindersPage() {
     appointments, 
     sendAppointmentReminder, 
     rejectAppointmentReminder,
+    markAppointmentReminderSent,
+    branches,
     isLoading,
     role
   } = useClinic();
@@ -73,14 +75,36 @@ export default function RemindersPage() {
 
   const handleSend = async (id: string, clientName: string) => {
     try {
-      await sendAppointmentReminder(id);
+      const apt = appointments.find(a => a.id === id);
+      if (!apt) throw new Error('Appointment not found');
+
+      // 1. Find branch details for the location
+      const branchName = branches.find(b => b.id === apt.branchId)?.name || 'our clinic';
+      
+      // 2. Format the message properly
+      const message = `Dear ${apt.clientName}, this is a reminder for your upcoming appointment for ${apt.serviceName} scheduled on ${apt.date} at ${apt.time} at our ${branchName} branch with specialist ${apt.staffName}. Thank you!`;
+
+      // 3. Normalize the phone number (keeping only digits)
+      let cleanPhone = apt.phone.replace(/\D/g, '');
+      // If it's a Pakistani local number starting with 0, convert to 92 international format
+      if (cleanPhone.startsWith('0') && cleanPhone.length === 11) {
+        cleanPhone = '92' + cleanPhone.substring(1);
+      }
+
+      // 4. Open WhatsApp Web Click-to-Chat link
+      const waUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
+      window.open(waUrl, 'whatsapp_window');
+
+      // 5. Update state in the database to 'Sent'
+      await markAppointmentReminderSent(id);
+
       setToastMessage({
-        text: `Reminder WhatsApp request sent successfully to ${clientName}!`,
+        text: `Reminder WhatsApp opened and marked as sent for ${clientName}!`,
         type: 'success'
       });
     } catch (e: any) {
       setToastMessage({
-        text: `Failed to trigger WhatsApp reminder: ${e.message || e}`,
+        text: `Failed to open WhatsApp reminder: ${e.message || e}`,
         type: 'error'
       });
     }
@@ -114,10 +138,6 @@ export default function RemindersPage() {
             Dispatch upcoming booking reminders to clients via WhatsApp Bot API.
           </p>
         </div>
-
-        <Badge variant="primary" size="md">
-          <Bell className="w-4 h-4 mr-1 inline animate-swing" /> Auto-Sync Active
-        </Badge>
       </div>
 
       {/* Filter and Search Controls */}

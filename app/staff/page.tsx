@@ -433,7 +433,6 @@ export default function StaffPage() {
               >
                 <div className="p-5 space-y-4">
                   <div className="flex items-start gap-4">
-                    <Avatar src={member.photo} name={member.name} size="md" statusDot={member.status === 'Active' ? 'online' : 'offline'} />
                     <div className="space-y-0.5">
                       <h4 className="font-bold text-slate-900 dark:text-slate-100">{member.name}</h4>
                       <p className="text-xs font-semibold text-blue-600 dark:text-blue-400">{member.role}</p>
@@ -497,7 +496,7 @@ export default function StaffPage() {
                 <p className="text-xs font-semibold text-slate-500 uppercase">Present Today</p>
                 <h3 className="text-2xl font-black text-emerald-600 font-mono mt-0.5">{presentCount}</h3>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
                 <CheckCircle2 className="w-5 h-5" />
               </div>
             </div>
@@ -507,7 +506,7 @@ export default function StaffPage() {
                 <p className="text-xs font-semibold text-slate-500 uppercase">Late Arrivals</p>
                 <h3 className="text-2xl font-black text-amber-600 font-mono mt-0.5">{lateCount}</h3>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center">
                 <Clock className="w-5 h-5" />
               </div>
             </div>
@@ -517,7 +516,7 @@ export default function StaffPage() {
                 <p className="text-xs font-semibold text-slate-500 uppercase">On Leave</p>
                 <h3 className="text-2xl font-black text-blue-600 font-mono mt-0.5">{leaveCount}</h3>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center">
                 <AlertCircle className="w-5 h-5" />
               </div>
             </div>
@@ -527,7 +526,7 @@ export default function StaffPage() {
                 <p className="text-xs font-semibold text-slate-500 uppercase">Absent</p>
                 <h3 className="text-2xl font-black text-rose-600 font-mono mt-0.5">{absentCount}</h3>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/10 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center">
                 <XCircle className="w-5 h-5" />
               </div>
             </div>
@@ -766,13 +765,6 @@ export default function StaffPage() {
         maxWidth="lg"
       >
         <form onSubmit={handleEditStaff} className="space-y-4">
-          <Input
-            label="Profile Picture URL"
-            value={photo}
-            onChange={(e) => setPhoto(e.target.value)}
-            required
-          />
-
           <Input
             label="Full Name"
             placeholder="e.g. Dr. Ayesha Khan"

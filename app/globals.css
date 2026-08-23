@@ -105,11 +105,15 @@
   background: #334155;
 }
 
-/* Print styles — only show the dedicated print portal */
+/* Print styles — only show the dedicated print portal.
+   Rewritten to match the current PrintModal.tsx markup:
+   no forced zoom, no blanket tag font-size overrides —
+   the page height auto-grows and Tailwind's own text
+   sizing in the component controls the look. */
 @media print {
   @page {
     margin: 2mm 3mm;
-    size: 80mm auto; /* 80mm Thermal Receipt Roll */
+    size: 80mm auto; /* 80mm thermal receipt roll, height grows to fit content */
   }
 
   /* Hide everything except the print portal to prevent extra page generation */
@@ -117,7 +121,9 @@
     display: none !important;
   }
 
-  body {
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
     background: white !important;
     color: #0f172a !important;
     -webkit-print-color-adjust: exact;
@@ -128,6 +134,7 @@
     position: relative !important;
     width: 74mm !important;
     height: auto !important;
+    overflow: visible !important;
     background: white !important;
     color: #0f172a !important;
     padding: 0 !important;
@@ -135,119 +142,10 @@
     display: block !important;
   }
 
-  /* Optimize print elements to fit on a single page of DL Envelope */
   #print-portal .bg-white {
-    padding: 0 !important;
     max-width: 100% !important;
+    padding: 0.5rem !important;
     margin: 0 !important;
-  }
-
-  #print-portal > div {
-    zoom: 0.8 !important; /* Scale entire content down to guarantee 1-page fit */
-  }
-
-  /* Make margins, paddings, and gaps ultra-compact for DL Envelope */
-  #print-portal .space-y-6 > :not([hidden]) ~ :not([hidden]) {
-    margin-top: 0.25rem !important;
-  }
-  
-  #print-portal .space-y-4 > :not([hidden]) ~ :not([hidden]) {
-    margin-top: 0.15rem !important;
-  }
-
-  #print-portal .space-y-8 > :not([hidden]) ~ :not([hidden]) {
-    margin-top: 0.25rem !important;
-  }
-
-  #print-portal .gap-6 {
-    gap: 0.3rem !important;
-  }
-
-  #print-portal .gap-12 {
-    gap: 0.5rem !important;
-  }
-
-  #print-portal .grid {
-    gap: 0.3rem !important;
-  }
-
-  #print-portal .p-8 {
-    padding: 0 !important;
-  }
-
-  #print-portal .p-5 {
-    padding: 0.2rem 0.4rem !important;
-  }
-
-  #print-portal .p-4 {
-    padding: 0.15rem 0.3rem !important;
-  }
-
-  #print-portal .pt-8 {
-    padding-top: 0.15rem !important;
-  }
-
-  #print-portal .mt-4 {
-    margin-top: 0.15rem !important;
-  }
-
-  #print-portal .pt-4 {
-    padding-top: 0.15rem !important;
-  }
-
-  #print-portal .pb-6 {
-    padding-bottom: 0.2rem !important;
-  }
-
-  #print-portal .mb-3 {
-    margin-bottom: 0.15rem !important;
-  }
-
-  /* Adjust typography for maximum compact layout */
-  #print-portal h1 {
-    font-size: 0.75rem !important;
-  }
-
-  #print-portal img {
-    height: 1.25rem !important;
-  }
-
-  #print-portal text-xs,
-  #print-portal .text-xs,
-  #print-portal p,
-  #print-portal span,
-  #print-portal td,
-  #print-portal th,
-  #print-portal strong,
-  #print-portal tr {
-    font-size: 7px !important;
-    line-height: 1.1 !important;
-  }
-
-  #print-portal .text-sm {
-    font-size: 7.5px !important;
-  }
-
-  #print-portal .text-lg {
-    font-size: 0.6rem !important;
-  }
-
-  #print-portal .w-72 {
-    width: 8rem !important;
-  }
-
-  #print-portal .pt-8.border-t {
-    margin-top: 0.15rem !important;
-    padding-top: 0.15rem !important;
-  }
-
-  #print-portal .pt-8.border-t .space-y-8 > :not([hidden]) ~ :not([hidden]) {
-    margin-top: 0.2rem !important;
-  }
-
-  #print-portal .pt-8.border-t .space-y-8 {
-    margin-top: 0 !important;
-    margin-bottom: 0 !important;
   }
 
   .no-print {

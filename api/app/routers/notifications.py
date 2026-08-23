@@ -23,7 +23,9 @@ async def mark_read(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_staff_user)
 ):
-    result = await db.execute(select(NotificationItem).where(NotificationItem.id == notification_id))
+    from sqlalchemy import func
+    nid_clean = notification_id.strip()
+    result = await db.execute(select(NotificationItem).where(func.lower(NotificationItem.id) == func.lower(nid_clean)))
     notification = result.scalars().first()
     if not notification:
         raise HTTPException(status_code=404, detail="Notification not found")
@@ -47,3 +49,21 @@ async def mark_all_read(
         
     await db.commit()
     return {"message": "All notifications marked as read"}
+
+@router.delete("/{notification_id}")
+async def delete_notification(
+    notification_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_staff_user)
+):
+    from sqlalchemy import func
+    nid_clean = notification_id.strip()
+    result = await db.execute(select(NotificationItem).where(func.lower(NotificationItem.id) == func.lower(nid_clean)))
+    notification = result.scalars().first()
+    if not notification:
+        raise HTTPException(status_code=404, detail="Notification not found")
+        
+    await db.delete(notification)
+    await db.commit()
+    return {"message": "Notification deleted successfully"}
+

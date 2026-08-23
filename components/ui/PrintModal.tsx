@@ -1,225 +1,283 @@
 'use client';
-
+ 
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Printer } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
+import Barcode from 'react-barcode';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { formatPKR } from '../../lib/utils/currency';
 import { Button } from './Button';
 import { Modal } from './Modal';
-
-function InvoicePrintContent({ data }: { data: any }) {
+ 
+function InvoicePrintContent({ data, clinicInfo }: { data: any; clinicInfo: any }) {
   const items = data.items?.length
     ? data.items
     : [{ name: data.serviceName, price: data.amount, quantity: 1 }];
-
+ 
+  const subtotal = data.subtotal ?? data.amount ?? 0;
+  const tax = data.tax ?? 0;
+  const discount = data.discount ?? 0;
+  const netAmount = data.grandTotal ?? subtotal + tax - discount;
+  const cashReceived = data.cashReceived ?? netAmount;
+  const cashReturned = data.cashReturned ?? Math.max(cashReceived - netAmount, 0);
+ 
+  // Calculate discount percentage if discount amount and subtotal are provided
+  const discountPercent = data.discountPercent ?? (subtotal > 0 ? Math.round((discount / subtotal) * 100) : 0);
+ 
   return (
-    <div className="space-y-6">
-      {/* Billed To / Specialist Info Grid */}
-      <div className="grid grid-cols-2 gap-6 text-xs bg-slate-50/50 p-5 rounded-2xl border border-slate-100">
-        <div className="space-y-1.5">
-          <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px] block">Billed To</span>
-          <span className="font-extrabold text-slate-900 text-sm block">{data.clientName || 'Valued Client'}</span>
-          {data.phone && <p className="text-slate-600">Phone: {data.phone}</p>}
-          <p className="text-slate-500 font-medium">
-            Payment Method: <span className="text-slate-950 font-bold">{data.paymentMethod || 'Card'}</span>
-            {data.paymentMethod === 'Card' && data.cardLastFour && (
-              <span className="text-slate-500 block text-[10px] mt-1 font-semibold">
-                • {data.cardType || 'Card'} ending in {data.cardLastFour}
-                {data.bankTxnId && ` (Txn ID: ${data.bankTxnId})`}
-              </span>
-            )}
-          </p>
+    <div className="space-y-0 text-[13px] text-slate-900 font-mono">
+      {/* Date / Time */}
+      <div className="flex justify-between font-bold pb-3 pt-2">
+        <span>Date: <span className="font-normal">{data.date || new Date().toLocaleDateString('en-GB')}</span></span>
+        <span>Time: <span className="font-normal">{data.time || new Date().toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}</span></span>
+      </div>
+ 
+      <div className="border-t border-dashed border-slate-400" />
+ 
+      {/* Customer Info */}
+      <div className="pt-3 pb-3 space-y-1">
+        <p className="font-black font-bold uppercase tracking-wide">Customer Info</p>
+        <p>Name : <span className="font-bold">{data.clientName || 'Valued Client'}</span></p>
+        <p>Contact No : <span className="font-bold">{data.phone || 'N/A'}</span></p>
+      </div>
+ 
+      <div className="border-t border-dashed border-slate-400" />
+ 
+      {/* Invoice Details */}
+      <div className="pt-3 pb-3 space-y-1">
+        <p className="font-black uppercase tracking-wide">Invoice Details</p>
+        <p>Invoice Details: <span className="font-bold">{data.invoiceId || data.id || `INV-${Date.now().toString().slice(-6)}`}</span></p>
+      </div>
+ 
+      <div className="border-t border-dashed border-slate-400" />
+ 
+      {/* Service Table */}
+      <div className="pt-3">
+        <div className="bg-slate-950 text-white flex justify-between px-3 py-2 rounded-md font-bold uppercase text-[11px] tracking-wide">
+          <span className="w-1/3">Service</span>
+          <span className="w-1/3 text-center">Quantity</span>
+          <span className="w-1/3 text-right">Amount</span>
         </div>
-        <div className="text-right space-y-1.5 border-l border-slate-200/60 pl-6">
-          <span className="text-slate-400 font-bold uppercase tracking-wider text-[9px] block">Invoice Details</span>
-          <span className="font-mono font-black text-slate-900 block text-sm">
-            {data.invoiceId || data.id || `DOC-${Date.now().toString().slice(-6)}`}
-          </span>
-          <p className="text-slate-600">
-            Date: {data.date || new Date().toLocaleDateString('en-PK')}
-          </p>
-          <p className="text-slate-500 font-medium">
-            Specialist: <span className="text-slate-950 font-bold">{data.staffName || data.assignedStaffName || 'Dr. Ali Imran (Consultant)'}</span>
-          </p>
+        {items.map((item: any, idx: number) => (
+          <div key={idx} className="flex justify-between px-3 py-2 text-slate-800">
+            <span className="w-1/3">{item.name}</span>
+            <span className="w-1/3 text-center">{item.quantity}</span>
+            <span className="w-1/3 text-right">{formatPKR(item.price)}</span>
+          </div>
+        ))}
+      </div>
+ 
+      <div className="border-t border-dashed border-slate-400 mt-2" />
+ 
+      {/* Totals */}
+      <div className="pt-3 space-y-1.5 mr-[12px]">
+        <div className="flex justify-end gap-10">
+          <span className="font-bold w-32">Total</span>
+          <span className="w-24 text-right">{formatPKR(subtotal)}</span>
+        </div>
+        <div className="flex justify-end gap-10">
+          <span className="w-32">GST({data.taxPercent ?? 5}%)</span>
+          <span className="w-24 text-right">{formatPKR(tax)}</span>
+        </div>
+        <div className="flex justify-end gap-10">
+          <span className="w-32">Discount({discountPercent}%)</span>
+          <span className="w-24 text-right">{formatPKR(discount)}</span>
         </div>
       </div>
-
-      {/* Styled Invoice Items Table */}
-      <div className="border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
-        <table className="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr className="bg-slate-950 text-white font-semibold uppercase tracking-wider text-[9px]">
-              <th className="p-4">Item / Service</th>
-              <th className="p-4 text-right">Price</th>
-              <th className="p-4 text-center">Qty</th>
-              <th className="p-4 text-right">Total</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 text-slate-700 font-medium bg-white">
-            {items.map((item: any, idx: number) => (
-              <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                <td className="p-4 font-bold text-slate-900">{item.name}</td>
-                <td className="p-4 text-right font-mono">{formatPKR(item.price)}</td>
-                <td className="p-4 text-center text-slate-500 font-mono">{item.quantity}</td>
-                <td className="p-4 text-right font-bold text-slate-900 font-mono">
-                  {formatPKR(item.price * item.quantity)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+ 
+      <div className="flex justify-end pt-2">
+        <div className="w-70 border-t border-dashed border-slate-400" />
       </div>
-
-      {/* Financial Summary */}
-      <div className="flex justify-end text-xs pt-2">
-        <div className="w-72 space-y-2.5 border-t-2 border-slate-150 pt-4 font-medium">
-          <div className="flex justify-between text-slate-500">
-            <span>Subtotal:</span>
-            <span className="font-mono text-slate-900">{formatPKR(data.subtotal ?? data.amount)}</span>
-          </div>
-          {data.discountPercent > 0 && (
-            <div className="flex justify-between text-emerald-600 font-bold">
-              <span>Discount ({data.discountPercent}%):</span>
-              <span className="font-mono">-{formatPKR(data.discount)}</span>
-            </div>
-          )}
-          <div className="flex justify-between text-slate-500">
-            <span>Tax ({data.taxPercent ?? 10}%):</span>
-            <span className="font-mono text-slate-900">{formatPKR(data.tax ?? 0)}</span>
-          </div>
-          <div className="flex justify-between font-black text-lg text-slate-900 border-t border-slate-300 pt-3">
-            <span>Grand Total:</span>
-            <span className="font-mono text-blue-600">{formatPKR(data.grandTotal ?? data.amount)}</span>
-          </div>
+ 
+      <div className="pt-3 space-y-1.5 mr-[12px]">
+        <div className="flex justify-end gap-10">
+          <span className="font-black w-32">Net Amount</span>
+          <span className="w-24 text-right font-black">{formatPKR(netAmount)}</span>
         </div>
+        <div className="flex justify-end gap-10">
+          <span className="w-32">Cash received</span>
+          <span className="w-24 text-right">{formatPKR(cashReceived)}</span>
+        </div>
+        <div className="flex justify-end gap-10">
+          <span className="w-32">Cash returned</span>
+          <span className="w-24 text-right">{formatPKR(cashReturned)}</span>
+        </div>
+      </div>
+ 
+      <div className="border-t border-dashed border-slate-400 mt-4" />
+ 
+      {/* Terms & Return Policy */}
+      <div className="pt-4 text-center space-y-2">
+        <p className="font-black uppercase tracking-wide flex items-center justify-center gap-2">
+          <span className="border-t border-dashed border-slate-400 w-10 inline-block" />
+          Our Policies
+          <span className="border-t border-dashed border-slate-400 w-10 inline-block" />
+        </p>
+        <ul className="text-[10px] leading-relaxed list-disc list-inside text-left max-w-[420px] mx-auto space-y-1 font-semibold text-slate-800">
+          <li>All appointments must be booked in advance with 50% payment to confirm your slot.</li>
+          <li>Advance payment is non-refundable in case of no-show or cancellation.</li>
+          <li>No refunds on completed services, treatments, or packages.</li>
+          <li>Unused sessions are non-refundable but can be transferred to a friend/family member (with approval).</li>
+          <li className="list-none pt-1 border-t border-dashed border-slate-200 mt-1 text-[9px] text-slate-500 font-bold leading-snug">
+            We maintain high standards, but no refunds for skin reactions or any allergies. Inform us on time. Patch tests available on request.
+          </li>
+        </ul>
+      </div>
+ 
+      <div className="border-t border-dashed border-slate-400 mt-4" />
+ 
+      {/* Thank you */}
+      <div className="pt-4 text-center space-y-0.5">
+        <p>Thank you for choosing</p>
+        <p className="font-black">{clinicInfo?.name || 'DBS Aesthetic Clinic and Salon'}.</p>
       </div>
     </div>
   );
 }
-
+ 
 function PrintDocument({ type, data }: { type: string; data: any }) {
   const { clinicInfo, branches } = useClinic();
-
-  const branch = branches.find(b => b.id === data.branchId);
+ 
+  const branch = branches.find((b: any) => b.id === data.branchId);
   const displayClinicName = branch ? `${clinicInfo.name} (${branch.name})` : clinicInfo.name;
   const displayAddress = branch ? branch.location : clinicInfo.address;
   const displayPhone = branch ? branch.phone || clinicInfo.phone : clinicInfo.phone;
-
+ 
+  // Single source of truth for the invoice/reference number —
+  // used for the printed label, the QR code payload, and the barcode.
+  const referenceNumber: string =
+    data.invoiceId || data.id || '135081-60821171915673';
+ 
   return (
-    <div className="bg-white text-slate-900 p-8 font-sans max-w-[210mm] mx-auto space-y-6">
-      {/* Header Accent Line */}
-      <div className="h-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-full" />
-      
-      {/* Header Info */}
-      <div className="flex items-start justify-between border-b border-slate-200/80 pb-6">
-        <div>
-          <div className="flex items-center gap-3 mb-3">
-            <img 
-              src="/logo.png" 
-              alt="DBS Logo" 
-              className="h-12 w-auto object-contain"
-            />
-            <div>
-              <h1 className="text-xl font-black tracking-tight text-slate-950 uppercase leading-none">
-                {displayClinicName}
-              </h1>
-              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1 block">Aesthetics & Wellness Spa</span>
-            </div>
-          </div>
-          <p className="text-xs text-slate-500 max-w-[340px] leading-relaxed">{displayAddress}</p>
-          <p className="text-xs text-slate-500 font-semibold mt-1">
-            Phone: {displayPhone} • Email: {clinicInfo.email}
-          </p>
+    <div className="bg-white text-slate-900 p-6 font-sans max-w-[380px] mx-auto">
+      {/* Header */}
+      <div className="text-center space-y-2 pb-4">
+        <div className="flex justify-center">
+          <img src="/logo.png" alt="DBS Logo" className="h-22 w-auto object-contain" />
         </div>
-        <div className="text-right flex flex-col items-end">
-          <span className="inline-block px-3 py-1 bg-slate-950 text-white text-[9px] font-black tracking-wider uppercase rounded-lg mb-2 shadow-sm">
-            {type === 'invoice' ? 'OFFICIAL INVOICE' : type === 'slip' ? 'BOOKING CONFIRMATION' : 'CLIENT RECORD'}
-          </span>
-          <p className="text-xs font-mono font-bold text-slate-700">
-            ID: {data.invoiceId || data.id || `DOC-${Date.now().toString().slice(-6)}`}
-          </p>
-          <p className="text-xs text-slate-500 font-medium">Date: {data.date || new Date().toLocaleDateString('en-PK')}</p>
-        </div>
+        <h1 className="text-lg font-black tracking-tight text-slate-950 uppercase leading-tight">
+          DBS Aesthetic Clinic & Salon
+        </h1>
+        <p className="text-[11px] text-slate-600 leading-snug max-w-[300px] mx-auto">
+          {displayAddress}
+        </p>
+        <p className="text-[11px] text-slate-800 font-bold">
+          UAN: 021-33485322
+        </p>
+ 
       </div>
-
-      {type === 'invoice' && <InvoicePrintContent data={data} />}
-
+ 
+      <div className="border-t border-dashed border-slate-400" />
+ 
+      {type === 'invoice' && <InvoicePrintContent data={data} clinicInfo={clinicInfo} />}
+ 
       {type === 'slip' && (
-        <div className="space-y-4 text-xs">
-          <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
-            <h4 className="font-black text-slate-950 text-sm uppercase tracking-wider">Appointment Details</h4>
-            <div className="grid grid-cols-2 gap-y-3 gap-x-6 text-slate-700 font-medium border-t border-slate-200/60 pt-3">
-              <p><strong>Client Name:</strong> <span className="text-slate-950 font-bold">{data.clientName}</span></p>
-              <p><strong>Contact Phone:</strong> {data.phone || 'N/A'}</p>
-              <p><strong>Scheduled Service:</strong> <span className="text-slate-950 font-bold">{data.serviceName}</span></p>
-              <p><strong>Assigned Specialist:</strong> <span className="text-slate-950 font-bold">{data.staffName || 'Dr. Ali Imran (Consultant)'}</span></p>
-              <p><strong>Treatment Date:</strong> {data.date}</p>
-              <p><strong>Treatment Time:</strong> {data.time}</p>
-              <p className="col-span-2 text-sm border-t border-slate-200/60 pt-3 mt-1">
-                <strong>Booking Fee:</strong> <span className="text-blue-600 font-black font-mono">{formatPKR(data.price ?? 0)}</span>
-              </p>
-            </div>
+        <div className="pt-4 space-y-4 text-[13px] font-mono">
+          <div className="space-y-1 font-semibold text-slate-800">
+            <p className="font-black uppercase tracking-wide text-slate-900">Appointment Details</p>
+            <p>Client Name : <span className="font-bold">{data.clientName}</span></p>
+            <p>Contact Phone : <span className="font-bold">{data.phone || 'N/A'}</span></p>
+            <p>Scheduled Service : <span className="font-bold">{data.serviceName}</span></p>
+            <p>Assigned Specialist : <span className="font-bold">{data.staffName || 'Dr. Ali Imran (Consultant)'}</span></p>
+            <p>Treatment Date : <span className="font-bold">{data.date}</span></p>
+            <p>Treatment Time : <span className="font-bold">{data.time}</span></p>
           </div>
-          <div className="p-4 bg-yellow-500/5 rounded-2xl text-yellow-800 border border-yellow-500/10 leading-relaxed font-medium">
-            <strong>Pre-Treatment Instructions:</strong> Please arrive 15 minutes prior to your booking. Avoid direct sun exposure 48 hours before laser or facial treatment.
+          <div className="border-t border-dashed border-slate-400 pt-2">
+            <p className="font-black text-slate-900">Booking Fee: {formatPKR(data.price ?? 0)}</p>
+          </div>
+          
+          <div className="border-t border-dashed border-slate-400 pt-3 text-[10px] leading-relaxed text-slate-750 font-bold">
+            <p className="font-black uppercase tracking-wide text-slate-900 mb-1">Our Policies</p>
+            <ul className="list-disc list-inside space-y-1">
+              <li>All appointments must be booked in advance with 50% payment to confirm your slot.</li>
+              <li>Advance payment is non-refundable in case of no-show or cancellation.</li>
+              <li>No refunds on completed services, treatments, or packages.</li>
+              <li>Unused sessions are non-refundable but can be transferred to a friend/family member (with approval).</li>
+            </ul>
+            <p className="mt-1 pt-1 border-t border-dashed border-slate-200 text-[9px] text-slate-500">
+              We maintain high standards, but no refunds for skin reactions or any allergies. Inform us on time. Patch tests available on request.
+            </p>
           </div>
         </div>
       )}
-
+ 
       {type === 'client' && (
-        <div className="space-y-4 text-xs">
-          <div className="grid grid-cols-2 gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-100 font-medium text-slate-700">
-            <p><strong>Name:</strong> <span className="text-slate-900 font-bold">{data.name}</span></p>
-            <p><strong>Phone:</strong> {data.phone}</p>
-            <p><strong>Total Spent:</strong> <span className="text-emerald-600 font-bold font-mono">{formatPKR(data.totalSpent ?? 0, { decimals: false })}</span></p>
-            <p><strong>Visits Count:</strong> {data.visitsCount} visits</p>
-            <p><strong>Joined Date:</strong> {data.joinedDate}</p>
-          </div>
+        <div className="pt-4 space-y-1 text-[13px] font-mono">
+          <p>Name : <span className="font-bold">{data.name}</span></p>
+          <p>Phone : <span className="font-bold">{data.phone}</span></p>
+          <p>Total Spent : <span className="font-bold">{formatPKR(data.totalSpent ?? 0, { decimals: false })}</span></p>
+          <p>Visits Count : <span className="font-bold">{data.visitsCount} visits</span></p>
+          <p>Joined Date : <span className="font-bold">{data.joinedDate}</span></p>
           {data.notes && (
-            <p className="text-slate-600 p-4 bg-slate-50 rounded-2xl border border-slate-100 leading-relaxed">
+            <div className="border-t border-dashed border-slate-400 pt-2 mt-2">
               <strong>Clinical Notes:</strong> {data.notes}
-            </p>
+            </div>
           )}
         </div>
       )}
-
-      {/* Signature & Stamp Blocks */}
-      <div className="flex justify-end pt-8 border-t border-slate-200/60 text-xs">
-        <div className="w-48 text-right space-y-8">
-          <p className="text-slate-400 font-bold uppercase tracking-wider text-[9px] text-left">Authorized Representative</p>
-          <div className="border-b border-slate-350 w-48 pt-2" />
-          <p className="text-slate-500 text-[10px] font-medium text-left">Clinic Stamp & Signature</p>
+ 
+      <div className="border-t border-dashed border-slate-400 mt-4" />
+ 
+      {/* Footer: FBR POS + QR + barcode, both generated from the invoice number */}
+      <div className="pt-4 flex items-center justify-center gap-6">
+        <div className="w-16 h-16 flex items-center justify-center">
+          <QRCodeSVG
+            value={referenceNumber}
+            size={64}
+            level="M"
+            marginSize={0}
+          />
+        </div>
+ 
+        <div className="flex flex-col items-center">
+          <Barcode
+            value={referenceNumber}
+            format="CODE128"
+            width={1.1}
+            height={32}
+            displayValue={false}
+            margin={0}
+            background="transparent"
+          />
         </div>
       </div>
+ 
+      <p className="text-[10px] text-center tracking-widest pt-5">
+        {referenceNumber}
+      </p>
+ 
+      <p className="text-center text-[10px] text-slate-500 pt-3 leading-relaxed">
+        This is computer generated invoice.<br />
+        No signature required.
+      </p>
 
-      {/* Terms & Return Policy */}
-      <div className="pt-4 mt-4 text-center text-[10px] text-slate-400 space-y-1.5 border-t border-dashed border-slate-200/80">
-        <p className="font-bold text-slate-500 uppercase tracking-wider text-[9px]">Terms & Return Policy</p>
-        <p className="max-w-[520px] mx-auto leading-relaxed">
-          All service packages, treatments, and procedures are strictly non-refundable and non-transferable. Appointments must be cancelled or rescheduled at least 24 hours in advance. Thank you for choosing {clinicInfo.name}.
-        </p>
+      <div className="border-t border-dashed border-slate-400 mt-4" />
+
+      <div className="pt-3 text-center space-y-0.5 text-[11px]">
+        <p>Developed by</p>
+        <p className="font-black">CodeX Studio</p>
       </div>
     </div>
   );
 }
-
+ 
 export const PrintModal: React.FC = () => {
   const { printData, setPrintData } = useClinic();
   const [mounted, setMounted] = React.useState(false);
-
+ 
   useEffect(() => {
     setMounted(true);
   }, []);
-
+ 
   if (!printData) return null;
-
+ 
   const handlePrint = () => {
     window.print();
   };
-
+ 
   const { title, type, data } = printData;
-
+ 
   return (
     <>
       <Modal
@@ -234,13 +292,13 @@ export const PrintModal: React.FC = () => {
               Print Document Now
             </Button>
           </div>
-
+ 
           <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
             <PrintDocument type={type} data={data} />
           </div>
         </div>
       </Modal>
-
+ 
       {mounted &&
         createPortal(
           <div id="print-portal" aria-hidden="true">
