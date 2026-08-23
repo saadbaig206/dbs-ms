@@ -17,9 +17,17 @@ export async function POST(request: Request) {
     console.log("DEBUG: Using apiUrl =", apiUrl);
     console.log("DEBUG: Attempting backend fetch to =", `${apiUrl}/api/v1/auth/login` , "for email =", email);
 
+    const fetchHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+    const cookieHeader = request.headers.get('cookie');
+    if (cookieHeader) fetchHeaders['cookie'] = cookieHeader;
+    const bypassHeader = request.headers.get('x-vercel-protection-bypass');
+    if (bypassHeader) fetchHeaders['x-vercel-protection-bypass'] = bypassHeader;
+    const setBypassCookie = request.headers.get('x-vercel-set-bypass-cookie');
+    if (setBypassCookie) fetchHeaders['x-vercel-set-bypass-cookie'] = setBypassCookie;
+
     const res = await fetch(`${apiUrl}/api/v1/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: fetchHeaders,
       body: JSON.stringify({ email, password }),
     });
 

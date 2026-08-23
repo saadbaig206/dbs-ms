@@ -17,10 +17,18 @@ export async function GET(request: Request) {
     if (!apiUrl || (!isLocalhost && (apiUrl.includes('localhost') || apiUrl.includes('127.0.0.1')))) {
       apiUrl = host ? `${protocol}://${host}` : 'http://localhost:8000';
     }
+    const fetchHeaders: Record<string, string> = {
+      'Authorization': `Bearer ${token}`
+    };
+    const cookieHeader = request.headers.get('cookie');
+    if (cookieHeader) fetchHeaders['cookie'] = cookieHeader;
+    const bypassHeader = request.headers.get('x-vercel-protection-bypass');
+    if (bypassHeader) fetchHeaders['x-vercel-protection-bypass'] = bypassHeader;
+    const setBypassCookie = request.headers.get('x-vercel-set-bypass-cookie');
+    if (setBypassCookie) fetchHeaders['x-vercel-set-bypass-cookie'] = setBypassCookie;
+
     const res = await fetch(`${apiUrl}/api/v1/auth/me`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+      headers: fetchHeaders
     });
 
     if (!res.ok) {
