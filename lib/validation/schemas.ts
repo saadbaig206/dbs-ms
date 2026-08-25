@@ -31,4 +31,5 @@ export const appointmentSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
   time: z.string().min(1, 'Time slot is required'),
   notes: z.string().optional(),
+  category: z.enum(['treatment', 'consultation']).optional(),
 });

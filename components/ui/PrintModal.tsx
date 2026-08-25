@@ -179,6 +179,7 @@ function PrintDocument({ type, data }: { type: string; data: any }) {
             <p>Client Name : <span className="font-bold">{data.clientName}</span></p>
             <p>Contact Phone : <span className="font-bold">{data.phone || 'N/A'}</span></p>
             <p>Scheduled Service : <span className="font-bold">{data.serviceName}</span></p>
+            {data.category && <p>Category : <span className="font-bold capitalize">{data.category}</span></p>}
             <p>Assigned Specialist : <span className="font-bold">{data.staffName || 'Dr. Ali Imran (Consultant)'}</span></p>
             <p>Treatment Date : <span className="font-bold">{data.date}</span></p>
             <p>Treatment Time : <span className="font-bold">{data.time}</span></p>

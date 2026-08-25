@@ -19,3 +19,5 @@ class Appointment(Base):
     notes = Column(String, nullable=True)
     price = Column(Float, nullable=False)
     branch_id = Column(String, ForeignKey("branches.id"), nullable=True)
+    category = Column(String, nullable=False, default="treatment")
+

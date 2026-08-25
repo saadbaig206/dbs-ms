@@ -18,6 +18,7 @@ export interface Appointment {
   notes?: string;
   price: number;
   branchId?: string;
+  category?: 'treatment' | 'consultation';
 }
 
 export interface ClientHistoryItem {

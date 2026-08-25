@@ -83,7 +83,8 @@ async def create_appointment(
         status=apt_in.status,
         notes=apt_in.notes,
         price=apt_in.price,
-        branch_id=apt_in.branch_id
+        branch_id=apt_in.branch_id,
+        category=apt_in.category
     )
     db.add(db_apt)
     

@@ -33,6 +33,7 @@ export default function AppointmentsPage() {
 
   const [dateFilter, setDateFilter] = useState<'All' | 'Today' | 'Tomorrow' | 'Week'>('All');
   const [statusFilter, setStatusFilter] = useState<string>('All');
+  const [categoryFilter, setCategoryFilter] = useState<string>('All');
   const [search, setSearch] = useState('');
 
   // Modal State
@@ -41,6 +42,7 @@ export default function AppointmentsPage() {
   const [newPhone, setNewPhone] = useState('+92 ');
   const [selectedServiceId, setSelectedServiceId] = useState(services[0]?.id || '');
   const [selectedStaffId, setSelectedStaffId] = useState(staff[0]?.id || '');
+  const [category, setCategory] = useState<'treatment' | 'consultation'>('treatment');
   const [aptDate, setAptDate] = useState(new Date().toISOString().split('T')[0]);
   const [aptTime, setAptTime] = useState('11:00 AM');
   const [aptNotes, setAptNotes] = useState('');
@@ -63,6 +65,7 @@ export default function AppointmentsPage() {
       apt.phone.includes(search);
 
     const matchesStatus = statusFilter === 'All' || apt.status === statusFilter;
+    const matchesCategory = categoryFilter === 'All' || apt.category === categoryFilter;
 
     let matchesDate = true;
     const todayStr = new Date().toISOString().split('T')[0];
@@ -74,7 +77,7 @@ export default function AppointmentsPage() {
       matchesDate = apt.date === tomorrow.toISOString().split('T')[0];
     }
 
-    return matchesBranch && matchesSearch && matchesStatus && matchesDate;
+    return matchesBranch && matchesSearch && matchesStatus && matchesDate && matchesCategory;
   });
 
   const handleCreateAppointment = (e: React.FormEvent) => {
@@ -113,12 +116,14 @@ export default function AppointmentsPage() {
       time: aptTime,
       status: 'Confirmed',
       notes: aptNotes,
-      price: serviceObj.price
+      price: serviceObj.price,
+      category: category
     });
 
     setIsModalOpen(false);
     setNewClientName('');
     setNewPhone('+92 ');
+    setCategory('treatment');
     setAptNotes('');
   };
 
@@ -186,6 +191,17 @@ export default function AppointmentsPage() {
 
           <Select
             options={[
+              { label: 'All Categories', value: 'All' },
+              { label: 'Treatment', value: 'treatment' },
+              { label: 'Consultation', value: 'consultation' }
+            ]}
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="w-40"
+          />
+
+          <Select
+            options={[
               { label: 'All Statuses', value: 'All' },
               { label: 'Confirmed', value: 'Confirmed' },
               { label: 'In-Progress', value: 'In-Progress' },
@@ -233,7 +249,18 @@ export default function AppointmentsPage() {
                       <div className="text-[11px] text-slate-400 font-mono">{apt.phone}</div>
                     </td>
                     <td className="py-3.5 px-4 text-slate-700 dark:text-slate-200">
-                      {apt.serviceName}
+                      <div className="flex flex-col gap-1">
+                        <span>{apt.serviceName}</span>
+                        {apt.category && (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase w-max ${
+                            apt.category === 'consultation'
+                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-900/40'
+                              : 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-900/40'
+                          }`}>
+                            {apt.category}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3.5 px-4 text-slate-700 dark:text-slate-200">
                       {apt.staffName}
@@ -325,11 +352,23 @@ export default function AppointmentsPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
+              label="Appointment Category"
+              options={[
+                { label: 'Treatment', value: 'treatment' },
+                { label: 'Consultation', value: 'consultation' }
+              ]}
+              value={category}
+              onChange={(e) => setCategory(e.target.value as any)}
+            />
+            <Select
               label="Treatment Service"
               options={services.map((s) => ({ label: `${s.name} (${formatPKR(s.price, { decimals: false })})`, value: s.id }))}
               value={selectedServiceId}
               onChange={(e) => setSelectedServiceId(e.target.value)}
             />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
               label="Assigned Specialist"
               options={staff.map((st) => ({ label: `${st.name} (${st.role})`, value: st.id }))}
