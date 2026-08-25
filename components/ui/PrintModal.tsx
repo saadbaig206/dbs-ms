@@ -39,7 +39,14 @@ function InvoicePrintContent({ data, clinicInfo }: { data: any; clinicInfo: any 
       <div className="pt-3 pb-3 space-y-1">
         <p className="font-black font-bold uppercase tracking-wide">Customer Info</p>
         <p>Name : <span className="font-bold">{data.clientName || 'Valued Client'}</span></p>
-        <p>Contact No : <span className="font-bold">{data.phone || 'N/A'}</span></p>
+        <p>
+          Contact No :{" "}
+          <span className="font-bold">
+            {data.phone
+              ? `+92 ${data.phone.replace(/\D/g, "").replace(/^92/, "").replace(/^0/, "").slice(0, 3)} ${data.phone.replace(/\D/g, "").replace(/^92/, "").replace(/^0/, "").slice(3, 10)}`
+              : "N/A"}
+         </span>
+      </p>
       </div>
  
       <div className="border-t border-dashed border-slate-400" />
