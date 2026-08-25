@@ -47,7 +47,7 @@ function InvoicePrintContent({ data, clinicInfo }: { data: any; clinicInfo: any 
       {/* Invoice Details */}
       <div className="pt-3 pb-3 space-y-1">
         <p className="font-black uppercase tracking-wide">Invoice Details</p>
-        <p>Invoice Details: <span className="font-bold">{data.invoiceId || data.id || `INV-${Date.now().toString().slice(-6)}`}</span></p>
+        <p>Invoice #: <span className="font-bold">{data.invoiceId || data.id || `INV-${Date.now().toString().slice(-6)}`}</span></p>
       </div>
  
       <div className="border-t border-dashed border-slate-400" />
