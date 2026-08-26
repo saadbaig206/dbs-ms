@@ -91,10 +91,10 @@ function InvoicePrintContent({ data, clinicInfo }: { data: any; clinicInfo: any 
       </div>
 
       <div className="pt-3 space-y-1.5 mr-[12px]">
-        <div className="flex justify-between px-3 py-2 rounded-md mt-2">
-          <span className="font-black w-32">Net Amount</span>
-          <span className="w-24 text-right font-black">{formatPKR(netAmount)}</span>
-        </div>
+<div className="bg-slate-950 text-white flex justify-between px-3 py-2 rounded-md mt-2">
+  <span className="font-black w-32">Net Amount</span>
+  <span className="w-24 text-right font-black">{formatPKR(netAmount)}</span>
+</div>
         <div className="flex justify-end gap-10">
           <span className="w-32">Cash received</span>
           <span className="w-24 text-right">{formatPKR(cashReceived)}</span>
