@@ -71,16 +71,16 @@ function InvoicePrintContent({ data, clinicInfo }: { data: any; clinicInfo: any 
       <div className="border-t border-dashed border-slate-400 mt-2" />
 
       {/* Totals */}
-      <div className="pt-3 space-y-1.5 mr-[12px]">
-        <div className="flex justify-end gap-10">
+      <div className="pt-2 space-y-1.5">
+        <div className="flex justify-end px-3 gap-10">
           <span className="font-bold w-32">Total</span>
           <span className="w-24 text-right">{formatPKR(subtotal)}</span>
         </div>
-        <div className="flex justify-end gap-10">
+        <div className="flex justify-end px-3 gap-10">
           <span className="w-32">GST({data.taxPercent ?? 5}%)</span>
           <span className="w-24 text-right">{formatPKR(tax)}</span>
         </div>
-        <div className="flex justify-end gap-10">
+        <div className="flex justify-end px-3 gap-10">
           <span className="w-32">Discount({discountPercent}%)</span>
           <span className="w-24 text-right">{formatPKR(discount)}</span>
         </div>
@@ -90,16 +90,16 @@ function InvoicePrintContent({ data, clinicInfo }: { data: any; clinicInfo: any 
         <div className="w-70 border-t border-dashed border-slate-400" />
       </div>
 
-      <div className="pt-3 space-y-1.5 mr-[12px]">
-<div className="bg-slate-950 text-white flex justify-between px-3 py-2 rounded-md mt-2">
-  <span className="font-black w-32">Net Amount</span>
-  <span className="w-24 text-right font-black">{formatPKR(netAmount)}</span>
-</div>
-        <div className="flex justify-end gap-10">
+      <div className="pt-2 space-y-1.5">
+        <div className="bg-slate-950 text-white flex justify-between px-3 py-2 rounded-md mt-1">
+          <span className="font-black w-32">Net Amount</span>
+          <span className="w-24 text-right font-black">{formatPKR(netAmount)}</span>
+        </div>
+        <div className="flex justify-end px-3 gap-10">
           <span className="w-32">Cash received</span>
           <span className="w-24 text-right">{formatPKR(cashReceived)}</span>
         </div>
-        <div className="flex justify-end gap-10">
+        <div className="flex justify-end px-3 gap-10">
           <span className="w-32">Cash returned</span>
           <span className="w-24 text-right">{formatPKR(cashReturned)}</span>
         </div>
