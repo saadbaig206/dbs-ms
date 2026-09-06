@@ -174,7 +174,10 @@ export interface ExpenseItem {
   amountPaid?: number;
   remainingAmount?: number;
   paymentLogs?: PaymentLog[];
+  deletionApprovals?: string[];
+  deletionRequestedBy?: string;
 }
+
 
 
 export type PaymentMethod = 'Cash' | 'Card' | 'Bank' | 'Online';

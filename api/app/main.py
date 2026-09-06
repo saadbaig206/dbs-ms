@@ -77,8 +77,15 @@ async def lifespan(app: FastAPI):
                     "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_logs JSON DEFAULT '[]';"
                 ))
                 await conn.execute(text(
+                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS deletion_approvals JSON DEFAULT '[]';"
+                ))
+                await conn.execute(text(
+                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS deletion_requested_by VARCHAR;"
+                ))
+                await conn.execute(text(
                     "ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS branch_id VARCHAR UNIQUE REFERENCES branches(id) ON DELETE SET NULL;"
                 ))
+
                 await conn.execute(text(
                     "ALTER TABLE services ADD COLUMN IF NOT EXISTS required_inventory JSON DEFAULT '[]';"
                 ))

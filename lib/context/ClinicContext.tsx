@@ -90,6 +90,7 @@ interface ClinicContextType {
   expenses: ExpenseItem[];
   addExpense: (expense: Omit<ExpenseItem, 'id'>) => Promise<void>;
   updateExpense: (id: string, updated: Partial<ExpenseItem>) => Promise<void>;
+  deleteExpense: (id: string) => Promise<any>;
   removeExpensesByStaffId: (staffId: string) => Promise<void>;
 
   transactions: FinancialTransaction[];
@@ -514,10 +515,19 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
 
+  const deleteExpense = async (id: string) => {
+    const res = await apiFetch<any>(`/expenses/${id}`, {
+      method: 'DELETE',
+    });
+    await refreshData();
+    return res;
+  };
+
   const removeExpensesByStaffId = async (staffId: string) => {
     // Handled automatically by backend when staff is updated/deleted, but we can verify
     await refreshData();
   };
+
 
   // Transactions
   const addTransaction = async (txn: Omit<FinancialTransaction, 'id'>) => {
@@ -688,6 +698,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         expenses,
         addExpense,
         updateExpense,
+        deleteExpense,
         removeExpensesByStaffId,
 
         transactions,

@@ -65,6 +65,8 @@ async def create_expense(
     await db.refresh(db_expense)
     return db_expense
 
+from app.models.user import User
+
 @router.delete("/{expense_id}")
 async def delete_expense(
     expense_id: str,
@@ -76,9 +78,46 @@ async def delete_expense(
     if not db_expense:
         raise HTTPException(status_code=404, detail="Expense not found")
         
-    await db.delete(db_expense)
-    await db.commit()
-    return {"message": "Expense deleted successfully"}
+    # Get list of all active admins and partners required to approve
+    approvers_result = await db.execute(select(User).where(User.role.in_(["admin", "partner"])))
+    approvers = approvers_result.scalars().all()
+    required_emails = [u.email for u in approvers]
+    if not required_emails:
+        required_emails = [getattr(current_user, 'email', 'Admin/Partner')]
+        
+    user_identifier = getattr(current_user, 'email', 'Admin/Partner')
+    
+    current_approvals = list(db_expense.deletion_approvals or [])
+    if user_identifier not in current_approvals:
+        current_approvals.append(user_identifier)
+        
+    db_expense.deletion_approvals = current_approvals
+    db_expense.deletion_requested_by = db_expense.deletion_requested_by or user_identifier
+    
+    # Check if all required admins and partners have approved
+    all_approved = all(email in current_approvals for email in required_emails)
+    
+    if all_approved:
+        await db.delete(db_expense)
+        await db.commit()
+        return {
+            "message": "Expense permanently deleted after receiving all admin & partner approvals.",
+            "deleted": True,
+            "approvedCount": len(current_approvals),
+            "totalRequired": len(required_emails)
+        }
+    else:
+        db.add(db_expense)
+        await db.commit()
+        await db.refresh(db_expense)
+        return {
+            "message": f"Deletion approval recorded ({len(current_approvals)}/{len(required_emails)} approved).",
+            "deleted": False,
+            "approvedCount": len(current_approvals),
+            "totalRequired": len(required_emails),
+            "approvals": current_approvals
+        }
+
 
 @router.put("/{expense_id}", response_model=ExpenseResponse)
 async def update_expense(

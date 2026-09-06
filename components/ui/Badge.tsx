@@ -6,13 +6,15 @@ interface BadgeProps {
   variant?: 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'purple' | 'gold';
   size?: 'sm' | 'md';
   className?: string;
+  title?: string;
 }
 
 export const Badge: React.FC<BadgeProps> = ({
   children,
   variant = 'neutral',
   size = 'md',
-  className
+  className,
+  title
 }) => {
   const baseStyles = 'inline-flex items-center font-medium rounded-full tracking-wide transition-colors';
   
@@ -33,7 +35,7 @@ export const Badge: React.FC<BadgeProps> = ({
   };
 
   return (
-    <span className={clsx(baseStyles, sizeStyles[size], variantStyles[variant], className)}>
+    <span title={title} className={clsx(baseStyles, sizeStyles[size], variantStyles[variant], className)}>
       {children}
     </span>
   );

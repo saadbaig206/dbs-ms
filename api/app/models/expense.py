@@ -18,9 +18,13 @@ class ExpenseItem(Base):
     paid_by = Column(String, nullable=True)
     vendor_name = Column(String, nullable=True)
     product_name = Column(String, nullable=True)
-    payment_type = Column(String, nullable=True) # Debit or Credit
     actual_amount = Column(Float, nullable=True)
     amount_paid = Column(Float, nullable=True)
     remaining_amount = Column(Float, nullable=True)
     payment_logs = Column(JSON, nullable=True)
+    deletion_approvals = Column(JSON, nullable=True)
+    deletion_requested_by = Column(String, nullable=True)
+
+
+
 

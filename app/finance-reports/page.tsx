@@ -13,9 +13,11 @@ import {
   Plus,
   Download,
   Edit,
+  Trash2,
   CalendarDays,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  AlertTriangle
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { formatPKR } from '../../lib/utils/currency';
@@ -133,9 +135,11 @@ export default function FinanceReportsPage() {
     expenses: allExpenses,
     addExpense,
     updateExpense,
+    deleteExpense,
     updateTransaction,
     role,
     userEmail,
+    partners,
     setPrintData,
     branches,
     selectedBranchId,
@@ -206,17 +210,53 @@ export default function FinanceReportsPage() {
   const [editExpDate, setEditExpDate] = useState('');
   const [editExpStatus, setEditExpStatus] = useState<'Paid' | 'Pending'>('Paid');
 
-  // Vendor Dues / Partial Payment State
+  // Vendor Dues / Partial Payment & Audit Logs State
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
   const [selectedPayExp, setSelectedPayExp] = useState<any>(null);
   const [payType, setPayType] = useState<'Full' | 'Partial'>('Full');
   const [payAmountInput, setPayAmountInput] = useState('');
   const [payMethod, setPayMethod] = useState<'Bank Transfer' | 'Cash' | 'Card' | 'Cheque'>('Cash');
   const [payNotes, setPayNotes] = useState('');
-
-  // Payment Logs Modal State
   const [isLogsModalOpen, setIsLogsModalOpen] = useState(false);
   const [selectedLogsExp, setSelectedLogsExp] = useState<any>(null);
+
+  // Toast Notification State
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  // Delete Expense Confirmation Modal State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [selectedDeleteExp, setSelectedDeleteExp] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteExpenseClick = (exp: any) => {
+    setSelectedDeleteExp(exp);
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDeleteExpenseSubmit = async () => {
+    if (!selectedDeleteExp) return;
+    setIsDeleting(true);
+    try {
+      const res = await deleteExpense(selectedDeleteExp.id);
+      setIsDeleteModalOpen(false);
+      setSelectedDeleteExp(null);
+      if (res && res.message) {
+        showToast(res.message, res.deleted ? 'success' : 'error');
+      } else {
+        showToast("Expense deletion request processed");
+      }
+    } catch (err: any) {
+      console.error("Failed to delete expense:", err);
+      showToast(err.message || "Failed to process expense deletion", "error");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const handlePayExpenseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -471,6 +511,14 @@ export default function FinanceReportsPage() {
 
   return (
     <div className="space-y-6 pb-10">
+      {toast && (
+        <div className={`fixed top-5 right-5 z-50 px-4 py-3 rounded-xl shadow-2xl text-sm font-bold text-white transition-all flex items-center gap-2 ${
+          toast.type === 'error' ? 'bg-rose-600' : 'bg-emerald-600'
+        }`}>
+          <span>{toast.message}</span>
+        </div>
+      )}
+
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -1070,6 +1118,12 @@ export default function FinanceReportsPage() {
                         const remaining = exp.remainingAmount ?? (exp.status === 'Paid' ? 0 : actual);
                         const hasRemaining = remaining > 0;
 
+                        const isVendorExpense = !!(exp.vendorName || exp.paymentType || exp.category === 'Products');
+                        const approvals = exp.deletionApprovals || [];
+                        const totalApprovers = Math.max(1, partners.length + 1);
+                        const activeUser = userEmail || role || 'Admin/Partner';
+                        const hasCurrentUserApproved = approvals.includes(activeUser);
+
                         return (
                           <tr key={exp.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                             <td className="py-3.5 px-4">
@@ -1147,23 +1201,63 @@ export default function FinanceReportsPage() {
                                   Logs ({exp.paymentLogs?.length || 0})
                                 </button>
 
-                                <button
-                                  onClick={() => {
-                                    setSelectedExp(exp);
-                                    setEditExpTitle(exp.title);
-                                    setEditExpCategory(exp.category);
-                                    setEditExpAmount(exp.amount.toString());
-                                    setEditExpPaymentMethod(exp.paymentMethod);
-                                    setEditExpNotes(exp.notes || '');
-                                    setEditExpDate(exp.date);
-                                    setEditExpStatus(exp.status);
-                                    setIsEditExpModalOpen(true);
-                                  }}
-                                  className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-slate-800 transition-colors"
-                                  title="Edit Expense"
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </button>
+                                {isVendorExpense ? (
+                                  <>
+                                    {approvals.length > 0 && (
+                                      <Badge variant="danger" title={`Approved by: ${approvals.join(', ')}`}>
+                                        Deletion Pending ({approvals.length}/{totalApprovers})
+                                      </Badge>
+                                    )}
+                                    <button
+                                      onClick={() => handleDeleteExpenseClick(exp)}
+                                      disabled={hasCurrentUserApproved}
+                                      className={`px-2.5 py-1 text-[10px] font-extrabold uppercase rounded-lg transition-all flex items-center gap-1 ${
+                                        hasCurrentUserApproved
+                                          ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                                          : 'bg-rose-600 text-white hover:bg-rose-700 shadow-sm cursor-pointer'
+                                      }`}
+                                      title={
+                                        hasCurrentUserApproved
+                                          ? `You have approved deletion (${approvals.length}/${totalApprovers})`
+                                          : `Approve deletion of vendor expense (Requires all Admin & Partner approvals)`
+                                      }
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                      {hasCurrentUserApproved
+                                        ? `Approved (${approvals.length}/${totalApprovers})`
+                                        : approvals.length > 0
+                                        ? `Approve Delete (${approvals.length}/${totalApprovers})`
+                                        : `Delete Vendor Expense`}
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => {
+                                        setSelectedExp(exp);
+                                        setEditExpTitle(exp.title);
+                                        setEditExpCategory(exp.category);
+                                        setEditExpAmount(exp.amount.toString());
+                                        setEditExpPaymentMethod(exp.paymentMethod);
+                                        setEditExpNotes(exp.notes || '');
+                                        setEditExpDate(exp.date);
+                                        setEditExpStatus(exp.status);
+                                        setIsEditExpModalOpen(true);
+                                      }}
+                                      className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-slate-800 transition-colors"
+                                      title="Edit Expense"
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteExpenseClick(exp)}
+                                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors"
+                                      title="Delete Expense"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -1678,6 +1772,109 @@ export default function FinanceReportsPage() {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Delete Expense Confirmation Modal */}
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          if (!isDeleting) {
+            setIsDeleteModalOpen(false);
+            setSelectedDeleteExp(null);
+          }
+        }}
+        title="Confirm Expense Deletion"
+        description="Review deletion requirements and confirm action"
+        maxWidth="md"
+      >
+        {selectedDeleteExp && (() => {
+          const isVendor = !!(selectedDeleteExp.vendorName || selectedDeleteExp.paymentType || selectedDeleteExp.category === 'Products');
+          const approvals = selectedDeleteExp.deletionApprovals || [];
+          const totalApprovers = Math.max(1, partners.length + 1);
+          const activeUser = userEmail || role || 'Admin/Partner';
+          const hasCurrentUserApproved = approvals.includes(activeUser);
+
+          return (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60">
+                <AlertTriangle className="w-6 h-6 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-1 text-xs text-amber-900 dark:text-amber-200">
+                  <h4 className="font-bold text-sm">
+                    {isVendor ? 'Multi-Approval Deletion Required' : 'Delete Standard Expense'}
+                  </h4>
+                  <p>
+                    {isVendor
+                      ? `Vendor expenses require 100% approval from all active Admins and Partners before permanent removal.`
+                      : `Are you sure you want to permanently delete this expense record? This action cannot be undone.`}
+                  </p>
+                </div>
+              </div>
+
+              {/* Expense Details Card */}
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-2 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-semibold uppercase text-[10px]">Expense Title</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100">{selectedDeleteExp.title}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-semibold uppercase text-[10px]">Category</span>
+                  <Badge variant="primary">{selectedDeleteExp.category}</Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-semibold uppercase text-[10px]">Amount</span>
+                  <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
+                    {formatPKR(selectedDeleteExp.actualAmount ?? selectedDeleteExp.amount)}
+                  </span>
+                </div>
+                {isVendor && (
+                  <>
+                    <div className="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-slate-700">
+                      <span className="text-slate-500 font-semibold uppercase text-[10px]">Approval Progress</span>
+                      <Badge variant={approvals.length + 1 >= totalApprovers ? 'success' : 'warning'}>
+                        {approvals.length} / {totalApprovers} Approved
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-semibold uppercase text-[10px]">Your Status</span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">
+                        {hasCurrentUserApproved ? '✅ Already Approved' : '⏳ Pending Your Approval'}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isDeleting}
+                  onClick={() => {
+                    setIsDeleteModalOpen(false);
+                    setSelectedDeleteExp(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="danger"
+                  disabled={isDeleting}
+                  onClick={confirmDeleteExpenseSubmit}
+                  className="bg-red-600 hover:bg-red-700 text-white font-bold"
+                >
+                  {isDeleting
+                    ? 'Processing...'
+                    : isVendor
+                    ? hasCurrentUserApproved
+                      ? 'Re-submit Approval Request'
+                      : `Approve & ${approvals.length + 1 >= totalApprovers ? 'Permanently Delete' : 'Record Approval'}`
+                    : 'Confirm Permanent Deletion'}
+                </Button>
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
     </div>
   );

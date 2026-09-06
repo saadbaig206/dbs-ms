@@ -29,6 +29,8 @@ class ExpenseBase(CamelModel):
     amount_paid: Optional[float] = Field(None, ge=0)
     remaining_amount: Optional[float] = Field(None, ge=0)
     payment_logs: Optional[List[Any]] = None
+    deletion_approvals: Optional[List[str]] = None
+    deletion_requested_by: Optional[str] = None
 
 class ExpenseCreate(ExpenseBase):
     pass
@@ -52,7 +54,10 @@ class ExpenseUpdate(CamelModel):
     amount_paid: Optional[float] = Field(None, ge=0)
     remaining_amount: Optional[float] = Field(None, ge=0)
     payment_logs: Optional[List[Any]] = None
+    deletion_approvals: Optional[List[str]] = None
+    deletion_requested_by: Optional[str] = None
 
 class ExpenseResponse(ExpenseBase):
     id: str
+
 
