@@ -135,6 +135,7 @@ export default function FinanceReportsPage() {
     updateExpense,
     updateTransaction,
     role,
+    userEmail,
     setPrintData,
     branches,
     selectedBranchId,
@@ -175,6 +176,7 @@ export default function FinanceReportsPage() {
   // Expenses Section State
   const [expSearch, setExpSearch] = useState('');
   const [expCategoryFilter, setExpCategoryFilter] = useState<string>('All');
+  const [expStatusFilter, setExpStatusFilter] = useState<string>('All');
   const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false);
   const [expTitle, setExpTitle] = useState('');
   const [expCategory, setExpCategory] = useState<ExpenseCategory>('Products');
@@ -203,6 +205,65 @@ export default function FinanceReportsPage() {
   const [editExpNotes, setEditExpNotes] = useState('');
   const [editExpDate, setEditExpDate] = useState('');
   const [editExpStatus, setEditExpStatus] = useState<'Paid' | 'Pending'>('Paid');
+
+  // Vendor Dues / Partial Payment State
+  const [isPayModalOpen, setIsPayModalOpen] = useState(false);
+  const [selectedPayExp, setSelectedPayExp] = useState<any>(null);
+  const [payType, setPayType] = useState<'Full' | 'Partial'>('Full');
+  const [payAmountInput, setPayAmountInput] = useState('');
+  const [payMethod, setPayMethod] = useState<'Bank Transfer' | 'Cash' | 'Card' | 'Cheque'>('Cash');
+  const [payNotes, setPayNotes] = useState('');
+
+  // Payment Logs Modal State
+  const [isLogsModalOpen, setIsLogsModalOpen] = useState(false);
+  const [selectedLogsExp, setSelectedLogsExp] = useState<any>(null);
+
+  const handlePayExpenseSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPayExp) return;
+
+    const actual = selectedPayExp.actualAmount ?? selectedPayExp.amount;
+    const currentPaid = selectedPayExp.amountPaid ?? (selectedPayExp.status === 'Paid' ? actual : 0);
+    const currentRem = selectedPayExp.remainingAmount ?? (selectedPayExp.status === 'Paid' ? 0 : actual);
+
+    const payAmt = payType === 'Full' ? currentRem : (Number(payAmountInput) || 0);
+    if (payAmt <= 0) return;
+
+    const newAmountPaid = currentPaid + payAmt;
+    const newRemainingAmount = Math.max(0, actual - newAmountPaid);
+    const newStatus: 'Paid' | 'Pending' = newRemainingAmount === 0 ? 'Paid' : 'Pending';
+
+    const activeUser = userEmail || role || 'Admin/Partner';
+    const nowFormatStr = new Date().toLocaleString('en-US', {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    });
+
+    const newLog = {
+      id: `PAYLOG-${Date.now()}`,
+      amount: payAmt,
+      paidBy: activeUser,
+      date: nowFormatStr,
+      paymentMethod: payMethod,
+      notes: payNotes || (payType === 'Full' ? 'Full Settlement' : 'Partial Payment')
+    };
+
+    const existingLogs = selectedPayExp.paymentLogs || [];
+    const updatedLogs = [...existingLogs, newLog];
+
+    await updateExpense(selectedPayExp.id, {
+      amountPaid: newAmountPaid,
+      remainingAmount: newRemainingAmount,
+      status: newStatus,
+      paidBy: activeUser,
+      paymentMethod: payMethod,
+      paymentLogs: updatedLogs
+    });
+
+    setIsPayModalOpen(false);
+    setSelectedPayExp(null);
+  };
+
 
   const [activeReport, setActiveReport] = useState<
     'Revenue' | 'Expense' | 'Profit'
@@ -328,9 +389,24 @@ export default function FinanceReportsPage() {
   const pagedTxns = sortedTxns.slice((txnPage - 1) * itemsPerPage, txnPage * itemsPerPage);
 
   const filteredExpenses = expenses.filter((e) => {
-    const matchesSearch = e.title.toLowerCase().includes(expSearch.toLowerCase());
+    const matchesSearch =
+      e.title.toLowerCase().includes(expSearch.toLowerCase()) ||
+      (e.vendorName && e.vendorName.toLowerCase().includes(expSearch.toLowerCase())) ||
+      (e.productName && e.productName.toLowerCase().includes(expSearch.toLowerCase())) ||
+      (e.addedBy && e.addedBy.toLowerCase().includes(expSearch.toLowerCase()));
+
     const matchesCat = expCategoryFilter === 'All' || e.category === expCategoryFilter;
-    return matchesSearch && matchesCat;
+
+    let matchesStatus = true;
+    if (expStatusFilter === 'UnpaidVendor') {
+      matchesStatus = (e.remainingAmount !== undefined && e.remainingAmount > 0) || e.status === 'Pending';
+    } else if (expStatusFilter === 'Paid') {
+      matchesStatus = e.status === 'Paid' && (e.remainingAmount === undefined || e.remainingAmount === 0);
+    } else if (expStatusFilter === 'Pending') {
+      matchesStatus = e.status === 'Pending';
+    }
+
+    return matchesSearch && matchesCat && matchesStatus;
   });
 
   const handleAddExpense = (ev: React.FormEvent) => {
@@ -931,31 +1007,45 @@ export default function FinanceReportsPage() {
               </div>
 
               {/* Filter & Search Bar */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <Input
-                  placeholder="Search expenses by title..."
+                  placeholder="Search expenses by title, vendor, product, or added by..."
                   value={expSearch}
                   onChange={(e) => setExpSearch(e.target.value)}
                   icon={<Search className="w-4 h-4" />}
-                  className="w-full md:w-80"
+                  className="w-full lg:w-80"
                 />
 
-                <Select
-                  options={[
-                    { label: 'All Categories', value: 'All' },
-                    { label: 'Salary', value: 'Salary' },
-                    { label: 'Electric Bill', value: 'Electric Bill' },
-                    { label: 'Water Bill', value: 'Water Bill' },
-                    { label: 'Rent', value: 'Rent' },
-                    { label: 'Products', value: 'Products' },
-                    { label: 'Machines', value: 'Machines' },
-                    { label: 'Marketing', value: 'Marketing' },
-                    { label: 'Other', value: 'Other' }
-                  ]}
-                  value={expCategoryFilter}
-                  onChange={(e) => setExpCategoryFilter(e.target.value)}
-                  className="w-48"
-                />
+                <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+                  <Select
+                    options={[
+                      { label: 'All Statuses & Dues', value: 'All' },
+                      { label: '⚠️ Unpaid Vendor Dues (Remaining Balance > 0)', value: 'UnpaidVendor' },
+                      { label: '✅ Fully Paid Expenses', value: 'Paid' },
+                      { label: '⏳ Pending Expenses', value: 'Pending' }
+                    ]}
+                    value={expStatusFilter}
+                    onChange={(e) => setExpStatusFilter(e.target.value)}
+                    className="w-full sm:w-72"
+                  />
+
+                  <Select
+                    options={[
+                      { label: 'All Categories', value: 'All' },
+                      { label: 'Salary', value: 'Salary' },
+                      { label: 'Electric Bill', value: 'Electric Bill' },
+                      { label: 'Water Bill', value: 'Water Bill' },
+                      { label: 'Rent', value: 'Rent' },
+                      { label: 'Products', value: 'Products' },
+                      { label: 'Machines', value: 'Machines' },
+                      { label: 'Marketing', value: 'Marketing' },
+                      { label: 'Other', value: 'Other' }
+                    ]}
+                    value={expCategoryFilter}
+                    onChange={(e) => setExpCategoryFilter(e.target.value)}
+                    className="w-full sm:w-44"
+                  />
+                </div>
               </div>
 
               {/* Expenses Table */}
@@ -966,67 +1056,124 @@ export default function FinanceReportsPage() {
                       <tr>
                         <th className="py-3.5 px-4 rounded-l-xl">Expense Title</th>
                         <th className="py-3.5 px-4">Category</th>
+                        <th className="py-3.5 px-4">Added By / Paid By</th>
                         <th className="py-3.5 px-4">Date</th>
-                        <th className="py-3.5 px-4">Payment Method</th>
-                        <th className="py-3.5 px-4">Amount</th>
-                        <th className="py-3.5 px-4 text-right rounded-r-xl">Status</th>
+                        <th className="py-3.5 px-4">Payment Terms</th>
+                        <th className="py-3.5 px-4">Amount & Dues</th>
+                        <th className="py-3.5 px-4 text-right rounded-r-xl">Actions & Audit</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-                      {filteredExpenses.map((exp) => (
-                        <tr key={exp.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                          <td className="py-3.5 px-4">
-                            <div className="font-bold text-slate-900 dark:text-slate-100">{exp.title}</div>
-                            <div className="text-[11px] text-slate-400">{exp.notes || 'Routine expense'}</div>
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <Badge variant="primary">{exp.category}</Badge>
-                          </td>
-                          <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 font-mono">
-                            {exp.date}
-                          </td>
-                          <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
-                            {exp.paymentMethod}
-                          </td>
-                          <td className="py-3.5 px-4 font-mono font-black text-rose-600 dark:text-rose-400">
-                            -{formatPKR(exp.amount)}
-                          </td>
-                          <td className="py-3.5 px-4 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <Badge variant={exp.status === 'Paid' ? 'success' : 'warning'}>{exp.status}</Badge>
-                              {exp.status === 'Pending' && (
-                                <button
-                                  onClick={() => handlePayExpense(exp.id)}
-                                  className="px-2.5 py-1 text-[10px] font-bold uppercase rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white transition-all cursor-pointer"
-                                >
-                                  Pay Salary
-                                </button>
+                      {filteredExpenses.map((exp) => {
+                        const actual = exp.actualAmount ?? exp.amount;
+                        const paid = exp.amountPaid ?? (exp.status === 'Paid' ? actual : 0);
+                        const remaining = exp.remainingAmount ?? (exp.status === 'Paid' ? 0 : actual);
+                        const hasRemaining = remaining > 0;
+
+                        return (
+                          <tr key={exp.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                            <td className="py-3.5 px-4">
+                              <div className="font-bold text-slate-900 dark:text-slate-100">{exp.title}</div>
+                              <div className="text-[11px] text-slate-400">{exp.notes || 'Operational expense'}</div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <Badge variant="primary">{exp.category}</Badge>
+                            </td>
+                            <td className="py-3.5 px-4 text-slate-700 dark:text-slate-200">
+                              <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">
+                                {exp.addedBy || 'Admin/Partner'}
+                              </div>
+                              {exp.paidBy && exp.paidBy !== exp.addedBy && (
+                                <div className="text-[10px] text-slate-400">
+                                  Paid by: {exp.paidBy}
+                                </div>
                               )}
-                              <button
-                                onClick={() => {
-                                  setSelectedExp(exp);
-                                  setEditExpTitle(exp.title);
-                                  setEditExpCategory(exp.category);
-                                  setEditExpAmount(exp.amount.toString());
-                                  setEditExpPaymentMethod(exp.paymentMethod);
-                                  setEditExpNotes(exp.notes || '');
-                                  setEditExpDate(exp.date);
-                                  setEditExpStatus(exp.status);
-                                  setIsEditExpModalOpen(true);
-                                }}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-slate-800 transition-colors"
-                                title="Edit Expense"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                            <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 font-mono">
+                              {exp.date}
+                            </td>
+                            <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
+                              <div>{exp.paymentMethod}</div>
+                              {exp.paymentType && (
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase">
+                                  Mode: {exp.paymentType}
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4 font-mono">
+                              <div className="font-bold text-slate-900 dark:text-slate-100">
+                                {formatPKR(actual)}
+                              </div>
+                              {hasRemaining ? (
+                                <div className="text-[11px] text-amber-600 dark:text-amber-400 font-bold">
+                                  Paid: {formatPKR(paid)} • Due: {formatPKR(remaining)}
+                                </div>
+                              ) : (
+                                <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                                  Fully Paid ({formatPKR(paid)})
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4 text-right">
+                              <div className="flex items-center justify-end gap-2 flex-wrap">
+                                <Badge variant={exp.status === 'Paid' ? 'success' : 'warning'}>
+                                  {exp.status === 'Paid' ? 'Paid' : 'Pending / Credit'}
+                                </Badge>
+
+                                {(exp.status === 'Pending' || hasRemaining) && (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedPayExp(exp);
+                                      setPayType('Full');
+                                      setPayAmountInput(remaining.toString());
+                                      setPayMethod('Cash');
+                                      setPayNotes('');
+                                      setIsPayModalOpen(true);
+                                    }}
+                                    className="px-2.5 py-1 text-[10px] font-extrabold uppercase rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-sm cursor-pointer"
+                                  >
+                                    Pay Full / Partial
+                                  </button>
+                                )}
+
+                                <button
+                                  onClick={() => {
+                                    setSelectedLogsExp(exp);
+                                    setIsLogsModalOpen(true);
+                                  }}
+                                  className="px-2.5 py-1 text-[10px] font-bold uppercase rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
+                                  title="View Payment Audit Logs"
+                                >
+                                  Logs ({exp.paymentLogs?.length || 0})
+                                </button>
+
+                                <button
+                                  onClick={() => {
+                                    setSelectedExp(exp);
+                                    setEditExpTitle(exp.title);
+                                    setEditExpCategory(exp.category);
+                                    setEditExpAmount(exp.amount.toString());
+                                    setEditExpPaymentMethod(exp.paymentMethod);
+                                    setEditExpNotes(exp.notes || '');
+                                    setEditExpDate(exp.date);
+                                    setEditExpStatus(exp.status);
+                                    setIsEditExpModalOpen(true);
+                                  }}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-slate-800 transition-colors"
+                                  title="Edit Expense"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               </div>
+
             </div>
           )}
 
@@ -1369,6 +1516,170 @@ export default function FinanceReportsPage() {
           </div>
         </form>
       </Modal>
+
+      {/* Pay Full / Partial Vendor Due Modal */}
+      <Modal
+        isOpen={isPayModalOpen}
+        onClose={() => setIsPayModalOpen(false)}
+        title="Pay Vendor Dues (Full or Partial)"
+        description={selectedPayExp ? `Expense: ${selectedPayExp.title} — Current Remaining Due: ${formatPKR(selectedPayExp.remainingAmount ?? selectedPayExp.amount)}` : ''}
+        maxWidth="md"
+      >
+        <form onSubmit={handlePayExpenseSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">
+              Payment Option
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setPayType('Full');
+                  if (selectedPayExp) {
+                    const rem = selectedPayExp.remainingAmount ?? selectedPayExp.amount;
+                    setPayAmountInput(rem.toString());
+                  }
+                }}
+                className={`py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
+                  payType === 'Full'
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                    : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                Full Payment
+              </button>
+              <button
+                type="button"
+                onClick={() => setPayType('Partial')}
+                className={`py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
+                  payType === 'Partial'
+                    ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                    : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                Partial Installment
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Payment Amount (Rs)"
+              type="text"
+              value={payAmountInput}
+              disabled={payType === 'Full'}
+              onChange={(e) => setPayAmountInput(e.target.value.replace(/\D/g, ''))}
+              required
+            />
+            <Select
+              label="Payment Method"
+              options={[
+                { label: 'Cash', value: 'Cash' },
+                { label: 'Bank Transfer', value: 'Bank Transfer' },
+                { label: 'Card', value: 'Card' },
+                { label: 'Cheque', value: 'Cheque' }
+              ]}
+              value={payMethod}
+              onChange={(e) => setPayMethod(e.target.value as any)}
+            />
+          </div>
+
+          <Input
+            label="Notes / Reference"
+            placeholder="e.g. Bank slip transaction ID or cash voucher reference..."
+            value={payNotes}
+            onChange={(e) => setPayNotes(e.target.value)}
+          />
+
+          <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl text-xs flex justify-between items-center font-mono">
+            <span>Logged Paying User:</span>
+            <span className="font-bold text-blue-600 dark:text-blue-400">{userEmail || role || 'Admin/Partner'}</span>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <Button type="button" variant="outline" onClick={() => setIsPayModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary">
+              Confirm Payment & Update Logs
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Payment Logs History Modal */}
+      <Modal
+        isOpen={isLogsModalOpen}
+        onClose={() => setIsLogsModalOpen(false)}
+        title="Payment Audit Logs & Installment Details"
+        description={selectedLogsExp ? `Full payment trail for ${selectedLogsExp.title}` : ''}
+        maxWidth="lg"
+      >
+        <div className="space-y-4">
+          {selectedLogsExp && (
+            <div className="grid grid-cols-3 gap-3 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl text-xs">
+              <div>
+                <span className="text-slate-400 font-semibold block uppercase text-[10px]">Actual Total</span>
+                <span className="font-mono font-bold text-sm text-slate-900 dark:text-slate-100">
+                  {formatPKR(selectedLogsExp.actualAmount ?? selectedLogsExp.amount)}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold block uppercase text-[10px]">Total Paid</span>
+                <span className="font-mono font-bold text-sm text-emerald-600">
+                  {formatPKR(selectedLogsExp.amountPaid ?? (selectedLogsExp.status === 'Paid' ? selectedLogsExp.amount : 0))}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold block uppercase text-[10px]">Remaining Balance</span>
+                <span className="font-mono font-bold text-sm text-amber-600">
+                  {formatPKR(selectedLogsExp.remainingAmount ?? (selectedLogsExp.status === 'Paid' ? 0 : selectedLogsExp.amount))}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-xl">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold uppercase text-[10px]">
+                <tr>
+                  <th className="py-2.5 px-3">Date & Time</th>
+                  <th className="py-2.5 px-3">Amount Paid</th>
+                  <th className="py-2.5 px-3">Paid By User</th>
+                  <th className="py-2.5 px-3">Method</th>
+                  <th className="py-2.5 px-3">Notes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {selectedLogsExp?.paymentLogs && selectedLogsExp.paymentLogs.length > 0 ? (
+                  selectedLogsExp.paymentLogs.map((log: any, idx: number) => (
+                    <tr key={log.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                      <td className="py-2.5 px-3 font-mono text-slate-500">{log.date}</td>
+                      <td className="py-2.5 px-3 font-mono font-bold text-emerald-600">{formatPKR(log.amount)}</td>
+                      <td className="py-2.5 px-3 font-semibold text-slate-900 dark:text-slate-100">{log.paidBy}</td>
+                      <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">{log.paymentMethod}</td>
+                      <td className="py-2.5 px-3 text-slate-500">{log.notes || '-'}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="py-6 text-center text-slate-400 italic">
+                      No payment logs recorded yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button type="button" variant="outline" onClick={() => setIsLogsModalOpen(false)}>
+              Close Audit Logs
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
+

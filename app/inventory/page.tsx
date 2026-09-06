@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Package, Plus, Search, Minus } from 'lucide-react';
+import { Package, Plus, Search, Minus, UserCheck, DollarSign } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { InventoryCategory } from '../../lib/types/clinic';
 import { formatPKR } from '../../lib/utils/currency';
@@ -13,7 +14,28 @@ import { Input, Select } from '../../components/ui/Input';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 
 export default function InventoryPage() {
-  const { inventory: allInventory, addInventoryItem, updateInventoryQuantity, branches, selectedBranchId, setSelectedBranchId, userBranchId } = useClinic();
+  const {
+    inventory: allInventory,
+    addInventoryItem,
+    updateInventoryQuantity,
+    addExpense,
+    branches,
+    selectedBranchId,
+    setSelectedBranchId,
+    userBranchId,
+    role,
+    userEmail,
+    isLoading
+  } = useClinic();
+
+  const router = useRouter();
+
+  // Role guard: Staff role cannot access Inventory tab
+  useEffect(() => {
+    if (!isLoading && role === 'staff') {
+      router.push('/dashboard');
+    }
+  }, [role, isLoading, router]);
 
   const [filterBranchId, setFilterBranchId] = useState<string>('');
 
@@ -31,19 +53,31 @@ export default function InventoryPage() {
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAddVendorModalOpen, setIsAddVendorModalOpen] = useState(false);
   const [reduceModalItemId, setReduceModalItemId] = useState<string | null>(null);
   const [reduceAmount, setReduceAmount] = useState<string>('1');
   const [addModalItemId, setAddModalItemId] = useState<string | null>(null);
   const [addAmount, setAddAmount] = useState<string>('1');
 
-  // Form State
-  const [itemName, setItemName] = useState('');
+  // Vendor Form State
+  const [vendorName, setVendorName] = useState('');
+  const [productName, setProductName] = useState('');
   const [category, setCategory] = useState<InventoryCategory>('Injectables & Toxins');
-  const [quantity, setQuantity] = useState<string>('25');
-  const [minStock, setMinStock] = useState<string>('15');
-  const [supplier, setSupplier] = useState('Allergan Aesthetics USA');
-  const [price, setPrice] = useState<string>('250');
+  const [quantity, setQuantity] = useState<string>('10');
+  const [paymentType, setPaymentType] = useState<'Debit' | 'Credit'>('Debit');
+  const [actualAmount, setActualAmount] = useState<string>('5000');
+  const [amountPaid, setAmountPaid] = useState<string>('5000');
+
+  // Auto-sync amountPaid when Debit is selected or actualAmount changes under Debit
+  useEffect(() => {
+    if (paymentType === 'Debit') {
+      setAmountPaid(actualAmount);
+    }
+  }, [paymentType, actualAmount]);
+
+  const calcActual = Number(actualAmount) || 0;
+  const calcPaid = paymentType === 'Debit' ? calcActual : (Number(amountPaid) || 0);
+  const remainingAmount = Math.max(0, calcActual - calcPaid);
 
   const filteredInventory = inventory.filter((item) => {
     const matchesSearch =
@@ -53,20 +87,97 @@ export default function InventoryPage() {
     return matchesSearch && matchesStatus;
   });
 
-  const handleAddItem = (e: React.FormEvent) => {
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  const handleAddVendor = async (e: React.FormEvent) => {
     e.preventDefault();
-    addInventoryItem({
-      itemName,
-      category,
-      quantity: Number(quantity) || 0,
-      minStock: Number(minStock) || 0,
-      supplier,
-      price: Number(price) || 0,
-      lastRestocked: new Date().toISOString().split('T')[0]
+
+    if (!vendorName.trim() || !productName.trim()) {
+      showToast("Vendor Name and Product Name are required", "error");
+      return;
+    }
+
+    // 1. Immediately close modal to confirm action
+    setIsAddVendorModalOpen(false);
+
+    const qtyNum = Number(quantity) || 1;
+    const actAmtNum = Number(actualAmount) || 0;
+    const pdAmtNum = paymentType === 'Debit' ? actAmtNum : (Number(amountPaid) || 0);
+    const remAmtNum = Math.max(0, actAmtNum - pdAmtNum);
+    const isFullyPaid = remAmtNum === 0;
+
+    const activeUser = userEmail || role || 'Admin/Partner';
+    const unitPrice = actAmtNum > 0 ? Math.round(actAmtNum / qtyNum) : 0;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const nowFormatStr = new Date().toLocaleString('en-US', {
+      dateStyle: 'medium',
+      timeStyle: 'short'
     });
 
-    setIsAddModalOpen(false);
-    setItemName('');
+    const vName = vendorName;
+    const pName = productName;
+    const pCat = category;
+    const pType = paymentType;
+
+    // Reset Form State
+    setVendorName('');
+    setProductName('');
+    setQuantity('10');
+    setActualAmount('5000');
+    setAmountPaid('5000');
+    setPaymentType('Debit');
+
+    showToast(`Vendor '${vName}' added successfully!`);
+
+    try {
+      // Save or update inventory product
+      await addInventoryItem({
+        itemName: pName,
+        category: pCat,
+        quantity: qtyNum,
+        minStock: 10,
+        supplier: vName,
+        price: unitPrice,
+        lastRestocked: todayStr
+      });
+
+      // Log vendor purchase into Expenses / Vendor Dues
+      await addExpense({
+        title: `Vendor Purchase: ${pName} (${vName})`,
+        category: 'Products',
+        amount: actAmtNum,
+        actualAmount: actAmtNum,
+        amountPaid: pdAmtNum,
+        remainingAmount: remAmtNum,
+        paymentType: pType,
+        vendorName: vName,
+        productName: pName,
+        date: todayStr,
+        status: isFullyPaid ? 'Paid' : 'Pending',
+        paymentMethod: 'Cash',
+        notes: `Vendor: ${vName} | Product: ${pName} | Qty: ${qtyNum} | Payment: ${pType}`,
+        addedBy: activeUser,
+        paidBy: activeUser,
+        paymentLogs: pdAmtNum > 0 ? [
+          {
+            id: `PAYLOG-${Date.now()}`,
+            amount: pdAmtNum,
+            paidBy: activeUser,
+            date: nowFormatStr,
+            paymentMethod: 'Cash',
+            notes: pType === 'Debit' ? 'Full Debit Payment' : 'Initial Credit Advance'
+          }
+        ] : []
+      });
+    } catch (err: any) {
+      console.error("Failed to persist vendor purchase:", err);
+      showToast("Error persisting vendor purchase", "error");
+    }
   };
 
   const handleReduceStock = (e: React.FormEvent) => {
@@ -90,17 +201,33 @@ export default function InventoryPage() {
   const reduceItem = inventory.find(i => i.id === reduceModalItemId);
   const addItem = inventory.find(i => i.id === addModalItemId);
 
+  if (isLoading || role === 'staff') {
+    return (
+      <div className="p-8 text-center text-slate-500 font-bold">
+        Loading inventory permissions...
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 pb-10">
+      {toast && (
+        <div className={`fixed top-5 right-5 z-50 px-4 py-3 rounded-xl shadow-2xl text-sm font-bold text-white transition-all flex items-center gap-2 ${
+          toast.type === 'error' ? 'bg-rose-600' : 'bg-emerald-600'
+        }`}>
+          <span>{toast.message}</span>
+        </div>
+      )}
+
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <Breadcrumb />
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-            Inventory & Medical Supplies Tracker
+            Inventory & Vendor Purchasing
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Botox vials, dermal fillers, PRP centrifuges, serums, and disposable kits.
+            Manage vendor shipments, stock inventory, and credit/debit vendor dues.
           </p>
         </div>
 
@@ -119,8 +246,8 @@ export default function InventoryPage() {
               ))}
             </select>
           )}
-          <Button onClick={() => setIsAddModalOpen(true)} variant="primary" icon={<Plus className="w-4 h-4" />}>
-            Add Stock Item
+          <Button onClick={() => setIsAddVendorModalOpen(true)} variant="primary" icon={<Plus className="w-4 h-4" />}>
+            Add Vendor
           </Button>
         </div>
       </div>
@@ -128,7 +255,7 @@ export default function InventoryPage() {
       {/* Filter & Search Bar */}
       <div className="luxury-card p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <Input
-          placeholder="Search by item name or supplier..."
+          placeholder="Search by item name or vendor supplier..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           icon={<Search className="w-4 h-4" />}
@@ -157,11 +284,11 @@ export default function InventoryPage() {
           <table className="w-full text-left text-xs sm:text-sm">
             <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[11px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
               <tr>
-                <th className="py-3.5 px-4 rounded-l-xl">Item Name</th>
+                <th className="py-3.5 px-4 rounded-l-xl">Product Name</th>
                 <th className="py-3.5 px-4">Category</th>
                 <th className="py-3.5 px-4">Stock Level</th>
-                <th className="py-3.5 px-4">Supplier</th>
-                <th className="py-3.5 px-4">Unit Price</th>
+                <th className="py-3.5 px-4">Vendor Supplier</th>
+                <th className="py-3.5 px-4">Unit Cost</th>
                 <th className="py-3.5 px-4">Status</th>
                 <th className="py-3.5 px-4 text-right rounded-r-xl">Stock Actions</th>
               </tr>
@@ -198,7 +325,7 @@ export default function InventoryPage() {
                         />
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
+                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 font-semibold">
                       {item.supplier}
                     </td>
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-slate-100">
@@ -241,22 +368,31 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      {/* Add Stock Item Modal */}
+      {/* Add Vendor Purchase Modal */}
       <Modal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        title="Add Inventory Item"
-        description="Track new medical spa supplies, injectables, or serums"
+        isOpen={isAddVendorModalOpen}
+        onClose={() => setIsAddVendorModalOpen(false)}
+        title="Add Vendor & Stock Purchase"
+        description="Record vendor details, purchased stock, and credit/debit payments"
         maxWidth="lg"
       >
-        <form onSubmit={handleAddItem} className="space-y-4">
-          <Input
-            label="Item Name"
-            placeholder="e.g. Juvederm Ultra 3 (2x1ml)"
-            value={itemName}
-            onChange={(e) => setItemName(e.target.value)}
-            required
-          />
+        <form onSubmit={handleAddVendor} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Vendor Name"
+              placeholder="e.g. Allergan Aesthetics / Medispa Supplies"
+              value={vendorName}
+              onChange={(e) => setVendorName(e.target.value)}
+              required
+            />
+            <Input
+              label="Product Purchased"
+              placeholder="e.g. Juvederm Ultra 3 (2x1ml)"
+              value={productName}
+              onChange={(e) => setProductName(e.target.value)}
+              required
+            />
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
@@ -274,44 +410,85 @@ export default function InventoryPage() {
               onChange={(e) => setCategory(e.target.value as any)}
             />
             <Input
-              label="Supplier Name"
-              placeholder="Allergan Aesthetics USA"
-              value={supplier}
-              onChange={(e) => setSupplier(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Input
-              label="Initial Quantity"
+              label="Quantity Purchased"
               type="text"
+              placeholder="10"
               value={quantity}
               onChange={(e) => setQuantity(e.target.value.replace(/\D/g, ''))}
               required
             />
+          </div>
+
+          {/* Payment Type Selection: Credit or Debit? */}
+          <div className="space-y-2 pt-2">
+            <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">
+              Payment Terms (Credit or Debit?)
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setPaymentType('Debit')}
+                className={`py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
+                  paymentType === 'Debit'
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/30'
+                    : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                Debit (Instant Full Payment)
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentType('Credit')}
+                className={`py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
+                  paymentType === 'Credit'
+                    ? 'bg-amber-600 text-white border-amber-600 shadow-md shadow-amber-600/30'
+                    : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                Credit (Deferred / Installments)
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
             <Input
-              label="Min Alert Stock"
+              label="Actual Amount (Rs)"
               type="text"
-              value={minStock}
-              onChange={(e) => setMinStock(e.target.value.replace(/\D/g, ''))}
+              value={actualAmount}
+              onChange={(e) => setActualAmount(e.target.value.replace(/\D/g, ''))}
               required
             />
             <Input
-              label="Unit Price (Rs)"
+              label={paymentType === 'Debit' ? "Amount Paid (Same as Actual)" : "Initial Amount Paid (Rs)"}
               type="text"
-              value={price}
-              onChange={(e) => setPrice(e.target.value.replace(/\D/g, ''))}
+              value={amountPaid}
+              disabled={paymentType === 'Debit'}
+              onChange={(e) => setAmountPaid(e.target.value.replace(/\D/g, ''))}
               required
             />
           </div>
 
+          {/* Balance calculation banner */}
+          <div className={`p-4 rounded-xl text-xs flex justify-between items-center ${
+            remainingAmount > 0
+              ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-900/60'
+              : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-900/60'
+          }`}>
+            <div>
+              <span className="font-bold">Remaining Balance Due to Vendor: </span>
+              <span className="font-mono font-black text-sm">{formatPKR(remainingAmount)}</span>
+            </div>
+            <Badge variant={remainingAmount > 0 ? 'warning' : 'success'}>
+              {remainingAmount > 0 ? 'Credit Purchase (Pending Balance)' : 'Fully Paid (Debit)'}
+            </Badge>
+          </div>
+
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsAddVendorModalOpen(false)}>
               Cancel
             </Button>
             <Button type="submit" variant="primary">
-              Save Inventory Item
+              Save Vendor & Record Purchase
             </Button>
           </div>
         </form>

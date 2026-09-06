@@ -37,6 +37,8 @@ async def create_expense(
     count = len(count_result.scalars().all())
     expense_id = f"EXP-{400 + count + 1}"
     
+    user_identifier = getattr(current_user, 'email', 'Admin/Partner')
+    
     db_expense = ExpenseItem(
         id=expense_id,
         title=expense_in.title,
@@ -47,7 +49,16 @@ async def create_expense(
         payment_method=expense_in.payment_method,
         notes=expense_in.notes,
         staff_id=expense_in.staff_id,
-        branch_id=expense_in.branch_id
+        branch_id=expense_in.branch_id,
+        added_by=expense_in.added_by or user_identifier,
+        paid_by=expense_in.paid_by or user_identifier,
+        vendor_name=expense_in.vendor_name,
+        product_name=expense_in.product_name,
+        payment_type=expense_in.payment_type,
+        actual_amount=expense_in.actual_amount if expense_in.actual_amount is not None else expense_in.amount,
+        amount_paid=expense_in.amount_paid if expense_in.amount_paid is not None else expense_in.amount,
+        remaining_amount=expense_in.remaining_amount if expense_in.remaining_amount is not None else 0.0,
+        payment_logs=expense_in.payment_logs or []
     )
     db.add(db_expense)
     await db.commit()
@@ -89,3 +100,4 @@ async def update_expense(
     await db.commit()
     await db.refresh(db_expense)
     return db_expense
+

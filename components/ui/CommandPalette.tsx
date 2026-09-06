@@ -36,7 +36,7 @@ export const CommandPalette: React.FC = () => {
     { title: 'Billing', href: '/pos', icon: CreditCard, category: 'Navigation', adminOnly: false },
     { title: 'Client Directory', href: '/clients', icon: Users, category: 'Navigation', adminOnly: false },
     { title: 'Services Catalog', href: '/services', icon: Sparkles, category: 'Navigation', adminOnly: false },
-    { title: 'Inventory Management', href: '/inventory', icon: Package, category: 'Navigation', adminOnly: false },
+    { title: 'Inventory Management', href: '/inventory', icon: Package, category: 'Navigation', adminOnly: true },
     { title: 'Branches Management', href: '/branches', icon: MapPin, category: 'Navigation', adminOnly: true },
     { title: 'Staff Directory', href: '/staff', icon: UserCheck, category: 'Navigation', adminOnly: true },
     { title: 'Attendance Matrix', href: '/attendance', icon: UserCheck, category: 'Navigation', adminOnly: false },
@@ -48,7 +48,7 @@ export const CommandPalette: React.FC = () => {
 
   const filteredItems = navItems.filter(item => {
     if (role === 'partner') {
-      return item.href === '/dashboard' || item.href === '/finance';
+      return item.href === '/dashboard' || item.href === '/finance' || item.href === '/inventory';
     }
     if (role === 'staff' && item.adminOnly) return false;
     return item.title.toLowerCase().includes(query.toLowerCase());

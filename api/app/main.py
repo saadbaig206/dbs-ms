@@ -50,11 +50,39 @@ async def lifespan(app: FastAPI):
                     "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
                 ))
                 await conn.execute(text(
+                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS added_by VARCHAR;"
+                ))
+                await conn.execute(text(
+                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS paid_by VARCHAR;"
+                ))
+                await conn.execute(text(
+                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS vendor_name VARCHAR;"
+                ))
+                await conn.execute(text(
+                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS product_name VARCHAR;"
+                ))
+                await conn.execute(text(
+                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_type VARCHAR;"
+                ))
+                await conn.execute(text(
+                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS actual_amount FLOAT;"
+                ))
+                await conn.execute(text(
+                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS amount_paid FLOAT;"
+                ))
+                await conn.execute(text(
+                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS remaining_amount FLOAT;"
+                ))
+                await conn.execute(text(
+                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_logs JSON DEFAULT '[]';"
+                ))
+                await conn.execute(text(
                     "ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS branch_id VARCHAR UNIQUE REFERENCES branches(id) ON DELETE SET NULL;"
                 ))
                 await conn.execute(text(
                     "ALTER TABLE services ADD COLUMN IF NOT EXISTS required_inventory JSON DEFAULT '[]';"
                 ))
+
                 
             # 2. Seed default users and settings if none exist
             async_session = sessionmaker(

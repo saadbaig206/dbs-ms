@@ -56,7 +56,7 @@ export const Sidebar: React.FC = () => {
     { title: 'Clients', href: '/clients', icon: Users, adminOnly: false },
     { title: 'Billing', href: '/pos', icon: CreditCard, adminOnly: false },
     { title: 'Services', href: '/services', icon: Sparkles, adminOnly: false },
-    { title: 'Inventory', href: '/inventory', icon: Package, adminOnly: false },
+    { title: 'Inventory', href: '/inventory', icon: Package, adminOnly: true },
     { title: 'Branches', href: '/branches', icon: MapPin, adminOnly: true },
     { title: 'Finance & Reports', href: '/finance-reports', icon: DollarSign, adminOnly: true },
     {title: 'Staff', href: '/staff', icon: Users2, adminOnly: true },
@@ -96,7 +96,7 @@ export const Sidebar: React.FC = () => {
         {menuItems
           .filter((item) => {
             if (role === 'partner') {
-              return item.href === '/dashboard' || item.href === '/finance-reports';
+              return item.href === '/dashboard' || item.href === '/finance-reports' || item.href === '/inventory';
             }
             if (role === 'staff') {
               return !item.adminOnly;

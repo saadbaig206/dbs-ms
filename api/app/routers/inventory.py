@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app.core.deps import get_db, get_staff_user, get_admin_user, get_user_branch_id
+from app.core.deps import get_db, get_admin_or_partner_user, get_user_branch_id
 from app.models.inventory import InventoryItem
 from app.schemas.inventory import InventoryCreate, InventoryUpdate, InventoryResponse
 
@@ -15,7 +15,7 @@ async def list_inventory(
     search: Optional[str] = None,
     branch_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_staff_user),
+    current_user = Depends(get_admin_or_partner_user),
     user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
     query = select(InventoryItem)
@@ -32,7 +32,7 @@ async def list_inventory(
 async def create_inventory_item(
     item_in: InventoryCreate,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_admin_user)
+    current_user = Depends(get_admin_or_partner_user)
 ):
     count_result = await db.execute(select(InventoryItem))
     count = len(count_result.scalars().all())
@@ -59,7 +59,7 @@ async def update_inventory_item(
     item_id: str,
     item_in: InventoryUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_admin_user)
+    current_user = Depends(get_admin_or_partner_user)
 ):
     result = await db.execute(select(InventoryItem).where(InventoryItem.id == item_id))
     db_item = result.scalars().first()
@@ -80,7 +80,7 @@ async def adjust_quantity(
     item_id: str,
     delta: int,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_staff_user)
+    current_user = Depends(get_admin_or_partner_user)
 ):
     result = await db.execute(select(InventoryItem).where(InventoryItem.id == item_id))
     db_item = result.scalars().first()
@@ -110,3 +110,4 @@ async def adjust_quantity(
     await db.commit()
     await db.refresh(db_item)
     return db_item
+

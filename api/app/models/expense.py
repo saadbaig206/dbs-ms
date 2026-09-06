@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, ForeignKey
+from sqlalchemy import Column, String, Float, ForeignKey, JSON
 from app.models.base import Base
 
 class ExpenseItem(Base):
@@ -14,3 +14,13 @@ class ExpenseItem(Base):
     notes = Column(String, nullable=True)
     staff_id = Column(String, nullable=True) # Linked staff member for salary
     branch_id = Column(String, ForeignKey("branches.id"), nullable=True)
+    added_by = Column(String, nullable=True)
+    paid_by = Column(String, nullable=True)
+    vendor_name = Column(String, nullable=True)
+    product_name = Column(String, nullable=True)
+    payment_type = Column(String, nullable=True) # Debit or Credit
+    actual_amount = Column(Float, nullable=True)
+    amount_paid = Column(Float, nullable=True)
+    remaining_amount = Column(Float, nullable=True)
+    payment_logs = Column(JSON, nullable=True)
+

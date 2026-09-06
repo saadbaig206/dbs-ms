@@ -145,6 +145,15 @@ export type ExpenseCategory =
   | 'Marketing' 
   | 'Other';
 
+export interface PaymentLog {
+  id: string;
+  amount: number;
+  paidBy: string;
+  date: string;
+  paymentMethod: string;
+  notes?: string;
+}
+
 export interface ExpenseItem {
   id: string;
   title: string;
@@ -156,7 +165,17 @@ export interface ExpenseItem {
   notes?: string;
   staffId?: string;
   branchId?: string;
+  addedBy?: string;
+  paidBy?: string;
+  vendorName?: string;
+  productName?: string;
+  paymentType?: 'Credit' | 'Debit';
+  actualAmount?: number;
+  amountPaid?: number;
+  remainingAmount?: number;
+  paymentLogs?: PaymentLog[];
 }
+
 
 export type PaymentMethod = 'Cash' | 'Card' | 'Bank' | 'Online';
 

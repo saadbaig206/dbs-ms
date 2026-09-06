@@ -488,10 +488,13 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Expenses CRUD
   const addExpense = async (expense: Omit<ExpenseItem, 'id'>) => {
+    const activeUser = userEmail || role || 'Admin/Partner';
     await apiFetch('/expenses', {
       method: 'POST',
       body: JSON.stringify({
         ...expense,
+        addedBy: expense.addedBy || activeUser,
+        paidBy: expense.paidBy || activeUser,
         branchId: expense.branchId || selectedBranchId || userBranchId || undefined
       }),
     });
@@ -499,12 +502,17 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const updateExpense = async (id: string, updated: Partial<ExpenseItem>) => {
+    const activeUser = userEmail || role || 'Admin/Partner';
     await apiFetch(`/expenses/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(updated),
+      body: JSON.stringify({
+        ...updated,
+        paidBy: updated.paidBy || activeUser
+      }),
     });
     await refreshData();
   };
+
 
   const removeExpensesByStaffId = async (staffId: string) => {
     // Handled automatically by backend when staff is updated/deleted, but we can verify
