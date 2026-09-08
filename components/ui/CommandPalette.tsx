@@ -48,7 +48,8 @@ export const CommandPalette: React.FC = () => {
 
   const filteredItems = navItems.filter(item => {
     if (role === 'partner') {
-      return item.href === '/dashboard' || item.href === '/finance' || item.href === '/inventory';
+      const partnerPaths = ['/dashboard', '/finance', '/finance-reports', '/reports', '/expenses', '/inventory'];
+      return partnerPaths.includes(item.href) && item.title.toLowerCase().includes(query.toLowerCase());
     }
     if (role === 'staff' && item.adminOnly) return false;
     return item.title.toLowerCase().includes(query.toLowerCase());

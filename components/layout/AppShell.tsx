@@ -21,7 +21,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     if (role === 'admin') return true;
 
     if (role === 'partner') {
-      const allowedPathsForPartner = ['/dashboard', '/finance-reports', '/finance', '/reports', '/expenses'];
+      const allowedPathsForPartner = ['/dashboard', '/finance-reports', '/finance', '/reports', '/expenses', '/inventory'];
       return allowedPathsForPartner.some(path => pathname === path || pathname.startsWith(path + '/'));
     }
 

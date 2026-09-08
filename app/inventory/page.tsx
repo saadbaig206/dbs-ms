@@ -56,17 +56,24 @@ export default function InventoryPage() {
   const [isAddVendorModalOpen, setIsAddVendorModalOpen] = useState(false);
   const [reduceModalItemId, setReduceModalItemId] = useState<string | null>(null);
   const [reduceAmount, setReduceAmount] = useState<string>('1');
-  const [addModalItemId, setAddModalItemId] = useState<string | null>(null);
-  const [addAmount, setAddAmount] = useState<string>('1');
 
   // Vendor Form State
   const [vendorName, setVendorName] = useState('');
   const [productName, setProductName] = useState('');
-  const [category, setCategory] = useState<InventoryCategory>('Injectables & Toxins');
+  const [category, setCategory] = useState<InventoryCategory | 'custom'>('Injectables & Toxins');
+  const [customCategory, setCustomCategory] = useState('');
+  const [vendorBranchId, setVendorBranchId] = useState<string>('');
   const [quantity, setQuantity] = useState<string>('10');
   const [paymentType, setPaymentType] = useState<'Debit' | 'Credit'>('Debit');
   const [actualAmount, setActualAmount] = useState<string>('5000');
   const [amountPaid, setAmountPaid] = useState<string>('5000');
+
+  // Auto-sync vendor branch default
+  useEffect(() => {
+    if (!vendorBranchId && branches.length > 0) {
+      setVendorBranchId(filterBranchId || selectedBranchId || userBranchId || branches[0].id);
+    }
+  }, [filterBranchId, selectedBranchId, userBranchId, branches, vendorBranchId]);
 
   // Auto-sync amountPaid when Debit is selected or actualAmount changes under Debit
   useEffect(() => {
@@ -102,6 +109,11 @@ export default function InventoryPage() {
       return;
     }
 
+    if (category === 'custom' && !customCategory.trim()) {
+      showToast("Please specify a custom category name", "error");
+      return;
+    }
+
     // 1. Immediately close modal to confirm action
     setIsAddVendorModalOpen(false);
 
@@ -121,12 +133,14 @@ export default function InventoryPage() {
 
     const vName = vendorName;
     const pName = productName;
-    const pCat = category;
+    const pCat = category === 'custom' ? (customCategory.trim() || 'General') : category;
     const pType = paymentType;
+    const targetBranchId = vendorBranchId || filterBranchId || selectedBranchId || userBranchId || (branches.length > 0 ? branches[0].id : undefined);
 
     // Reset Form State
     setVendorName('');
     setProductName('');
+    setCustomCategory('');
     setQuantity('10');
     setActualAmount('5000');
     setAmountPaid('5000');
@@ -143,7 +157,8 @@ export default function InventoryPage() {
         minStock: 10,
         supplier: vName,
         price: unitPrice,
-        lastRestocked: todayStr
+        lastRestocked: todayStr,
+        branchId: targetBranchId
       });
 
       // Log vendor purchase into Expenses / Vendor Dues
@@ -163,6 +178,7 @@ export default function InventoryPage() {
         notes: `Vendor: ${vName} | Product: ${pName} | Qty: ${qtyNum} | Payment: ${pType}`,
         addedBy: activeUser,
         paidBy: activeUser,
+        branchId: targetBranchId,
         paymentLogs: pdAmtNum > 0 ? [
           {
             id: `PAYLOG-${Date.now()}`,
@@ -189,17 +205,7 @@ export default function InventoryPage() {
     setReduceAmount('1');
   };
 
-  const handleQuickAddStock = (e: React.FormEvent) => {
-    e.preventDefault();
-    const amount = Number(addAmount) || 0;
-    if (!addModalItemId || amount <= 0) return;
-    updateInventoryQuantity(addModalItemId, amount);
-    setAddModalItemId(null);
-    setAddAmount('1');
-  };
-
   const reduceItem = inventory.find(i => i.id === reduceModalItemId);
-  const addItem = inventory.find(i => i.id === addModalItemId);
 
   if (isLoading || role === 'staff') {
     return (
@@ -347,16 +353,10 @@ export default function InventoryPage() {
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-1 flex-wrap">
                         <button
-                          onClick={() => { setAddModalItemId(item.id); setAddAmount('1'); }}
-                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 hover:bg-emerald-100 transition-colors"
-                        >
-                          + Add
-                        </button>
-                        <button
                           onClick={() => { setReduceModalItemId(item.id); setReduceAmount('1'); }}
                           className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 hover:bg-rose-100 transition-colors"
                         >
-                          − Reduce
+                          − Reduce Stock
                         </button>
                       </div>
                     </td>
@@ -377,6 +377,16 @@ export default function InventoryPage() {
         maxWidth="lg"
       >
         <form onSubmit={handleAddVendor} className="space-y-4">
+          {branches.length > 0 && (
+            <Select
+              label="Branch"
+              options={branches.map((b) => ({ label: b.name, value: b.id }))}
+              value={vendorBranchId || filterBranchId || selectedBranchId || branches[0]?.id || ''}
+              onChange={(e) => setVendorBranchId(e.target.value)}
+              required
+            />
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Vendor Name"
@@ -404,7 +414,8 @@ export default function InventoryPage() {
                 { label: 'PRP & Blood Kits', value: 'PRP & Blood Kits' },
                 { label: 'Disposables & Needles', value: 'Disposables & Needles' },
                 { label: 'Skincare Products', value: 'Skincare Products' },
-                { label: 'Post-Care Creams', value: 'Post-Care Creams' }
+                { label: 'Post-Care Creams', value: 'Post-Care Creams' },
+                { label: '+ Add Custom Category...', value: 'custom' }
               ]}
               value={category}
               onChange={(e) => setCategory(e.target.value as any)}
@@ -418,6 +429,16 @@ export default function InventoryPage() {
               required
             />
           </div>
+
+          {category === 'custom' && (
+            <Input
+              label="Custom Category Name"
+              placeholder="e.g. Laser Accessories"
+              value={customCategory}
+              onChange={(e) => setCustomCategory(e.target.value)}
+              required
+            />
+          )}
 
           {/* Payment Type Selection: Credit or Debit? */}
           <div className="space-y-2 pt-2">
@@ -519,36 +540,6 @@ export default function InventoryPage() {
             </Button>
             <Button type="submit" variant="primary" icon={<Minus className="w-4 h-4" />}>
               Confirm Reduction
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Add Stock Modal */}
-      <Modal
-        isOpen={!!addModalItemId}
-        onClose={() => setAddModalItemId(null)}
-        title="Add Stock Quantity"
-        description={addItem ? `Current stock: ${addItem.quantity} units — ${addItem.itemName}` : ''}
-        maxWidth="sm"
-      >
-        <form onSubmit={handleQuickAddStock} className="space-y-4">
-          <Input
-            label="Quantity to Add"
-            type="text"
-            value={addAmount}
-            onChange={(e) => setAddAmount(e.target.value.replace(/\D/g, ''))}
-            required
-          />
-          <p className="text-xs text-slate-500">
-            Use this when new supplier shipments arrive.
-          </p>
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setAddModalItemId(null)}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" icon={<Plus className="w-4 h-4" />}>
-              Confirm Addition
             </Button>
           </div>
         </form>

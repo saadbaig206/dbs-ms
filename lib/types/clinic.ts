@@ -120,7 +120,8 @@ export type InventoryCategory =
   | 'PRP & Blood Kits' 
   | 'Disposables & Needles' 
   | 'Skincare Products' 
-  | 'Post-Care Creams';
+  | 'Post-Care Creams'
+  | string;
 
 export interface InventoryItem {
   id: string;
