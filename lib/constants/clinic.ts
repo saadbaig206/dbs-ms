@@ -7,4 +7,5 @@ export const CLINIC_INFO = {
   address: '13-C Khayaban-e-Saadi, Phase 7, opposite TM Roots Pharmacy, Phase 7 Ext Karachi, 75500, Pakistan',
   website: 'www.dbsaesthetic.pk',
   license: 'KMC-MED-SPA-2024',
+  operatingHours: '11:00 AM - 08:00 PM (Mon-Sat)',
 } as const;

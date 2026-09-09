@@ -13,7 +13,8 @@ import {
   User,
   Phone,
   Sparkles,
-  HelpCircle
+  HelpCircle,
+  MapPin
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { formatPKR } from '../../lib/utils/currency';
@@ -29,6 +30,7 @@ export default function RemindersPage() {
     rejectAppointmentReminder,
     markAppointmentReminderSent,
     branches,
+    clinicInfo,
     isLoading,
     role
   } = useClinic();
@@ -40,7 +42,7 @@ export default function RemindersPage() {
   // Auto-clear toast
   useEffect(() => {
     if (toastMessage) {
-      const timer = setTimeout(() => setToastMessage(null), 3000);
+      const timer = setTimeout(() => setToastMessage(null), 4000);
       return () => clearTimeout(timer);
     }
   }, [toastMessage]);
@@ -54,10 +56,9 @@ export default function RemindersPage() {
   }
 
   // Filter pending/upcoming appointments
-  const filteredAppointments = appointments.filter(apt => {
+  const filteredAppointments = appointments.filter((apt) => {
     // Only display reminders for Pending or Confirmed status appointments
-    const matchesAptStatus = apt.status === 'Pending' || apt.status === 'Confirmed';
-    if (!matchesAptStatus) return false;
+    if (apt.status !== 'Pending' && apt.status !== 'Confirmed') return false;
 
     // Filter by reminderStatus
     const remStatus = apt.reminderStatus || 'Pending';
@@ -78,11 +79,24 @@ export default function RemindersPage() {
       const apt = appointments.find(a => a.id === id);
       if (!apt) throw new Error('Appointment not found');
 
-      // 1. Find branch details for the location
-      const branchName = branches.find(b => b.id === apt.branchId)?.name || 'our clinic';
-      
-      // 2. Format the message properly
-      const message = `Dear ${apt.clientName}, this is a reminder for your upcoming appointment for ${apt.serviceName} scheduled on ${apt.date} at ${apt.time} at our ${branchName} branch with specialist ${apt.staffName}. Thank you!`;
+      // 1. Find branch & clinic details for the location
+      const branch = branches.find(b => b.id === apt.branchId) || (branches.length > 0 ? branches[0] : null);
+      const clinicName = clinicInfo?.name || 'DBS Aesthetic Clinic and Salon';
+      const locationStr = branch
+        ? `${branch.name} Branch — ${branch.location}`
+        : (clinicInfo?.address || '13-C Khayaban-e-Saadi, Phase 7 Ext Karachi');
+
+      // 2. Format the message properly using the requested template
+      const message = `Hi ${apt.clientName}!
+This is a reminder that you have an appointment with ${clinicName} tomorrow.
+
+📅 ${apt.date}
+🕐 ${apt.time}
+📍 ${locationStr}
+
+We look forward to seeing you! If you need to reschedule, please contact us.
+
+Thank you!`;
 
       // 3. Normalize the phone number (keeping only digits)
       let cleanPhone = apt.phone.replace(/\D/g, '');
@@ -241,6 +255,15 @@ export default function RemindersPage() {
                           <Phone className="w-3.5 h-3.5 text-emerald-500" />
                           {apt.phone}
                         </span>
+                        {(() => {
+                          const b = branches.find(br => br.id === apt.branchId) || (branches.length > 0 ? branches[0] : null);
+                          return b ? (
+                            <span className="flex items-center gap-1 text-slate-700 dark:text-slate-200">
+                              <MapPin className="w-3.5 h-3.5 text-amber-500" />
+                              {b.name}
+                            </span>
+                          ) : null;
+                        })()}
                       </div>
                     </div>
                   </div>

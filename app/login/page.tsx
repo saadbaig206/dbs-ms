@@ -61,9 +61,9 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <img
-              src="/logo.png"
+              src="/dbslogo.png"
               alt="DBS Logo"
-              className="h-16 w-auto object-contain invert mix-blend-screen"
+              className="h-22 w-auto object-contain "
             />
           </div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white uppercase font-sans leading-tight">

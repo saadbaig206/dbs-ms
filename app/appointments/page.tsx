@@ -5,7 +5,6 @@ import { motion } from 'framer-motion';
 import {
   Plus,
   Search,
-  Printer,
   Trash2,
   CalendarDays,
   Clock3
@@ -180,7 +179,7 @@ export default function AppointmentsPage() {
           ))}
         </div>
 
-        <div className="flex items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full md:w-auto">
           <Input
             placeholder="Search by client or treatment..."
             value={search}
@@ -189,29 +188,31 @@ export default function AppointmentsPage() {
             className="w-full md:w-64"
           />
 
-          <Select
-            options={[
-              { label: 'All Categories', value: 'All' },
-              { label: 'Treatment', value: 'treatment' },
-              { label: 'Consultation', value: 'consultation' }
-            ]}
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="w-40"
-          />
+          <div className="grid grid-cols-2 sm:flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+            <Select
+              options={[
+                { label: 'All Categories', value: 'All' },
+                { label: 'Treatment', value: 'treatment' },
+                { label: 'Consultation', value: 'consultation' }
+              ]}
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-full sm:w-40"
+            />
 
-          <Select
-            options={[
-              { label: 'All Statuses', value: 'All' },
-              { label: 'Confirmed', value: 'Confirmed' },
-              { label: 'In-Progress', value: 'In-Progress' },
-              { label: 'Completed', value: 'Completed' },
-              { label: 'Pending', value: 'Pending' }
-            ]}
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-40"
-          />
+            <Select
+              options={[
+                { label: 'All Statuses', value: 'All' },
+                { label: 'Confirmed', value: 'Confirmed' },
+                { label: 'In-Progress', value: 'In-Progress' },
+                { label: 'Completed', value: 'Completed' },
+                { label: 'Pending', value: 'Pending' }
+              ]}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full sm:w-40"
+            />
+          </div>
         </div>
       </div>
 
@@ -285,14 +286,7 @@ export default function AppointmentsPage() {
                         className="py-1 px-2 text-xs w-32"
                       />
                     </td>
-                    <td className="py-3.5 px-4 text-right space-x-1">
-                      <button
-                        onClick={() => setPrintData({ title: `Slip ${apt.id}`, type: 'slip', data: apt })}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors"
-                        title="Print Confirmation Slip"
-                      >
-                        <Printer className="w-4 h-4" />
-                      </button>
+                    <td className="py-3.5 px-4 text-right">
                       <button
                         onClick={() => deleteAppointment(apt.id)}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors"
@@ -396,13 +390,15 @@ export default function AppointmentsPage() {
                 <Select
                   aria-label="Time Slot"
                   options={[
-                    { label: '09:00 AM', value: '09:00 AM' },
-                    { label: '10:30 AM', value: '10:30 AM' },
-                    { label: '11:30 AM', value: '11:30 AM' },
-                    { label: '01:00 PM', value: '01:00 PM' },
-                    { label: '02:30 PM', value: '02:30 PM' },
+                    { label: '11:00 AM', value: '11:00 AM' },
+                    { label: '12:15 PM', value: '12:15 PM' },
+                    { label: '01:30 PM', value: '01:30 PM' },
+                    { label: '02:45 PM', value: '02:45 PM' },
                     { label: '04:00 PM', value: '04:00 PM' },
-                    { label: '05:30 PM', value: '05:30 PM' }
+                    { label: '05:15 PM', value: '05:15 PM' },
+                    { label: '06:30 PM', value: '06:30 PM' },
+                    { label: '07:30 PM', value: '07:30 PM' },
+                    { label: '08:00 PM', value: '08:00 PM' }
                   ]}
                   value={aptTime}
                   onChange={(e) => setAptTime(e.target.value)}

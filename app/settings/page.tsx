@@ -27,6 +27,7 @@ export default function SettingsPage() {
   const [address, setAddress] = useState<string>(clinicInfo?.address || '');
   const [currency, setCurrency] = useState<string>(clinicInfo?.currency || 'PKR (Rs)');
   const [language, setLanguage] = useState<string>(clinicInfo?.language || 'English (US)');
+  const [operatingHours, setOperatingHours] = useState<string>(clinicInfo?.operatingHours || '11:00 AM - 08:00 PM (Mon-Sat)');
   const [isSaved, setIsSaved] = useState<boolean>(false);
 
   if (isLoading || role !== 'admin') {
@@ -46,6 +47,7 @@ export default function SettingsPage() {
       setAddress(clinicInfo.address);
       setCurrency(clinicInfo.currency);
       setLanguage(clinicInfo.language);
+      setOperatingHours(clinicInfo.operatingHours || '11:00 AM - 08:00 PM (Mon-Sat)');
     }
   }, [clinicInfo]);
 
@@ -67,7 +69,8 @@ export default function SettingsPage() {
       email,
       address,
       currency,
-      language
+      language,
+      operatingHours
     });
     setIsSaved(true);
   };
@@ -118,7 +121,7 @@ export default function SettingsPage() {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Input
               label="Official Email"
               type="email"
@@ -130,6 +133,13 @@ export default function SettingsPage() {
               label="Address"
               value={address}
               onChange={(e) => handleFieldChange(setAddress, e.target.value)}
+              required
+            />
+            <Input
+              label="Operating Hours / Clinic Timing"
+              value={operatingHours}
+              onChange={(e) => handleFieldChange(setOperatingHours, e.target.value)}
+              placeholder="e.g. 11:00 AM - 08:00 PM (Mon-Sat)"
               required
             />
           </div>

@@ -39,6 +39,27 @@ export const Sidebar: React.FC = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
+  // Lock body scroll on mobile/tablet when sidebar drawer is open
+  React.useEffect(() => {
+    if (isMobileOpen) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+    }
+
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+    };
+  }, [isMobileOpen]);
+
+  // Close mobile sidebar automatically on route change
+  React.useEffect(() => {
+    setIsMobileOpen(false);
+  }, [pathname]);
+
   const handleLogout = async (e: React.MouseEvent) => {
     e.preventDefault();
     try {
@@ -59,7 +80,7 @@ export const Sidebar: React.FC = () => {
     { title: 'Inventory', href: '/inventory', icon: Package, adminOnly: true },
     { title: 'Branches', href: '/branches', icon: MapPin, adminOnly: true },
     { title: 'Finance & Reports', href: '/finance-reports', icon: DollarSign, adminOnly: true },
-    {title: 'Staff', href: '/staff', icon: Users2, adminOnly: true },
+    { title: 'Staff', href: '/staff', icon: Users2, adminOnly: true },
     { title: 'Reminders', href: '/reminders', icon: Bell, adminOnly: false },
   ];
 
@@ -67,9 +88,9 @@ export const Sidebar: React.FC = () => {
   const tagline = clinicInfo.name.split(' ').slice(1).join(' ') || 'Management System';
 
   const sidebarContent = (
-    <div className="flex flex-col h-full bg-[#0F172A] text-slate-300 select-none border-r border-slate-800">
+    <div className="flex flex-col h-full bg-[#0F172A] text-slate-300 select-none border-r border-slate-800 overscroll-contain">
       {/* Brand Header */}
-      <div className="flex items-center justify-between p-5 border-b border-slate-800/80">
+      <div className="flex items-center justify-between p-5 border-b border-slate-800/80 shrink-0">
         <Link href="/dashboard" className="flex items-center gap-3">
           
           {!isCollapsed && (
@@ -92,7 +113,7 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* Navigation List */}
-      <div className="flex-1 py-4 px-3 space-y-1 overflow-y-auto custom-scrollbar">
+      <div className="flex-1 py-4 px-3 space-y-1 overflow-y-auto overscroll-contain custom-scrollbar">
         {menuItems
           .filter((item) => {
             if (role === 'partner') {
@@ -106,7 +127,7 @@ export const Sidebar: React.FC = () => {
           .map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
-            const isRestricted = false; // Admin-only items are filtered out, so no items are restricted now
+            const isRestricted = false;
 
           return (
             <Link
@@ -154,8 +175,7 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* Footer Logout */}
-      <div className="p-3 border-t border-slate-800/80 bg-slate-950/40 space-y-2">
-
+      <div className="p-3 border-t border-slate-800/80 bg-slate-950/40 space-y-2 shrink-0">
         <Link
           href="/login"
           onClick={handleLogout}
@@ -173,32 +193,35 @@ export const Sidebar: React.FC = () => {
       {/* Mobile Toggle Button */}
       <button
         onClick={() => setIsMobileOpen(true)}
-        className="lg:hidden fixed bottom-5 right-5 z-40 p-3.5 rounded-full bg-blue-600 text-white shadow-2xl hover:bg-blue-700 transition-transform active:scale-95"
+        className="lg:hidden fixed bottom-5 right-5 z-40 p-3.5 rounded-full bg-blue-600 text-white shadow-2xl hover:bg-blue-700 transition-transform active:scale-95 cursor-pointer"
+        aria-label="Toggle Mobile Menu"
       >
         <Menu className="w-6 h-6" />
       </button>
 
-      {/* Mobile Drawer Backdrop */}
+      {/* Mobile Drawer Backdrop & Sidebar */}
       <AnimatePresence>
         {isMobileOpen && (
-          <div className="lg:hidden fixed inset-0 z-50 flex">
+          <div className="lg:hidden fixed inset-0 z-50 flex overscroll-none">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsMobileOpen(false)}
-              className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm"
+              onTouchMove={(e) => e.preventDefault()}
+              className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm touch-none"
             />
             <motion.div
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="relative w-72 max-w-xs h-full z-10"
+              className="relative w-72 max-w-[85vw] h-full z-10 flex flex-col overscroll-contain"
             >
               <button
                 onClick={() => setIsMobileOpen(false)}
-                className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-white"
+                className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-white z-20"
+                aria-label="Close Mobile Menu"
               >
                 <X className="w-6 h-6" />
               </button>

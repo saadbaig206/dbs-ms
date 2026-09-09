@@ -6,8 +6,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
   Bell,
-  Sun,
-  Moon,
   ShieldCheck,
   CheckCheck,
   User,
@@ -39,6 +37,29 @@ export const Navbar: React.FC = () => {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
+  const notifRef = React.useRef<HTMLDivElement>(null);
+  const profileRef = React.useRef<HTMLDivElement>(null);
+
+  // Close dropdowns when tapping outside anywhere on the screen
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setIsNotifOpen(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setIsProfileOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, []);
+
   const unreadCount = notifications.filter(n => !n.read).length;
   const currentDate = new Date().toLocaleDateString('en-US', {
     weekday: 'short',
@@ -62,17 +83,17 @@ export const Navbar: React.FC = () => {
   const todayAptsCount = (appointments || []).filter(a => a.date === todayStr && a.status !== 'Cancelled').length;
 
   return (
-    <header className="sticky top-0 z-20 w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 px-4 sm:px-8 py-3.5 flex items-center justify-between transition-colors">
+    <header className="sticky top-0 z-20 w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 px-3 sm:px-8 py-3 flex items-center justify-between transition-colors">
       {/* Left Container: Live Clinic Status */}
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight">
+      <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight truncate max-w-[150px] sm:max-w-xs">
               {clinicInfo.name}
             </span>
           </div>
-          <div className="h-4 w-[1px] bg-slate-200 dark:bg-slate-800" />
-          <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
+          <div className="hidden sm:block h-4 w-[1px] bg-slate-200 dark:bg-slate-800 shrink-0" />
+          <span className="hidden sm:inline-flex text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg shrink-0">
             {todayAptsCount} Active Treatments Today
           </span>
         </div>
@@ -86,23 +107,14 @@ export const Navbar: React.FC = () => {
           <span>{currentDate}</span>
         </div>
 
-        {/* Dark Mode Toggle */}
-        <button
-          onClick={toggleTheme}
-          className="p-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          title="Toggle Theme"
-        >
-          {theme === 'light' ? <Moon className="w-4 h-4 text-amber-400" /> : <Sun className="w-4 h-4" />}
-        </button>
-
         {/* Notifications Dropdown */}
-        <div className="relative">
+        <div className="relative" ref={notifRef}>
           <button
             onClick={() => {
               setIsNotifOpen(!isNotifOpen);
               setIsProfileOpen(false);
             }}
-            className="relative p-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="relative p-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <Bell className="w-4 h-4" />
             {unreadCount > 0 && (
@@ -116,7 +128,7 @@ export const Navbar: React.FC = () => {
                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                className="absolute right-0 mt-3 w-80 sm:w-96 bg-white dark:bg-slate-900 rounded-[20px] border border-slate-200 dark:border-slate-800 shadow-2xl z-50 overflow-hidden"
+                className="fixed left-3 right-3 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-3 w-auto sm:w-96 max-w-[calc(100vw-1.5rem)] bg-white dark:bg-slate-900 rounded-[20px] border border-slate-200 dark:border-slate-800 shadow-2xl z-50 overflow-hidden"
               >
                 <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
                   <div className="flex items-center gap-2">
@@ -186,13 +198,13 @@ export const Navbar: React.FC = () => {
         </div>
 
         {/* Profile Dropdown */}
-        <div className="relative">
+        <div className="relative" ref={profileRef}>
           <button
             onClick={() => {
               setIsProfileOpen(!isProfileOpen);
               setIsNotifOpen(false);
             }}
-            className="flex items-center gap-2.5 p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="flex items-center gap-2.5 p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <Avatar
               name={role === 'admin' ? 'Dr. Elena Rostova' : role === 'partner' ? 'Partner Account' : 'Staff Member'}
@@ -209,7 +221,7 @@ export const Navbar: React.FC = () => {
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
                 className="absolute right-0 mt-3 w-56 bg-white dark:bg-slate-900 rounded-[20px] border border-slate-200 dark:border-slate-800 shadow-2xl z-50 p-2 overflow-hidden"
               >
-                <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 mb-1">
+                <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
                   <p className="text-xs font-bold text-slate-900 dark:text-slate-100">
                     {role === 'admin' ? 'Dr. Elena Rostova' : role === 'partner' ? 'Clinic Partner' : 'Staff Practitioner'}
                   </p>
@@ -218,8 +230,7 @@ export const Navbar: React.FC = () => {
                   </p>
                 </div>
 
-
-                <div className="border-t border-slate-100 dark:border-slate-800 my-1 pt-1">
+                <div className="pt-1">
                   <Link
                     href="/login"
                     onClick={handleLogout}

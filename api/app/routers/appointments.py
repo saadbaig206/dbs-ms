@@ -162,17 +162,22 @@ async def send_appointment_reminder(
     if not db_apt:
         raise HTTPException(status_code=404, detail="Appointment not found")
         
-    branch_name = "our clinic"
+    clinic_name = "DBS Aesthetic Clinic and Salon"
+    location_str = "13-C Khayaban-e-Saadi, Phase 7 Ext Karachi"
     if db_apt.branch_id:
         branch_result = await db.execute(select(Branch).where(Branch.id == db_apt.branch_id))
         branch = branch_result.scalars().first()
         if branch:
-            branch_name = f"our {branch.name} branch"
+            location_str = f"{branch.name} ({branch.location})"
             
     message = (
-        f"Dear {db_apt.client_name}, this is a reminder for your upcoming appointment for "
-        f"{db_apt.service_name} scheduled on {db_apt.date} at {db_apt.time} at {branch_name} "
-        f"with specialist {db_apt.staff_name}. Thank you!"
+        f"Hi {db_apt.client_name}!\n"
+        f"This is a reminder that you have an appointment with {clinic_name} tomorrow.\n\n"
+        f"📅 {db_apt.date}\n"
+        f"🕐 {db_apt.time}\n"
+        f"📍 {location_str}\n\n"
+        f"We look forward to seeing you! If you need to reschedule, please contact us.\n\n"
+        f"Thank you!"
     )
     
     await WhatsAppService.send_message(db_apt.phone, message)

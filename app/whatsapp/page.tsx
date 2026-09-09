@@ -272,9 +272,9 @@ export default function WhatsAppPage() {
 
       {activeTab === 'chat' ? (
         /* Chat Console Split View */
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-230px)] min-h-[550px] max-h-[750px]">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-200px)] min-h-[500px] max-h-[750px]">
           {/* Left panel: Conversation List */}
-          <div className="lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-3xl flex flex-col overflow-hidden shadow-sm">
+          <div className={`lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-3xl flex-col overflow-hidden shadow-sm ${selectedConv ? 'hidden lg:flex' : 'flex'}`}>
             <div className="p-4 border-b border-slate-100 dark:border-slate-800/85 flex items-center justify-between">
               <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
                 Active Chats ({conversations.length})
@@ -353,18 +353,26 @@ export default function WhatsAppPage() {
           </div>
 
           {/* Right panel: Active Chat Window */}
-          <div className="lg:col-span-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-3xl flex flex-col overflow-hidden shadow-sm">
+          <div className={`lg:col-span-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-3xl flex-col overflow-hidden shadow-sm ${!selectedConv ? 'hidden lg:flex' : 'flex'}`}>
             {selectedConv ? (
               <>
                 {/* Chat Header */}
                 <div className="p-4 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/40">
-                  <div className="flex flex-col">
-                    <span className="text-xs font-extrabold text-slate-900 dark:text-white tracking-wide">
-                      {selectedConv.name || selectedConv.phone}
-                    </span>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      Phone: {selectedConv.phone}
-                    </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSelectedConv(null)}
+                      className="lg:hidden p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-200"
+                    >
+                      ← Back
+                    </button>
+                    <div className="flex flex-col">
+                      <span className="text-xs font-extrabold text-slate-900 dark:text-white tracking-wide">
+                        {selectedConv.name || selectedConv.phone}
+                      </span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        Phone: {selectedConv.phone}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Mode Selector Toggle */}

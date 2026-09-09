@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Package, Plus, Search, Minus, UserCheck, DollarSign } from 'lucide-react';
+import { Package, Plus, Search, Minus, UserCheck, DollarSign, RotateCw } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { InventoryCategory } from '../../lib/types/clinic';
 import { formatPKR } from '../../lib/utils/currency';
@@ -85,6 +85,38 @@ export default function InventoryPage() {
   const calcActual = Number(actualAmount) || 0;
   const calcPaid = paymentType === 'Debit' ? calcActual : (Number(amountPaid) || 0);
   const remainingAmount = Math.max(0, calcActual - calcPaid);
+
+  // Renew Vendor Form State
+  const [isRenewVendorModalOpen, setIsRenewVendorModalOpen] = useState(false);
+  const [renewItemId, setRenewItemId] = useState<string>('');
+  const [renewQty, setRenewQty] = useState<string>('10');
+  const [renewActualAmount, setRenewActualAmount] = useState<string>('5000');
+  const [renewPaymentType, setRenewPaymentType] = useState<'Debit' | 'Credit'>('Debit');
+  const [renewAmountPaid, setRenewAmountPaid] = useState<string>('5000');
+
+  const selectedRenewItem = inventory.find(i => i.id === renewItemId) || inventory[0];
+
+  useEffect(() => {
+    if (renewPaymentType === 'Debit') {
+      setRenewAmountPaid(renewActualAmount);
+    }
+  }, [renewPaymentType, renewActualAmount]);
+
+  const renewCalcActual = Number(renewActualAmount) || 0;
+  const renewCalcPaid = renewPaymentType === 'Debit' ? renewCalcActual : (Number(renewAmountPaid) || 0);
+  const renewRemainingAmount = Math.max(0, renewCalcActual - renewCalcPaid);
+
+  const handleOpenRenewModal = (itemId?: string) => {
+    const item = itemId ? inventory.find(i => i.id === itemId) : (inventory[0] || null);
+    if (item) {
+      setRenewItemId(item.id);
+      setRenewQty('10');
+      setRenewActualAmount(String(item.price * 10 || 5000));
+      setRenewAmountPaid(String(item.price * 10 || 5000));
+      setRenewPaymentType('Debit');
+    }
+    setIsRenewVendorModalOpen(true);
+  };
 
   const filteredInventory = inventory.filter((item) => {
     const matchesSearch =
@@ -196,6 +228,75 @@ export default function InventoryPage() {
     }
   };
 
+  const handleRenewVendor = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const targetItem = inventory.find(i => i.id === renewItemId);
+    if (!targetItem) {
+      showToast("Please select an item / vendor to renew", "error");
+      return;
+    }
+
+    setIsRenewVendorModalOpen(false);
+
+    const qtyNum = Number(renewQty) || 1;
+    const actAmtNum = Number(renewActualAmount) || 0;
+    const pdAmtNum = renewPaymentType === 'Debit' ? actAmtNum : (Number(renewAmountPaid) || 0);
+    const remAmtNum = Math.max(0, actAmtNum - pdAmtNum);
+    const isFullyPaid = remAmtNum === 0;
+
+    const activeUser = userEmail || role || 'Admin/Partner';
+    const todayStr = new Date().toISOString().split('T')[0];
+    const nowFormatStr = new Date().toLocaleString('en-US', {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    });
+
+    const vName = targetItem.supplier;
+    const pName = targetItem.itemName;
+    const targetBranchId = targetItem.branchId || filterBranchId || selectedBranchId || userBranchId || (branches.length > 0 ? branches[0].id : undefined);
+
+    showToast(`Renewing vendor order for '${vName}'...`);
+
+    try {
+      await updateInventoryQuantity(targetItem.id, qtyNum);
+
+      await addExpense({
+        title: `Vendor Renewal: ${pName} (${vName})`,
+        category: 'Products',
+        amount: actAmtNum,
+        actualAmount: actAmtNum,
+        amountPaid: pdAmtNum,
+        remainingAmount: remAmtNum,
+        paymentType: renewPaymentType,
+        vendorName: vName,
+        productName: pName,
+        date: todayStr,
+        status: isFullyPaid ? 'Paid' : 'Pending',
+        paymentMethod: 'Cash',
+        notes: `Vendor Renewal | Supplier: ${vName} | Product: ${pName} | Restocked Qty: +${qtyNum} | Payment: ${renewPaymentType}`,
+        addedBy: activeUser,
+        paidBy: activeUser,
+        branchId: targetBranchId,
+        paymentLogs: pdAmtNum > 0 ? [
+          {
+            id: `PAYLOG-${Date.now()}`,
+            amount: pdAmtNum,
+            paidBy: activeUser,
+            date: nowFormatStr,
+            paymentMethod: 'Cash',
+            notes: renewPaymentType === 'Debit' ? 'Full Debit Payment on Renewal' : 'Credit Advance on Renewal'
+          }
+        ] : []
+      });
+
+      showToast(`Vendor order for '${vName}' (${pName}) renewed successfully with +${qtyNum} units!`);
+    } catch (err: any) {
+      console.error("Failed to renew vendor order:", err);
+      showToast("Error renewing vendor order", "error");
+    }
+  };
+
   const handleReduceStock = (e: React.FormEvent) => {
     e.preventDefault();
     const amount = Number(reduceAmount) || 0;
@@ -252,6 +353,9 @@ export default function InventoryPage() {
               ))}
             </select>
           )}
+          <Button onClick={() => handleOpenRenewModal()} variant="outline" icon={<RotateCw className="w-4 h-4" />}>
+            Renew Vendor
+          </Button>
           <Button onClick={() => setIsAddVendorModalOpen(true)} variant="primary" icon={<Plus className="w-4 h-4" />}>
             Add Vendor
           </Button>
@@ -351,7 +455,14 @@ export default function InventoryPage() {
                       </Badge>
                     </td>
                     <td className="py-3.5 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1 flex-wrap">
+                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                        <button
+                          onClick={() => handleOpenRenewModal(item.id)}
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 hover:bg-emerald-100 transition-colors flex items-center gap-1"
+                        >
+                          <RotateCw className="w-3 h-3" />
+                          Renew Vendor
+                        </button>
                         <button
                           onClick={() => { setReduceModalItemId(item.id); setReduceAmount('1'); }}
                           className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 hover:bg-rose-100 transition-colors"
@@ -540,6 +651,149 @@ export default function InventoryPage() {
             </Button>
             <Button type="submit" variant="primary" icon={<Minus className="w-4 h-4" />}>
               Confirm Reduction
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Renew Vendor Order Modal */}
+      <Modal
+        isOpen={isRenewVendorModalOpen}
+        onClose={() => setIsRenewVendorModalOpen(false)}
+        title="Renew Vendor Order & Restock"
+        description="Select an existing vendor supplier/product to restock inventory and log financial payments"
+        maxWidth="lg"
+      >
+        <form onSubmit={handleRenewVendor} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
+              Select Item / Vendor Supplier
+            </label>
+            <select
+              value={renewItemId}
+              onChange={(e) => {
+                const id = e.target.value;
+                setRenewItemId(id);
+                const item = inventory.find(i => i.id === id);
+                if (item) {
+                  setRenewActualAmount(String(item.price * Number(renewQty || 10)));
+                }
+              }}
+              className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-950 dark:text-slate-50 text-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
+            >
+              {inventory.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.itemName} — Supplier: {item.supplier} (Current Stock: {item.quantity} units)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {selectedRenewItem && (
+            <div className="p-3 bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 rounded-xl text-xs flex justify-between items-center">
+              <div>
+                <span className="font-bold text-slate-800 dark:text-slate-200">Current Vendor: </span>
+                <span className="font-semibold text-blue-600 dark:text-blue-400">{selectedRenewItem.supplier}</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-800 dark:text-slate-200">Current Stock: </span>
+                <span className="font-mono font-bold text-slate-900 dark:text-slate-100">{selectedRenewItem.quantity} units</span>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Restock Quantity (+Units)"
+              type="text"
+              value={renewQty}
+              onChange={(e) => {
+                const q = e.target.value.replace(/\D/g, '');
+                setRenewQty(q);
+                if (selectedRenewItem) {
+                  setRenewActualAmount(String(selectedRenewItem.price * (Number(q) || 0)));
+                }
+              }}
+              required
+            />
+
+            <Input
+              label="Total Order Cost (PKR)"
+              type="text"
+              value={renewActualAmount}
+              onChange={(e) => setRenewActualAmount(e.target.value.replace(/\D/g, ''))}
+              required
+            />
+          </div>
+
+          {/* Payment Type Selection */}
+          <div className="space-y-2 pt-2">
+            <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">
+              Vendor Payment Terms
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setRenewPaymentType('Debit')}
+                className={`py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
+                  renewPaymentType === 'Debit'
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/30'
+                    : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                Debit (Instant Full Payment)
+              </button>
+              <button
+                type="button"
+                onClick={() => setRenewPaymentType('Credit')}
+                className={`py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
+                  renewPaymentType === 'Credit'
+                    ? 'bg-amber-600 text-white border-amber-600 shadow-md shadow-amber-600/30'
+                    : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                Credit (Deferred / Installments)
+              </button>
+            </div>
+          </div>
+
+          {renewPaymentType === 'Credit' && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="space-y-3 pt-2"
+            >
+              <Input
+                label="Initial Amount Paid Now (PKR)"
+                type="text"
+                value={renewAmountPaid}
+                onChange={(e) => setRenewAmountPaid(e.target.value.replace(/\D/g, ''))}
+                required
+              />
+            </motion.div>
+          )}
+
+          {/* Dues summary */}
+          <div className={`p-4 rounded-xl text-xs flex justify-between items-center ${
+            renewRemainingAmount > 0
+              ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-900/60'
+              : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-900/60'
+          }`}>
+            <div>
+              <span className="font-bold">Remaining Dues to Vendor: </span>
+              <span className="font-mono font-black text-sm">{formatPKR(renewRemainingAmount)}</span>
+            </div>
+            <Badge variant={renewRemainingAmount > 0 ? 'warning' : 'success'}>
+              {renewRemainingAmount > 0 ? 'Credit Renewal (Pending Balance)' : 'Fully Paid (Debit)'}
+            </Badge>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <Button type="button" variant="outline" onClick={() => setIsRenewVendorModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" icon={<RotateCw className="w-4 h-4" />}>
+              Confirm Vendor Renewal
             </Button>
           </div>
         </form>

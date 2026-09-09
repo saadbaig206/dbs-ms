@@ -27,6 +27,7 @@ interface ClinicContextType {
     address: string;
     currency: string;
     language: string;
+    operatingHours?: string;
   };
   updateClinicInfo: (info: {
     name: string;
@@ -35,6 +36,7 @@ interface ClinicContextType {
     address: string;
     currency: string;
     language: string;
+    operatingHours?: string;
   }) => void;
 
   // Role & User
@@ -167,7 +169,8 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       email: CLINIC_INFO.email,
       address: CLINIC_INFO.address,
       currency: 'PKR (Rs)',
-      language: 'English (US)'
+      language: 'English (US)',
+      operatingHours: CLINIC_INFO.operatingHours || '11:00 AM - 08:00 PM (Mon-Sat)',
     };
   });
 
@@ -176,7 +179,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem('clinic_info', JSON.stringify(info));
   };
 
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [theme] = useState<'light' | 'dark'>('dark');
   const [searchQuery, setSearchQuery] = useState('');
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [printData, setPrintData] = useState<{ title: string; type: 'invoice' | 'slip' | 'client'; data: any } | null>(null);
@@ -201,30 +204,15 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Hydrate theme on mount
+  // Force dark mode globally
   useEffect(() => {
-    const savedTheme = localStorage.getItem('clinic_theme') as 'light' | 'dark';
-    if (savedTheme) {
-      setTheme(savedTheme);
-    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setTheme('dark');
-    }
+    document.documentElement.classList.add('dark');
+    localStorage.setItem('clinic_theme', 'dark');
   }, []);
 
-  useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [theme]);
-
   const toggleTheme = () => {
-    setTheme(prev => {
-      const next = prev === 'light' ? 'dark' : 'light';
-      localStorage.setItem('clinic_theme', next);
-      return next;
-    });
+    document.documentElement.classList.add('dark');
+    localStorage.setItem('clinic_theme', 'dark');
   };
   
   const setRole = (newRole: UserRole) => {
