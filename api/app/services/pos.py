@@ -8,6 +8,9 @@ from app.models.notification import NotificationItem
 from app.models.inventory import InventoryItem
 from app.models.service import ServiceItem
 
+import uuid
+import secrets
+
 async def checkout(
     db: AsyncSession,
     client_name: str,
@@ -18,7 +21,9 @@ async def checkout(
     card_last_four: str = None,
     card_type: str = None,
     bank_txn_id: str = None,
-    branch_id: str = None
+    branch_id: str = None,
+    client_phone: str = None,
+    client_id: str = None
 ) -> FinancialTransaction:
     # Compute totals
     subtotal = sum(item["price"] * item["quantity"] for item in cart_items)
@@ -29,38 +34,47 @@ async def checkout(
     
     today_str = datetime.now().strftime("%Y-%m-%d")
     
-    # Generate Invoice ID and Transaction ID sequentially, checking for uniqueness to avoid collisions
+    # Generate collision-resistant unique Transaction and Invoice IDs
     count_stmt = select(func.count()).select_from(FinancialTransaction)
     txn_count_result = await db.execute(count_stmt)
-    txn_count = txn_count_result.scalar() or 0
+    txn_count = (txn_count_result.scalar() or 0) + 1
 
-    txn_index = txn_count + 1
-    txn_id = f"TXN-{900 + txn_index}"
-    invoice_id = f"INV-{datetime.now().year}-{str(txn_index).zfill(3)}"
+    suffix = secrets.token_hex(2).upper()
+    txn_id = f"TXN-{900 + txn_count}-{suffix}"
+    invoice_id = f"INV-{datetime.now().year}-{str(txn_count).zfill(3)}-{suffix}"
 
     while True:
         exists_stmt = select(FinancialTransaction).where(FinancialTransaction.id == txn_id)
         exists_result = await db.execute(exists_stmt)
         if not exists_result.scalars().first():
             break
-        txn_index += 1
-        txn_id = f"TXN-{900 + txn_index}"
-        invoice_id = f"INV-{datetime.now().year}-{str(txn_index).zfill(3)}"
+        txn_count += 1
+        suffix = secrets.token_hex(2).upper()
+        txn_id = f"TXN-{900 + txn_count}-{suffix}"
+        invoice_id = f"INV-{datetime.now().year}-{str(txn_count).zfill(3)}-{suffix}"
     
     # 1. Update client totals and history (creating client on the fly if needed)
-    client_result = await db.execute(select(Client).where(Client.name.ilike(client_name)))
-    client = client_result.scalars().first()
+    client = None
+    if client_id:
+        c_res = await db.execute(select(Client).where(Client.id == client_id))
+        client = c_res.scalars().first()
+    if not client and client_phone and client_phone != "0000000000":
+        c_res = await db.execute(select(Client).where(Client.phone == client_phone))
+        client = c_res.scalars().first()
+    if not client:
+        c_res = await db.execute(select(Client).where(Client.name.ilike(client_name)))
+        client = c_res.scalars().first()
     
     service_names = ", ".join(item["name"] for item in cart_items)
     
     if not client:
         count_result = await db.execute(select(Client))
         count = len(count_result.scalars().all())
-        client_id = f"CLT-{800 + count + 1}"
+        new_client_id = f"CLT-{800 + count + 1}"
         client = Client(
-            id=client_id,
+            id=new_client_id,
             name=client_name,
-            phone="0000000000",
+            phone=client_phone or "0000000000",
             gender="Other",
             age=30,
             address="N/A",

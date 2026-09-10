@@ -229,6 +229,16 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setRole(nextRole);
   };
 
+  // Safe API fetcher with fallback
+  const fetchSafe = async <T,>(url: string, fallback: T): Promise<T> => {
+    try {
+      return await apiFetch<T>(url);
+    } catch (e) {
+      console.error(`Failed to fetch ${url}:`, e);
+      return fallback;
+    }
+  };
+
   // Main fetch function to load all backend data
   const refreshData = async (showSpinner = false) => {
     if (showSpinner) setIsLoading(true);
@@ -253,16 +263,6 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setIsLoading(false);
         return;
       }
-
-      // 2. Fetch resource collections
-      const fetchSafe = async <T,>(url: string, fallback: T): Promise<T> => {
-        try {
-          return await apiFetch<T>(url);
-        } catch (e) {
-          console.error(`Failed to fetch ${url}:`, e);
-          return fallback;
-        }
-      };
 
       const [
         branchesData,
@@ -321,6 +321,26 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  // Targeted Refetch Helpers
+  const refreshBranches = async () => setBranches(await fetchSafe('/branches', []));
+  const refreshStaff = async () => setStaff(await fetchSafe('/staff', []));
+  const refreshServices = async () => setServices(await fetchSafe('/services', []));
+  const refreshClients = async () => setClients(await fetchSafe('/clients', []));
+  const refreshAppointments = async () => setAppointments(await fetchSafe('/appointments', []));
+  const refreshInventory = async () => setInventory(await fetchSafe('/inventory', []));
+  const refreshAttendance = async () => setAttendance(await fetchSafe('/attendance', []));
+  const refreshNotifications = async () => setNotifications(await fetchSafe('/notifications', []));
+  const refreshExpenses = async () => {
+    if (role === 'admin' || role === 'partner') {
+      setExpenses(await fetchSafe('/expenses', []));
+    }
+  };
+  const refreshTransactions = async () => {
+    if (role === 'admin' || role === 'partner') {
+      setTransactions(await fetchSafe('/transactions', []));
+    }
+  };
+
   // Fetch data on load
   useEffect(() => {
     refreshData(true);
@@ -332,7 +352,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       method: 'POST',
       body: JSON.stringify(newBranch),
     });
-    await refreshData();
+    await refreshBranches();
   };
 
   const updateBranch = async (id: string, updated: Partial<Branch>) => {
@@ -340,14 +360,14 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       method: 'PUT',
       body: JSON.stringify(updated),
     });
-    await refreshData();
+    await refreshBranches();
   };
 
   const deleteBranch = async (id: string) => {
     await apiFetch(`/branches/${id}`, {
       method: 'DELETE',
     });
-    await refreshData();
+    await refreshBranches();
   };
 
   // Staff CRUD
@@ -356,7 +376,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       method: 'POST',
       body: JSON.stringify(newStaff),
     });
-    await refreshData();
+    await refreshStaff();
   };
 
   const updateStaff = async (id: string, updated: Partial<Staff>) => {
@@ -364,14 +384,14 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       method: 'PUT',
       body: JSON.stringify(updated),
     });
-    await refreshData();
+    await refreshStaff();
   };
 
   const deleteStaff = async (id: string) => {
     await apiFetch(`/staff/${id}`, {
       method: 'DELETE',
     });
-    await refreshData();
+    await refreshStaff();
   };
 
   // Services CRUD
@@ -380,7 +400,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       method: 'POST',
       body: JSON.stringify(newService),
     });
-    await refreshData();
+    await refreshServices();
   };
 
   const updateService = async (id: string, updated: Partial<ServiceItem>) => {
@@ -388,7 +408,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       method: 'PUT',
       body: JSON.stringify(updated),
     });
-    await refreshData();
+    await refreshServices();
   };
 
   // Clients CRUD
@@ -397,7 +417,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       method: 'POST',
       body: JSON.stringify(newClientData),
     });
-    await refreshData();
+    await refreshClients();
   };
 
   const updateClient = async (id: string, updated: Partial<Client>) => {
@@ -405,7 +425,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       method: 'PUT',
       body: JSON.stringify(updated),
     });
-    await refreshData();
+    await refreshClients();
   };
 
   // Appointments CRUD
@@ -417,7 +437,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         branchId: newApt.branchId || selectedBranchId || userBranchId || undefined
       }),
     });
-    await refreshData();
+    await refreshAppointments();
   };
 
   const updateAppointmentStatus = async (id: string, status: Appointment['status']) => {
@@ -425,14 +445,14 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       method: 'PUT',
       body: JSON.stringify({ status }),
     });
-    await refreshData();
+    await refreshAppointments();
   };
 
   const deleteAppointment = async (id: string) => {
     await apiFetch(`/appointments/${id}`, {
       method: 'DELETE',
     });
-    await refreshData();
+    await refreshAppointments();
   };
 
   const sendAppointmentReminder = async (id: string) => {
@@ -465,14 +485,14 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         branchId: item.branchId || selectedBranchId || userBranchId || undefined
       }),
     });
-    await refreshData();
+    await refreshInventory();
   };
 
   const updateInventoryQuantity = async (id: string, delta: number) => {
     await apiFetch(`/inventory/${id}/quantity?delta=${delta}`, {
       method: 'PATCH',
     });
-    await refreshData();
+    await refreshInventory();
   };
 
   // Expenses CRUD
@@ -487,7 +507,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         branchId: expense.branchId || selectedBranchId || userBranchId || undefined
       }),
     });
-    await refreshData();
+    await refreshExpenses();
   };
 
   const updateExpense = async (id: string, updated: Partial<ExpenseItem>) => {
@@ -499,7 +519,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         paidBy: updated.paidBy || activeUser
       }),
     });
-    await refreshData();
+    await refreshExpenses();
   };
 
 
@@ -507,13 +527,12 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const res = await apiFetch<any>(`/expenses/${id}`, {
       method: 'DELETE',
     });
-    await refreshData();
+    await refreshExpenses();
     return res;
   };
 
   const removeExpensesByStaffId = async (staffId: string) => {
-    // Handled automatically by backend when staff is updated/deleted, but we can verify
-    await refreshData();
+    await refreshExpenses();
   };
 
 

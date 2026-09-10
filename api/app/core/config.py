@@ -34,3 +34,7 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
+if settings.SECRET_KEY == "super-secret-key-change-in-production":
+    import logging
+    logging.warning("SECURITY WARNING: Running with default fallback SECRET_KEY. Please set SECRET_KEY in .env for production environments.")
+

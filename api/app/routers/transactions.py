@@ -13,6 +13,8 @@ router = APIRouter()
 async def list_transactions(
     search: Optional[str] = None,
     branch_id: Optional[str] = None,
+    skip: Optional[int] = None,
+    limit: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_admin_or_partner_user)
 ):
@@ -22,7 +24,13 @@ async def list_transactions(
     if branch_id:
         query = query.where(FinancialTransaction.branch_id == branch_id)
         
-    result = await db.execute(query.order_by(FinancialTransaction.id.desc()))
+    query = query.order_by(FinancialTransaction.id.desc())
+    if skip is not None:
+        query = query.offset(skip)
+    if limit is not None:
+        query = query.limit(limit)
+
+    result = await db.execute(query)
     return result.scalars().all()
 
 @router.get("/{id_or_invoice_id}", response_model=FinancialTransactionResponse)

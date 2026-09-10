@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CreditCard,
@@ -192,17 +192,28 @@ export default function POSPage() {
 
   const categories = ['All', 'Facial & Skin Care', 'Laser Treatments', 'Injectables & Anti-Aging', 'Body Contouring', 'IV Therapy', 'Rejuvenation'];
 
-  const filteredServices = services.filter((s) => {
-    const matchesCat = selectedCategory === 'All' || s.category === selectedCategory;
-    const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase());
-    return matchesCat && matchesSearch;
-  });
+  const filteredServices = useMemo(() => {
+    return services.filter((s) => {
+      const matchesCat = selectedCategory === 'All' || s.category === selectedCategory;
+      const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase());
+      return matchesCat && matchesSearch;
+    });
+  }, [services, selectedCategory, search]);
 
-  const subtotal = posCart.reduce((acc, item) => acc + item.price * item.quantity, 0);
-  const discountAmount = (subtotal * (Number(discountPercent) || 0)) / 100;
-  const taxableAmount = subtotal - discountAmount;
-  const taxAmount = (taxableAmount * (Number(taxPercent) || 0)) / 100;
-  const grandTotal = Math.round((taxableAmount + taxAmount) * 100) / 100;
+  const { subtotal, discountAmount, taxableAmount, taxAmount, grandTotal } = useMemo(() => {
+    const sub = posCart.reduce((acc, item) => acc + item.price * item.quantity, 0);
+    const disc = (sub * (Number(discountPercent) || 0)) / 100;
+    const taxable = sub - disc;
+    const tax = (taxable * (Number(taxPercent) || 0)) / 100;
+    const grand = Math.round((taxable + tax) * 100) / 100;
+    return {
+      subtotal: sub,
+      discountAmount: disc,
+      taxableAmount: taxable,
+      taxAmount: tax,
+      grandTotal: grand
+    };
+  }, [posCart, discountPercent, taxPercent]);
 
   const handleCheckout = async () => {
     if (posCart.length === 0) return;

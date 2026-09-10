@@ -120,7 +120,8 @@ async def delete_staff_member(
     if not db_staff:
         raise HTTPException(status_code=404, detail="Staff member not found")
         
-    await db.delete(db_staff)
+    db_staff.status = "Inactive"
+    db.add(db_staff)
     await remove_expenses_by_staff_id(db, staff_id)
     await db.commit()
-    return {"message": "Staff member deleted successfully"}
+    return {"message": "Staff member marked as Inactive successfully"}

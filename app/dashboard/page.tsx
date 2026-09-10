@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
@@ -40,6 +40,7 @@ export default function DashboardPage() {
   } = useClinic();
 
   const [mounted, setMounted] = React.useState(false);
+  const [attendanceMsg, setAttendanceMsg] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     setMounted(true);
@@ -70,37 +71,47 @@ export default function DashboardPage() {
     ? allExpenses.filter(e => e.branchId === selectedBranchId)
     : allExpenses;
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todayAppointments = appointments.filter(a => a.date === todayStr);
-  const lowStockCount = inventory.filter(i => i.status === 'Low Stock' || i.status === 'Out of Stock').length;
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
-  const currentStaff = staff.find(s => s.email?.toLowerCase() === userEmail?.toLowerCase());
-  const todayRecord = attendance.find(a => a.staffId === currentStaff?.id && a.date === todayStr);
+  const todayAppointments = useMemo(() => appointments.filter(a => a.date === todayStr), [appointments, todayStr]);
+  const lowStockCount = useMemo(() => inventory.filter(i => i.status === 'Low Stock' || i.status === 'Out of Stock').length, [inventory]);
+
+  const currentStaff = useMemo(() => staff.find(s => s.email?.toLowerCase() === userEmail?.toLowerCase()), [staff, userEmail]);
+  const todayRecord = useMemo(() => attendance.find(a => a.staffId === currentStaff?.id && a.date === todayStr), [attendance, currentStaff, todayStr]);
   const hasCheckedInToday = !!todayRecord;
   const hasCheckedOutToday = !!todayRecord?.checkOutTime;
 
-  const totalRevenue = transactions.reduce((acc, t) => acc + t.grandTotal, 0);
-  const todayRevenue = transactions.filter(t => t.date === todayStr).reduce((acc, t) => acc + t.grandTotal, 0);
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
-  
-  const monthlyRevenue = transactions
-    .filter(t => {
-      const d = new Date(t.date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    })
-    .reduce((acc, t) => acc + t.grandTotal, 0);
+  const { totalRevenue, todayRevenue, monthlyRevenue, totalExpenses, monthlyExpenses, netProfit } = useMemo(() => {
+    const totRev = transactions.reduce((acc, t) => acc + t.grandTotal, 0);
+    const todRev = transactions.filter(t => t.date === todayStr).reduce((acc, t) => acc + t.grandTotal, 0);
+    const dNow = new Date();
+    const curMonth = dNow.getMonth();
+    const curYear = dNow.getFullYear();
 
-  const totalExpenses = expenses.reduce((acc, e) => acc + e.amount, 0);
-  
-  const monthlyExpenses = expenses
-    .filter(e => {
-      const d = new Date(e.date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    })
-    .reduce((acc, e) => acc + e.amount, 0);
+    const monRev = transactions
+      .filter(t => {
+        const d = new Date(t.date);
+        return d.getMonth() === curMonth && d.getFullYear() === curYear;
+      })
+      .reduce((acc, t) => acc + t.grandTotal, 0);
 
-  const netProfit = totalRevenue - totalExpenses;
+    const totExp = expenses.reduce((acc, e) => acc + e.amount, 0);
+    const monExp = expenses
+      .filter(e => {
+        const d = new Date(e.date);
+        return d.getMonth() === curMonth && d.getFullYear() === curYear;
+      })
+      .reduce((acc, e) => acc + e.amount, 0);
+
+    return {
+      totalRevenue: totRev,
+      todayRevenue: todRev,
+      monthlyRevenue: monRev,
+      totalExpenses: totExp,
+      monthlyExpenses: monExp,
+      netProfit: totRev - totExp
+    };
+  }, [transactions, expenses, todayStr]);
 
   return (
     <div className="space-y-8 pb-10">
@@ -116,12 +127,12 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
           {branches.length > 0 && (
             <select
               value={selectedBranchId || ''}
               onChange={(e) => setSelectedBranchId(e.target.value || null)}
-              className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-950 dark:text-slate-50 text-sm font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-sm cursor-pointer"
+              className="w-full sm:w-auto px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-950 dark:text-slate-50 text-sm font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-sm cursor-pointer"
             >
               <option value="">All Branches</option>
               {branches.map((b) => (
@@ -132,18 +143,18 @@ export default function DashboardPage() {
             </select>
           )}
           {role !== 'partner' && (
-            <>
-              <Link href="/pos">
-                <Button variant="primary" icon={<CreditCard className="w-4 h-4" />}>
+            <div className="flex items-center gap-2.5 w-full sm:w-auto">
+              <Link href="/pos" className="flex-1 sm:flex-initial">
+                <Button variant="primary" icon={<CreditCard className="w-4 h-4" />} className="w-full sm:w-auto justify-center">
                   Open Billing
                 </Button>
               </Link>
-              <Link href="/appointments">
-                <Button variant="outline" icon={<Plus className="w-4 h-4" />}>
+              <Link href="/appointments" className="flex-1 sm:flex-initial">
+                <Button variant="outline" icon={<Plus className="w-4 h-4" />} className="w-full sm:w-auto justify-center">
                   New Appointment
                 </Button>
               </Link>
-            </>
+            </div>
           )}
         </div>
       </div>
@@ -176,6 +187,9 @@ export default function DashboardPage() {
               {hasCheckedInToday && ` Checked in at ${todayRecord?.checkInTime || 'N/A'}.`}
               {hasCheckedOutToday && ` Checked out at ${todayRecord?.checkOutTime || 'N/A'}.`}
             </p>
+            {attendanceMsg && (
+              <p className="text-xs font-bold text-blue-600 dark:text-blue-400 mt-1">{attendanceMsg}</p>
+            )}
           </div>
           <div className="shrink-0 flex items-center gap-2">
             {!hasCheckedInToday && (
@@ -183,21 +197,21 @@ export default function DashboardPage() {
                 variant="primary"
                 onClick={async () => {
                   if (typeof window === 'undefined' || !navigator.geolocation) {
-                    alert('Geolocation is not supported by your browser.');
+                    setAttendanceMsg('Geolocation is not supported by your browser.');
                     return;
                   }
+                  setAttendanceMsg('Requesting location & logging check-in...');
                   navigator.geolocation.getCurrentPosition(
                     async (pos) => {
                       try {
                         await markAttendance(currentStaff.id, 'Present', 'Self Check-in', pos.coords.latitude, pos.coords.longitude);
-                        alert('Checked in successfully!');
-                        window.location.reload();
+                        setAttendanceMsg('Checked in successfully!');
                       } catch (e: any) {
-                        alert('Check-in failed: ' + e.message);
+                        setAttendanceMsg('Check-in failed: ' + e.message);
                       }
                     },
                     (err) => {
-                      alert('GPS Location access is required to mark attendance.');
+                      setAttendanceMsg('GPS Location access is required to mark attendance.');
                     },
                     { enableHighAccuracy: true, timeout: 5000 }
                   );

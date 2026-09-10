@@ -33,6 +33,8 @@ async def check_double_booking(db: AsyncSession, staff_id: str, date: str, time:
 async def list_appointments(
     search: Optional[str] = None,
     branch_id: Optional[str] = None,
+    skip: Optional[int] = None,
+    limit: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_staff_user),
     user_branch_id: Optional[str] = Depends(get_user_branch_id)
@@ -44,7 +46,13 @@ async def list_appointments(
     if active_branch_id:
         query = query.where(Appointment.branch_id == active_branch_id)
         
-    result = await db.execute(query.order_by(Appointment.id.desc()))
+    query = query.order_by(Appointment.id.desc())
+    if skip is not None:
+        query = query.offset(skip)
+    if limit is not None:
+        query = query.limit(limit)
+
+    result = await db.execute(query)
     return result.scalars().all()
 
 @router.post("", response_model=AppointmentResponse)

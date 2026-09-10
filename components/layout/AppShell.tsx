@@ -9,6 +9,7 @@ import { Sidebar } from './Sidebar';
 import { Navbar } from './Navbar';
 import { CommandPalette } from '../ui/CommandPalette';
 import { PrintModal } from '../ui/PrintModal';
+import { OfflineBanner } from '../ui/OfflineBanner';
 
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const pathname = usePathname();
@@ -59,7 +60,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <Navbar />
-          <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto flex items-center justify-center min-h-[400px]">
+          <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto min-w-0 flex items-center justify-center min-h-[400px]">
             <div className="text-slate-500 animate-pulse font-bold">Loading...</div>
           </main>
         </div>
@@ -69,6 +70,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
   return (
     <>
+      <OfflineBanner />
       <div className="flex min-h-screen">
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0">

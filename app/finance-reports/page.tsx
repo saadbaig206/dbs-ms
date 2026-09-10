@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -17,10 +17,14 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  Filter,
   AlertTriangle
 } from 'lucide-react';
+import { clsx } from 'clsx';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { formatPKR } from '../../lib/utils/currency';
+import { escapeHtml } from '../../lib/utils/sanitize';
 import { ExpenseCategory } from '../../lib/types/clinic';
 import { StatCard } from '../../components/cards/StatCard';
 import { Button } from '../../components/ui/Button';
@@ -115,8 +119,8 @@ function FinanceDatePicker({
                   setIsOpen(false);
                 }}
                 className={`h-8 rounded-lg text-xs font-bold transition ${dateKey(date) === value
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
-                    : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-blue-300'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
+                  : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-blue-300'
                   }`}
               >
                 {date.getDate()}
@@ -181,6 +185,15 @@ export default function FinanceReportsPage() {
   const [expSearch, setExpSearch] = useState('');
   const [expCategoryFilter, setExpCategoryFilter] = useState<string>('All');
   const [expStatusFilter, setExpStatusFilter] = useState<string>('All');
+  const [isExpStatusModalOpen, setIsExpStatusModalOpen] = useState(false);
+
+  const expStatusOptions = [
+    { label: 'All Statuses & Dues', value: 'All' },
+    { label: 'Unpaid Vendor Dues (Remaining Balance > 0)', value: 'UnpaidVendor' },
+    { label: 'Fully Paid Expenses', value: 'Paid' },
+    { label: 'Pending Expenses', value: 'Pending' }
+  ];
+
   const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false);
   const [expTitle, setExpTitle] = useState('');
   const [expCategory, setExpCategory] = useState<ExpenseCategory>('Products');
@@ -327,127 +340,148 @@ export default function FinanceReportsPage() {
     return `${d.getFullYear()}-${month}-${day}`;
   });
 
-  // Calculators
-  const totalRevenue = transactions.reduce((acc, t) => acc + t.grandTotal, 0);
-  const totalDiscounts = transactions.reduce((acc, t) => acc + t.discount, 0);
-  const totalExpenseAmount = expenses.reduce((acc, e) => acc + e.amount, 0);
+  // Calculators & Trends Memoized
+  const {
+    totalRevenue,
+    totalDiscounts,
+    totalExpenseAmount,
+    curMonthRev,
+    curMonthExp,
+    curMonthDisc,
+    dynamicTrend,
+    trendDirection,
+    revTrend,
+    revTrendDirection,
+    discTrend,
+    discTrendDirection,
+    marginSubtitle
+  } = useMemo(() => {
+    const totalRev = transactions.reduce((acc, t) => acc + t.grandTotal, 0);
+    const totalDisc = transactions.reduce((acc, t) => acc + t.discount, 0);
+    const totalExp = expenses.reduce((acc, e) => acc + e.amount, 0);
 
-  // Dynamic profit margin and trend logic
-  const now = new Date();
-  const currentMonthNum = now.getMonth();
-  const currentYearNum = now.getFullYear();
+    const now = new Date();
+    const currentMonthNum = now.getMonth();
+    const currentYearNum = now.getFullYear();
 
-  // Previous month info
-  const prevMonthNum = currentMonthNum === 0 ? 11 : currentMonthNum - 1;
-  const prevMonthYear = currentMonthNum === 0 ? currentYearNum - 1 : currentYearNum;
+    const prevMonthNum = currentMonthNum === 0 ? 11 : currentMonthNum - 1;
+    const prevMonthYear = currentMonthNum === 0 ? currentYearNum - 1 : currentYearNum;
 
-  // Current Month metrics
-  const curMonthRev = transactions
-    .filter(t => {
-      const d = new Date(t.date);
-      return d.getMonth() === currentMonthNum && d.getFullYear() === currentYearNum;
-    })
-    .reduce((acc, t) => acc + t.grandTotal, 0);
+    const curRev = transactions
+      .filter(t => {
+        const d = new Date(t.date);
+        return d.getMonth() === currentMonthNum && d.getFullYear() === currentYearNum;
+      })
+      .reduce((acc, t) => acc + t.grandTotal, 0);
 
-  const curMonthExp = expenses
-    .filter(e => {
-      const d = new Date(e.date);
-      return d.getMonth() === currentMonthNum && d.getFullYear() === currentYearNum;
-    })
-    .reduce((acc, e) => acc + e.amount, 0);
+    const curExp = expenses
+      .filter(e => {
+        const d = new Date(e.date);
+        return d.getMonth() === currentMonthNum && d.getFullYear() === currentYearNum;
+      })
+      .reduce((acc, e) => acc + e.amount, 0);
 
-  // Previous Month metrics
-  const prevMonthRev = transactions
-    .filter(t => {
-      const d = new Date(t.date);
-      return d.getMonth() === prevMonthNum && d.getFullYear() === prevMonthYear;
-    })
-    .reduce((acc, t) => acc + t.grandTotal, 0);
+    const prevRev = transactions
+      .filter(t => {
+        const d = new Date(t.date);
+        return d.getMonth() === prevMonthNum && d.getFullYear() === prevMonthYear;
+      })
+      .reduce((acc, t) => acc + t.grandTotal, 0);
 
-  const prevMonthExp = expenses
-    .filter(e => {
-      const d = new Date(e.date);
-      return d.getMonth() === prevMonthNum && d.getFullYear() === prevMonthYear;
-    })
-    .reduce((acc, e) => acc + e.amount, 0);
+    const prevExp = expenses
+      .filter(e => {
+        const d = new Date(e.date);
+        return d.getMonth() === prevMonthNum && d.getFullYear() === prevMonthYear;
+      })
+      .reduce((acc, e) => acc + e.amount, 0);
 
-  const curMargin = curMonthRev > 0 ? ((curMonthRev - curMonthExp) / curMonthRev) * 100 : 0;
-  const prevMargin = prevMonthRev > 0 ? ((prevMonthRev - prevMonthExp) / prevMonthRev) * 100 : 0;
+    const curMargin = curRev > 0 ? ((curRev - curExp) / curRev) * 100 : 0;
+    const prevMargin = prevRev > 0 ? ((prevRev - prevExp) / prevRev) * 100 : 0;
+    const marginDiff = curMargin - prevMargin;
 
-  const marginDiff = curMargin - prevMargin;
-  const dynamicTrend = marginDiff >= 0 ? `+${marginDiff.toFixed(1)}%` : `${marginDiff.toFixed(1)}%`;
-  const trendDirection = marginDiff >= 0 ? 'up' : 'down';
+    const curDisc = transactions
+      .filter(t => {
+        const d = new Date(t.date);
+        return d.getMonth() === currentMonthNum && d.getFullYear() === currentYearNum;
+      })
+      .reduce((acc, t) => acc + t.discount, 0);
 
-  // Dynamic values for Gross Revenue & Discounts
-  const curMonthDisc = transactions
-    .filter(t => {
-      const d = new Date(t.date);
-      return d.getMonth() === currentMonthNum && d.getFullYear() === currentYearNum;
-    })
-    .reduce((acc, t) => acc + t.discount, 0);
+    const prevDisc = transactions
+      .filter(t => {
+        const d = new Date(t.date);
+        return d.getMonth() === prevMonthNum && d.getFullYear() === prevMonthYear;
+      })
+      .reduce((acc, t) => acc + t.discount, 0);
 
-  const prevMonthDisc = transactions
-    .filter(t => {
-      const d = new Date(t.date);
-      return d.getMonth() === prevMonthNum && d.getFullYear() === prevMonthYear;
-    })
-    .reduce((acc, t) => acc + t.discount, 0);
+    const revDiff = prevRev > 0 ? ((curRev - prevRev) / prevRev) * 100 : 0;
+    const discDiff = prevDisc > 0 ? ((curDisc - prevDisc) / prevDisc) * 100 : 0;
 
-  // Revenue month-over-month trend
-  const revDiff = prevMonthRev > 0 ? ((curMonthRev - prevMonthRev) / prevMonthRev) * 100 : 0;
-  const revTrend = revDiff >= 0 ? `+${revDiff.toFixed(1)}%` : `${revDiff.toFixed(1)}%`;
-  const revTrendDirection = revDiff >= 0 ? 'up' : 'down';
+    const overallMargin = totalRev > 0 ? ((totalRev - totalExp) / totalRev) * 100 : 0;
+    const marginTargetDiff = 70 - overallMargin;
 
-  // Discount month-over-month trend
-  const discDiff = prevMonthDisc > 0 ? ((curMonthDisc - prevMonthDisc) / prevMonthDisc) * 100 : 0;
-  const discTrend = discDiff >= 0 ? `+${discDiff.toFixed(1)}%` : `${discDiff.toFixed(1)}%`;
-  const discTrendDirection = discDiff >= 0 ? 'up' : 'down';
+    return {
+      totalRevenue: totalRev,
+      totalDiscounts: totalDisc,
+      totalExpenseAmount: totalExp,
+      curMonthRev: curRev,
+      curMonthExp: curExp,
+      curMonthDisc: curDisc,
+      dynamicTrend: marginDiff >= 0 ? `+${marginDiff.toFixed(1)}%` : `${marginDiff.toFixed(1)}%`,
+      trendDirection: (marginDiff >= 0 ? 'up' : 'down') as 'up' | 'down',
+      revTrend: revDiff >= 0 ? `+${revDiff.toFixed(1)}%` : `${revDiff.toFixed(1)}%`,
+      revTrendDirection: (revDiff >= 0 ? 'up' : 'down') as 'up' | 'down',
+      discTrend: discDiff >= 0 ? `+${discDiff.toFixed(1)}%` : `${discDiff.toFixed(1)}%`,
+      discTrendDirection: (discDiff >= 0 ? 'up' : 'down') as 'up' | 'down',
+      marginSubtitle: marginTargetDiff > 0 ? `${marginTargetDiff.toFixed(1)}% below target (70%)` : `Target reached! (70%)`
+    };
+  }, [transactions, expenses]);
 
-  // Margin Target Subtitle
-  const overallMargin = totalRevenue > 0 ? ((totalRevenue - totalExpenseAmount) / totalRevenue) * 100 : 0;
-  const marginTargetDiff = 70 - overallMargin;
-  const marginSubtitle = marginTargetDiff > 0
-    ? `${marginTargetDiff.toFixed(1)}% below target (70%)`
-    : `Target reached! (70%)`;
+  const filteredTxns = useMemo(() => {
+    return transactions.filter((t) => {
+      return (
+        t.clientName.toLowerCase().includes(txnSearch.toLowerCase()) ||
+        t.serviceName.toLowerCase().includes(txnSearch.toLowerCase()) ||
+        t.invoiceId.toLowerCase().includes(txnSearch.toLowerCase())
+      );
+    });
+  }, [transactions, txnSearch]);
 
-  const filteredTxns = transactions.filter((t) => {
-    return (
-      t.clientName.toLowerCase().includes(txnSearch.toLowerCase()) ||
-      t.serviceName.toLowerCase().includes(txnSearch.toLowerCase()) ||
-      t.invoiceId.toLowerCase().includes(txnSearch.toLowerCase())
-    );
-  });
-
-  const sortedTxns = [...filteredTxns].sort((a, b) => {
-    const dateCompare = b.date.localeCompare(a.date);
-    if (dateCompare !== 0) return dateCompare;
-    return b.id.localeCompare(a.id);
-  });
+  const sortedTxns = useMemo(() => {
+    return [...filteredTxns].sort((a, b) => {
+      const dateCompare = b.date.localeCompare(a.date);
+      if (dateCompare !== 0) return dateCompare;
+      return b.id.localeCompare(a.id);
+    });
+  }, [filteredTxns]);
 
   const itemsPerPage = 10;
   const totalTxnPages = Math.ceil(sortedTxns.length / itemsPerPage) || 1;
-  const pagedTxns = sortedTxns.slice((txnPage - 1) * itemsPerPage, txnPage * itemsPerPage);
+  const pagedTxns = useMemo(() => {
+    return sortedTxns.slice((txnPage - 1) * itemsPerPage, txnPage * itemsPerPage);
+  }, [sortedTxns, txnPage]);
 
-  const filteredExpenses = expenses.filter((e) => {
-    const matchesSearch =
-      e.title.toLowerCase().includes(expSearch.toLowerCase()) ||
-      (e.vendorName && e.vendorName.toLowerCase().includes(expSearch.toLowerCase())) ||
-      (e.productName && e.productName.toLowerCase().includes(expSearch.toLowerCase())) ||
-      (e.addedBy && e.addedBy.toLowerCase().includes(expSearch.toLowerCase()));
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter((e) => {
+      const matchesSearch =
+        e.title.toLowerCase().includes(expSearch.toLowerCase()) ||
+        (e.vendorName && e.vendorName.toLowerCase().includes(expSearch.toLowerCase())) ||
+        (e.productName && e.productName.toLowerCase().includes(expSearch.toLowerCase())) ||
+        (e.addedBy && e.addedBy.toLowerCase().includes(expSearch.toLowerCase()));
 
-    const matchesCat = expCategoryFilter === 'All' || e.category === expCategoryFilter;
+      const matchesCat = expCategoryFilter === 'All' || e.category === expCategoryFilter;
 
-    let matchesStatus = true;
-    if (expStatusFilter === 'UnpaidVendor') {
-      matchesStatus = (e.remainingAmount !== undefined && e.remainingAmount > 0) || e.status === 'Pending';
-    } else if (expStatusFilter === 'Paid') {
-      matchesStatus = e.status === 'Paid' && (e.remainingAmount === undefined || e.remainingAmount === 0);
-    } else if (expStatusFilter === 'Pending') {
-      matchesStatus = e.status === 'Pending';
-    }
+      let matchesStatus = true;
+      if (expStatusFilter === 'UnpaidVendor') {
+        matchesStatus = (e.remainingAmount !== undefined && e.remainingAmount > 0) || e.status === 'Pending';
+      } else if (expStatusFilter === 'Paid') {
+        matchesStatus = e.status === 'Paid' && (e.remainingAmount === undefined || e.remainingAmount === 0);
+      } else if (expStatusFilter === 'Pending') {
+        matchesStatus = e.status === 'Pending';
+      }
 
-    return matchesSearch && matchesCat && matchesStatus;
-  });
+      return matchesSearch && matchesCat && matchesStatus;
+    });
+  }, [expenses, expSearch, expCategoryFilter, expStatusFilter]);
 
   const handleAddExpense = (ev: React.FormEvent) => {
     ev.preventDefault();
@@ -512,9 +546,8 @@ export default function FinanceReportsPage() {
   return (
     <div className="space-y-6 pb-10">
       {toast && (
-        <div className={`fixed top-5 right-5 z-50 px-4 py-3 rounded-xl shadow-2xl text-sm font-bold text-white transition-all flex items-center gap-2 ${
-          toast.type === 'error' ? 'bg-rose-600' : 'bg-emerald-600'
-        }`}>
+        <div className={`fixed top-5 right-5 z-50 px-4 py-3 rounded-xl shadow-2xl text-sm font-bold text-white transition-all flex items-center gap-2 ${toast.type === 'error' ? 'bg-rose-600' : 'bg-emerald-600'
+          }`}>
           <span>{toast.message}</span>
         </div>
       )}
@@ -552,8 +585,8 @@ export default function FinanceReportsPage() {
             <button
               onClick={() => setActiveTab('transactions')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'transactions'
-                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                 }`}
             >
               Ledger
@@ -561,8 +594,8 @@ export default function FinanceReportsPage() {
             <button
               onClick={() => setActiveTab('expenses')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'expenses'
-                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                 }`}
             >
               Expenses
@@ -570,8 +603,8 @@ export default function FinanceReportsPage() {
             <button
               onClick={() => setActiveTab('reports')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'reports'
-                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                 }`}
             >
               Analytics
@@ -812,10 +845,10 @@ export default function FinanceReportsPage() {
                           <tbody>
                             ${filteredTxns.map(t => `
                               <tr>
-                                <td style="font-weight: bold;">${t.invoiceId || 'N/A'}</td>
-                                <td style="font-weight: bold;">${t.clientName || 'Valued Client'}</td>
-                                <td>${t.date}</td>
-                                <td>${t.paymentMethod}</td>
+                                <td style="font-weight: bold;">${escapeHtml(t.invoiceId) || 'N/A'}</td>
+                                <td style="font-weight: bold;">${escapeHtml(t.clientName) || 'Valued Client'}</td>
+                                <td>${escapeHtml(t.date)}</td>
+                                <td>${escapeHtml(t.paymentMethod)}</td>
                                 <td class="text-right font-mono font-bold">${formatFinancial(t.grandTotal)}</td>
                               </tr>
                             `).join('')}
@@ -838,12 +871,12 @@ export default function FinanceReportsPage() {
                             ${filteredExps.map(e => `
                               <tr>
                                 <td>
-                                  <span style="font-weight: bold; display: block;">${e.title}</span>
-                                  <span style="font-size: 10px; color: #333333;">${e.category}</span>
+                                  <span style="font-weight: bold; display: block;">${escapeHtml(e.title)}</span>
+                                  <span style="font-size: 10px; color: #333333;">${escapeHtml(e.category)}</span>
                                 </td>
-                                <td>${e.date}</td>
-                                <td>${e.paymentMethod}</td>
-                                <td>${e.status}</td>
+                                <td>${escapeHtml(e.date)}</td>
+                                <td>${escapeHtml(e.paymentMethod)}</td>
+                                <td>${escapeHtml(e.status)}</td>
                                 <td class="text-right font-mono font-bold">${formatFinancial(-e.amount)}</td>
                               </tr>
                             `).join('')}
@@ -1065,17 +1098,16 @@ export default function FinanceReportsPage() {
                 />
 
                 <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
-                  <Select
-                    options={[
-                      { label: 'All Statuses & Dues', value: 'All' },
-                      { label: '⚠️ Unpaid Vendor Dues (Remaining Balance > 0)', value: 'UnpaidVendor' },
-                      { label: '✅ Fully Paid Expenses', value: 'Paid' },
-                      { label: '⏳ Pending Expenses', value: 'Pending' }
-                    ]}
-                    value={expStatusFilter}
-                    onChange={(e) => setExpStatusFilter(e.target.value)}
-                    className="w-full sm:w-72"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsExpStatusModalOpen(true)}
+                    className="w-full sm:w-72 flex items-center justify-between rounded-[14px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 hover:border-blue-500 transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  >
+                    <span className="truncate font-medium">
+                      {expStatusOptions.find(o => o.value === expStatusFilter)?.label || 'All Statuses & Dues'}
+                    </span>
+                    <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
+                  </button>
 
                   <Select
                     options={[
@@ -1211,11 +1243,10 @@ export default function FinanceReportsPage() {
                                     <button
                                       onClick={() => handleDeleteExpenseClick(exp)}
                                       disabled={hasCurrentUserApproved}
-                                      className={`px-2.5 py-1 text-[10px] font-extrabold uppercase rounded-lg transition-all flex items-center gap-1 ${
-                                        hasCurrentUserApproved
+                                      className={`px-2.5 py-1 text-[10px] font-extrabold uppercase rounded-lg transition-all flex items-center gap-1 ${hasCurrentUserApproved
                                           ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
                                           : 'bg-rose-600 text-white hover:bg-rose-700 shadow-sm cursor-pointer'
-                                      }`}
+                                        }`}
                                       title={
                                         hasCurrentUserApproved
                                           ? `You have approved deletion (${approvals.length}/${totalApprovers})`
@@ -1226,8 +1257,8 @@ export default function FinanceReportsPage() {
                                       {hasCurrentUserApproved
                                         ? `Approved (${approvals.length}/${totalApprovers})`
                                         : approvals.length > 0
-                                        ? `Approve Delete (${approvals.length}/${totalApprovers})`
-                                        : `Delete Vendor Expense`}
+                                          ? `Approve Delete (${approvals.length}/${totalApprovers})`
+                                          : `Delete Vendor Expense`}
                                     </button>
                                   </>
                                 ) : (
@@ -1281,8 +1312,8 @@ export default function FinanceReportsPage() {
                       key={tab}
                       onClick={() => setActiveReport(tab)}
                       className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${activeReport === tab
-                          ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
                         }`}
                     >
                       {tab} Report
@@ -1634,22 +1665,20 @@ export default function FinanceReportsPage() {
                     setPayAmountInput(rem.toString());
                   }
                 }}
-                className={`py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
-                  payType === 'Full'
+                className={`py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${payType === 'Full'
                     ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                     : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                }`}
+                  }`}
               >
                 Full Payment
               </button>
               <button
                 type="button"
                 onClick={() => setPayType('Partial')}
-                className={`py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
-                  payType === 'Partial'
+                className={`py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${payType === 'Partial'
                     ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
                     : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                }`}
+                  }`}
               >
                 Partial Installment
               </button>
@@ -1837,7 +1866,7 @@ export default function FinanceReportsPage() {
                     <div className="flex justify-between items-center">
                       <span className="text-slate-500 font-semibold uppercase text-[10px]">Your Status</span>
                       <span className="font-semibold text-slate-700 dark:text-slate-300">
-                        {hasCurrentUserApproved ? '✅ Already Approved' : '⏳ Pending Your Approval'}
+                        {hasCurrentUserApproved ? ' Already Approved' : ' Pending Your Approval'}
                       </span>
                     </div>
                   </>
@@ -1866,15 +1895,58 @@ export default function FinanceReportsPage() {
                   {isDeleting
                     ? 'Processing...'
                     : isVendor
-                    ? hasCurrentUserApproved
-                      ? 'Re-submit Approval Request'
-                      : `Approve & ${approvals.length + 1 >= totalApprovers ? 'Permanently Delete' : 'Record Approval'}`
-                    : 'Confirm Permanent Deletion'}
+                      ? hasCurrentUserApproved
+                        ? 'Re-submit Approval Request'
+                        : `Approve & ${approvals.length + 1 >= totalApprovers ? 'Permanently Delete' : 'Record Approval'}`
+                      : 'Confirm Permanent Deletion'}
                 </Button>
               </div>
             </div>
           );
         })()}
+      </Modal>
+
+      {/* Expense Status Filter Dialog Box */}
+      <Modal
+        isOpen={isExpStatusModalOpen}
+        onClose={() => setIsExpStatusModalOpen(false)}
+        title="Filter Expenses by Status & Dues"
+        maxWidth="md"
+      >
+        <div className="space-y-4 py-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Select an option below to filter the operational expenses list:
+          </p>
+          <div className="space-y-2">
+            {expStatusOptions.map((opt) => {
+              const isSelected = expStatusFilter === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    setExpStatusFilter(opt.value);
+                    setIsExpStatusModalOpen(false);
+                  }}
+                  className={clsx(
+                    "w-full flex items-center justify-between p-4 rounded-xl border text-left transition-all",
+                    isSelected
+                      ? "border-blue-600 bg-blue-50/60 dark:bg-blue-950/40 text-blue-900 dark:text-blue-100 font-semibold shadow-sm"
+                      : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-200 font-medium"
+                  )}
+                >
+                  <span className="text-sm">{opt.label}</span>
+                  <div className={clsx(
+                    "w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ml-3 transition-colors",
+                    isSelected ? "border-blue-600 bg-blue-600" : "border-slate-300 dark:border-slate-600 bg-transparent"
+                  )}>
+                    {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </Modal>
     </div>
   );
