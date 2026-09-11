@@ -75,7 +75,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <Navbar />
-          <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto min-w-0 overflow-x-hidden">
+          <main className="flex-1 p-3 sm:p-5 md:p-6 lg:p-8 max-w-7xl 2xl:max-w-[1600px] w-full mx-auto min-w-0 overflow-x-hidden">
             {children}
           </main>
         </div>

@@ -247,6 +247,8 @@ export default function POSPage() {
     }
   };
 
+  const [mobilePosTab, setMobilePosTab] = useState<'catalog' | 'ticket'>('catalog');
+
   return (
     <div className="space-y-6 pb-10">
       {/* Top Header */}
@@ -262,10 +264,39 @@ export default function POSPage() {
         </div>
       </div>
 
+      {/* Mobile Tab Switcher (< lg screens) */}
+      <div className="flex lg:hidden items-center p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700">
+        <button
+          onClick={() => setMobilePosTab('catalog')}
+          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
+            mobilePosTab === 'catalog'
+              ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm'
+              : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-100'
+          }`}
+        >
+          Treatment Catalog
+        </button>
+        <button
+          onClick={() => setMobilePosTab('ticket')}
+          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            mobilePosTab === 'ticket'
+              ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm'
+              : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-100'
+          }`}
+        >
+          <span>Invoice Ticket</span>
+          {posCart.length > 0 && (
+            <span className="px-1.5 py-0.5 text-[10px] bg-blue-600 text-white rounded-full font-mono">
+              {posCart.reduce((sum, item) => sum + item.quantity, 0)}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* POS Grid: Left Service Catalog (60%) | Right Invoice Checkout Ticket (40%) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column - Service Catalog */}
-        <div className="lg:col-span-7 space-y-4">
+        <div className={`lg:col-span-7 space-y-4 ${mobilePosTab === 'ticket' ? 'hidden lg:block' : 'block'}`}>
           {/* Category Tabs & Search */}
           <div className="luxury-card p-4 space-y-3">
             <Input
@@ -348,7 +379,7 @@ export default function POSPage() {
         </div>
 
         {/* Right Column - Invoice Checkout Ticket */}
-        <div className="lg:col-span-5">
+        <div className={`lg:col-span-5 ${mobilePosTab === 'catalog' ? 'hidden lg:block' : 'block'}`}>
           <div className="luxury-card p-6 sticky top-24 space-y-6">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
               <div className="flex items-center gap-2">
@@ -875,6 +906,25 @@ export default function POSPage() {
           </motion.div>
         )}
       </AnimatePresence>
+      {/* Floating Mobile Quick Checkout Bar */}
+      {mobilePosTab === 'catalog' && posCart.length > 0 && (
+        <div className="lg:hidden fixed bottom-6 left-4 right-4 z-40">
+          <button
+            onClick={() => setMobilePosTab('ticket')}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-5 rounded-2xl shadow-2xl flex items-center justify-between transition-transform active:scale-98"
+          >
+            <div className="flex items-center gap-2">
+              <ShoppingBag className="w-5 h-5" />
+              <span className="text-sm">
+                View Ticket ({posCart.reduce((sum, item) => sum + item.quantity, 0)} items)
+              </span>
+            </div>
+            <span className="font-mono text-sm font-black bg-blue-700 px-3 py-1 rounded-xl">
+              {formatPKR(subtotal)}
+            </span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

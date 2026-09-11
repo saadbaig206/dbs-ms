@@ -357,7 +357,7 @@ export default function DashboardPage() {
 
       {/* Today's Schedule Table */}
       <div className="luxury-card p-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
           <div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">
               Today's Live Treatment Schedule

@@ -63,17 +63,17 @@ export const Modal: React.FC<ModalProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className={`relative w-full ${maxWidthClasses[maxWidth]} bg-white dark:bg-slate-900 rounded-[24px] border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden z-10 my-4 sm:my-8`}
+            className={`relative w-full max-w-[95vw] ${maxWidthClasses[maxWidth]} bg-white dark:bg-slate-900 rounded-[20px] sm:rounded-[24px] border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden z-10 my-auto`}
           >
             {/* Header */}
             {title && (
-              <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50">
+              <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50">
                 <div>
-                  <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+                  <h3 className="text-sm sm:text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">
                     {title}
                   </h3>
                   {description && (
-                    <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                       {description}
                     </p>
                   )}
@@ -88,7 +88,7 @@ export const Modal: React.FC<ModalProps> = ({
             )}
 
             {/* Body */}
-            <div className="p-4 sm:p-6 max-h-[78vh] sm:max-h-[85vh] overflow-y-auto">
+            <div className="p-3.5 sm:p-6 max-h-[80vh] sm:max-h-[85vh] overflow-y-auto custom-scrollbar">
               {children}
             </div>
           </motion.div>
