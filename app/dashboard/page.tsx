@@ -121,55 +121,6 @@ export default function DashboardPage() {
     );
   }
 
-  // Filter collections if a specific branch is selected
-  const appointments = selectedBranchId
-    ? allAppointments.filter(a => a.branchId === selectedBranchId)
-    : allAppointments;
-
-  const inventory = selectedBranchId
-    ? allInventory.filter(i => i.branchId === selectedBranchId)
-    : allInventory;
-
-  const transactions = selectedBranchId
-    ? allTransactions.filter(t => t.branchId === selectedBranchId)
-    : allTransactions;
-
-  const expenses = selectedBranchId
-    ? allExpenses.filter(e => e.branchId === selectedBranchId)
-    : allExpenses;
-
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todayAppointments = appointments.filter(a => a.date === todayStr);
-  const lowStockCount = inventory.filter(i => i.status === 'Low Stock' || i.status === 'Out of Stock').length;
-
-  const currentStaff = staff.find(s => s.email?.toLowerCase() === userEmail?.toLowerCase());
-  const todayRecord = attendance.find(a => a.staffId === currentStaff?.id && a.date === todayStr);
-  const hasCheckedInToday = !!todayRecord;
-  const hasCheckedOutToday = !!todayRecord?.checkOutTime;
-
-  const totalRevenue = transactions.reduce((acc, t) => acc + t.grandTotal, 0);
-  const todayRevenue = transactions.filter(t => t.date === todayStr).reduce((acc, t) => acc + t.grandTotal, 0);
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
-
-  const monthlyRevenue = transactions
-    .filter(t => {
-      const d = new Date(t.date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    })
-    .reduce((acc, t) => acc + t.grandTotal, 0);
-
-  const totalExpenses = expenses.reduce((acc, e) => acc + e.amount, 0);
-
-  const monthlyExpenses = expenses
-    .filter(e => {
-      const d = new Date(e.date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    })
-    .reduce((acc, e) => acc + e.amount, 0);
-
-  const netProfit = totalRevenue - totalExpenses;
-
   return (
     <div className="space-y-8 pb-10">
       {/* Header */}
