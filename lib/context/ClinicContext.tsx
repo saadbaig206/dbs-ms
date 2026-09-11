@@ -261,6 +261,10 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       } catch (e) {
         // Not logged in or session expired
         setIsLoading(false);
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login' && window.location.pathname !== '/') {
+          await authClient.logout();
+          window.location.href = '/login';
+        }
         return;
       }
 
