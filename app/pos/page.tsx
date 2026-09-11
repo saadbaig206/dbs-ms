@@ -47,7 +47,7 @@ export default function POSPage() {
 
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [search, setSearch] = useState('');
-  const [clientName, setClientName] = useState(clients[0]?.name || 'Victoria Beckham');
+  const [clientName, setClientName] = useState('');
   const [clientSearch, setClientSearch] = useState('');
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Card');
@@ -75,14 +75,7 @@ export default function POSPage() {
     }, 4000);
   };
 
-  // Synchronize default client when client list finishes loading
-  React.useEffect(() => {
-    if (clients.length > 0 && (!clientName || !clients.some(c => c.name === clientName))) {
-      setClientName(clients[0].name);
-    }
-  }, [clients]);
-
-  // Synchronize clientSearch string with clientName
+  // Synchronize clientSearch string with clientName when clientName is programmatically set
   React.useEffect(() => {
     setClientSearch(clientName);
   }, [clientName]);
@@ -218,24 +211,27 @@ export default function POSPage() {
 
   const handleCheckout = async () => {
     if (posCart.length === 0) return;
+    const activeClient = clientSearch.trim() || clientName.trim() || 'Walk-in Client';
     try {
       const cardDetails = (paymentMethod === 'Card' || paymentMethod === 'Online') ? {
         cardLastFour: paymentMethod === 'Card' ? cardLastFour : undefined,
         cardType: paymentMethod === 'Card' ? cardType : undefined,
         bankTxnId
       } : undefined;
-      const txn = await completePosCheckout(clientName, paymentMethod, Number(discountPercent) || 0, Number(taxPercent) || 0, cardDetails);
+      const txn = await completePosCheckout(activeClient, paymentMethod, Number(discountPercent) || 0, Number(taxPercent) || 0, cardDetails);
 
       // completePosCheckout only forwards the client's name, so the phone
       // number never ends up on the transaction — look the client back up
       // by name and attach it before this gets handed to the print modal.
-      const matchedClient = clients.find(c => c.name === clientName);
+      const matchedClient = clients.find(c => c.name === activeClient);
       const txnWithPhone = { ...txn, phone: (txn as any).phone || matchedClient?.phone };
 
       setLocalRecentTransactions(prev => [txnWithPhone, ...prev].slice(0, 5));
       setIsPaidSuccess(true);
       
       // Clear inputs
+      setClientName('');
+      setClientSearch('');
       setCardLastFour('');
       setCardType('Visa');
       setBankTxnId('');
@@ -381,11 +377,12 @@ export default function POSPage() {
                     value={clientSearch}
                     onChange={(e) => {
                       setClientSearch(e.target.value);
+                      setClientName(e.target.value);
                       setIsClientDropdownOpen(true);
                     }}
                     onFocus={() => setIsClientDropdownOpen(true)}
                     className="w-full rounded-[14px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-600 transition-all duration-200 py-2.5 px-3.5"
-                    placeholder="Search or type client..."
+                    placeholder="Search or enter client name..."
                   />
                   {isClientDropdownOpen && (
                     <>
@@ -393,7 +390,6 @@ export default function POSPage() {
                         className="fixed inset-0 z-10" 
                         onClick={() => {
                           setIsClientDropdownOpen(false);
-                          setClientSearch(clientName);
                         }} 
                       />
                       <div className="absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-20 divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -414,6 +410,7 @@ export default function POSPage() {
                               type="button"
                               onClick={() => {
                                 setClientName(c.name);
+                                setClientSearch(c.name);
                                 setIsClientDropdownOpen(false);
                               }}
                               className="w-full text-left px-4 py-2.5 text-xs hover:bg-blue-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors"

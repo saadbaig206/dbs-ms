@@ -23,6 +23,8 @@ import { authClient } from '../../lib/api/client';
 export const Navbar: React.FC = () => {
   const {
     role,
+    userEmail,
+    staff,
     theme,
     toggleTheme,
     setIsCommandPaletteOpen,
@@ -33,6 +35,31 @@ export const Navbar: React.FC = () => {
     clinicInfo,
     appointments
   } = useClinic();
+
+  const userName = React.useMemo(() => {
+    if (userEmail) {
+      const matchingStaff = (staff || []).find(
+        s => s.email && s.email.toLowerCase().trim() === userEmail.toLowerCase().trim()
+      );
+      if (matchingStaff?.name) {
+        return matchingStaff.name;
+      }
+
+      const rawName = userEmail.includes('@') ? userEmail.split('@')[0] : userEmail;
+      
+      if (rawName.toLowerCase() === 'admin') return 'Admin User';
+      if (rawName.toLowerCase() === 'drzaini') return 'Dr. Zaini';
+      
+      return rawName
+        .split(/[\._\-]/)
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+    }
+
+    if (role === 'admin') return 'Admin User';
+    if (role === 'partner') return 'Clinic Partner';
+    return 'Staff Practitioner';
+  }, [userEmail, staff, role]);
 
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -207,7 +234,7 @@ export const Navbar: React.FC = () => {
             className="flex items-center gap-2.5 p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <Avatar
-              name={role === 'admin' ? 'Dr. Elena Rostova' : role === 'partner' ? 'Partner Account' : 'Staff Member'}
+              name={userName}
               size="sm"
               statusDot="online"
             />
@@ -223,7 +250,7 @@ export const Navbar: React.FC = () => {
               >
                 <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
                   <p className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                    {role === 'admin' ? 'Dr. Elena Rostova' : role === 'partner' ? 'Clinic Partner' : 'Staff Practitioner'}
+                    {userName}
                   </p>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 capitalize">
                     Role: {role} Mode
