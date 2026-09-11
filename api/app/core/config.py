@@ -25,7 +25,7 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in self.BACKEND_CORS_ORIGINS.split(",") if origin.strip()]
         return self.BACKEND_CORS_ORIGINS
 
-    DATABASE_URL: str = ""
+    DATABASE_URL: str = "postgresql+asyncpg://neondb_owner:npg_qhl7TwXHGn5f@ep-little-mouse-ay4t1irw-pooler.c-5.us-east-2.aws.neon.tech/neondb?ssl=require"
 
     GROQ_API_KEY: str = ""
     WHATSAPP_ACCESS_TOKEN: str = ""

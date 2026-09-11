@@ -16,9 +16,14 @@ if db_url:
     if "?" in db_url:
         db_url = db_url.split("?")[0]
 
+    import ssl
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = ssl.CERT_NONE
+
     engine = create_async_engine(
         db_url,
-        connect_args={"ssl": "require"},
+        connect_args={"ssl": ssl_ctx},
         pool_pre_ping=True,
         pool_size=10,
         max_overflow=20
