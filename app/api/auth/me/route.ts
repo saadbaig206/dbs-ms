@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   try {
     const cookieStore = await cookies();
@@ -20,7 +22,8 @@ export async function GET(request: Request) {
     const res = await fetch(`${apiUrl}/api/v1/auth/me`, {
       headers: {
         'Authorization': `Bearer ${token}`
-      }
+      },
+      cache: 'no-store',
     });
 
     if (!res.ok) {
