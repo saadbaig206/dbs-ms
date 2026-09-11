@@ -31,11 +31,21 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const url = `${API_BASE_URL}/api/v1${endpoint}`;
   
-  // Set credentials to include so HTTP-only cookies are sent automatically
+  let token = '';
+  if (typeof document !== 'undefined') {
+    const match = document.cookie.match(/(?:^|; )access_token=([^;]*)/);
+    if (match) token = match[1];
+  }
+
+  const defaultHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+  };
+
   const defaultOptions: RequestInit = {
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
+      ...defaultHeaders,
       ...options.headers,
     },
     ...options,
@@ -45,11 +55,11 @@ export async function apiFetch<T>(
     const response = await fetch(url, defaultOptions);
 
     if (response.status === 401) {
-      // Session expired or unauthenticated, redirect to login
       if (typeof window !== 'undefined') {
-        // Clear auth cookies via the Next.js API logout route
-        await fetch('/api/auth/logout', { method: 'POST' });
-        window.location.href = '/login';
+        authClient.logout();
+        if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
+          window.location.href = '/login';
+        }
       }
       throw new Error('Unauthorized');
     }
@@ -59,7 +69,6 @@ export async function apiFetch<T>(
       throw new Error(errorData.detail || `Request failed with status ${response.status}`);
     }
 
-    // Handle empty or 204 No Content responses
     if (response.status === 204) {
       return {} as T;
     }
@@ -71,27 +80,56 @@ export async function apiFetch<T>(
   }
 }
 
-// Client-side authentication helpers that hit Next.js route handlers
+// Client-side authentication helpers hitting FastAPI /api/v1/auth directly
 export const authClient = {
   async login(email: string, password: string) {
-    const res = await fetch('/api/auth/login', {
+    const res = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email: email.trim(), password }),
     });
+
     if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || 'Login failed');
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.detail || data.error || 'Invalid email or password');
     }
-    return await res.json();
+
+    const data = await res.json();
+
+    if (typeof window !== 'undefined') {
+      const isSecure = window.location.protocol === 'https:';
+      const secureFlag = isSecure ? '; Secure' : '';
+      const maxAge = 60 * 60 * 24 * 8; // 8 days
+      document.cookie = `access_token=${data.access_token}; path=/; max-age=${maxAge}; SameSite=Lax${secureFlag}`;
+      document.cookie = `refresh_token=${data.refresh_token}; path=/; max-age=${maxAge}; SameSite=Lax${secureFlag}`;
+      document.cookie = `user_role=${data.role}; path=/; max-age=${maxAge}; SameSite=Lax${secureFlag}`;
+    }
+
+    return data;
   },
 
   async logout() {
-    await fetch('/api/auth/logout', { method: 'POST' });
+    if (typeof window !== 'undefined') {
+      const isSecure = window.location.protocol === 'https:';
+      const secureFlag = isSecure ? '; Secure' : '';
+      document.cookie = `access_token=; path=/; max-age=0; SameSite=Lax${secureFlag}`;
+      document.cookie = `refresh_token=; path=/; max-age=0; SameSite=Lax${secureFlag}`;
+      document.cookie = `user_role=; path=/; max-age=0; SameSite=Lax${secureFlag}`;
+    }
   },
 
   async me() {
-    const res = await fetch('/api/auth/me');
+    let token = '';
+    if (typeof document !== 'undefined') {
+      const match = document.cookie.match(/(?:^|; )access_token=([^;]*)/);
+      if (match) token = match[1];
+    }
+
+    const res = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      credentials: 'include',
+    });
+
     if (!res.ok) throw new Error('Not authenticated');
     return await res.json();
   }
