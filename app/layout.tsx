@@ -3,6 +3,9 @@ import './globals.css';
 import { Providers } from '../components/layout/AppShell';
 import { CLINIC_INFO } from '../lib/constants/clinic';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export const metadata: Metadata = {
   title: `${CLINIC_INFO.name} - POS & Management System`,
   description: 'Point of sale, bookings, inventory, staff and finance management for DBS Aesthetic Clinic and Salon.',
