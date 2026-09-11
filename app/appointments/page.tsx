@@ -165,7 +165,7 @@ export default function AppointmentsPage() {
 
       {/* Filter & Search Bar */}
       <div className="luxury-card p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 no-scrollbar">
           {(['All', 'Today', 'Tomorrow', 'Week'] as const).map((tab) => (
             <button
               key={tab}

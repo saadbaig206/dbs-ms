@@ -156,7 +156,7 @@ Thank you!`;
 
       {/* Filter and Search Controls */}
       <div className="luxury-card p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 md:pb-0">
           {(['Pending', 'Sent', 'Rejected', 'All'] as const).map(filter => (
             <button
               key={filter}

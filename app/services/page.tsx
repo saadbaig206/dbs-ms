@@ -101,7 +101,7 @@ export default function ServicesPage() {
           className="max-w-md"
         />
 
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
           {categories.map((cat) => (
             <button
               key={cat}
@@ -120,8 +120,8 @@ export default function ServicesPage() {
 
       {/* Services Table View */}
       <div className="luxury-card p-6">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs sm:text-sm">
+        <div className="responsive-table-wrapper">
+          <table className="w-full min-w-[650px] text-left text-xs sm:text-sm">
             <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[11px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
               <tr>
                 <th className="py-3.5 px-4 rounded-l-xl">ID</th>

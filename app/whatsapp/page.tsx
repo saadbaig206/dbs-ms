@@ -244,7 +244,7 @@ export default function WhatsAppPage() {
         </div>
 
         {/* Tab Selection */}
-        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 p-1.5 rounded-2xl self-start md:self-auto shadow-sm">
+        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 p-1.5 rounded-2xl w-full sm:w-auto overflow-x-auto no-scrollbar shadow-sm">
           <button
             onClick={() => setActiveTab('chat')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${

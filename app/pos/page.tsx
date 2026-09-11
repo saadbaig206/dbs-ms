@@ -306,7 +306,7 @@ export default function POSPage() {
               icon={<Search className="w-4 h-4" />}
             />
 
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
               {categories.map((cat) => (
                 <button
                   key={cat}

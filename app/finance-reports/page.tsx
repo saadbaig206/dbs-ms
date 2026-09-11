@@ -1306,7 +1306,7 @@ export default function FinanceReportsPage() {
             <div className="space-y-6">
               {/* Reports Navigation Tabs */}
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
-                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
                   {reportTabs.map((tab) => (
                     <button
                       key={tab}

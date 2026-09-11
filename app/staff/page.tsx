@@ -329,9 +329,9 @@ export default function StaffPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {/* Main Sub-Tabs Toggle */}
-          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl overflow-x-auto no-scrollbar">
             <button
               onClick={() => setActiveTab('directory')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'directory'
