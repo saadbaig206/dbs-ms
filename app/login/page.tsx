@@ -50,18 +50,20 @@ export default function LoginPage() {
       >
         {/* Brand */}
         <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <img
-              src="/dbslogo.png"
-              alt="DBS Logo"
-              className="h-20 w-auto max-h-24 object-contain mx-auto drop-shadow-md"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                if (!target.src.endsWith('/logo.png')) {
-                  target.src = '/logo.png';
-                }
-              }}
-            />
+          <div className="flex justify-center mb-5">
+            <div className="bg-white rounded-2xl p-3 shadow-xl border border-white/20 flex items-center justify-center max-w-[160px] h-20">
+              <img
+                src="/dbslogo.png"
+                alt="DBS Logo"
+                className="max-h-full w-auto object-contain"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  if (!target.src.endsWith('/logo.png')) {
+                    target.src = '/logo.png';
+                  }
+                }}
+              />
+            </div>
           </div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white uppercase font-sans leading-tight">
             {clinicInfo.name}
