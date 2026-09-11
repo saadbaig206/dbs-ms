@@ -46,30 +46,30 @@ export default function DashboardPage() {
     setMounted(true);
   }, []);
 
-  if (!mounted) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-slate-500 animate-pulse font-bold">Loading dashboard...</div>
-      </div>
-    );
-  }
-
   // Filter collections if a specific branch is selected
-  const appointments = selectedBranchId 
-    ? allAppointments.filter(a => a.branchId === selectedBranchId)
-    : allAppointments;
+  const appointments = useMemo(() => {
+    return selectedBranchId 
+      ? allAppointments.filter(a => a.branchId === selectedBranchId)
+      : allAppointments;
+  }, [allAppointments, selectedBranchId]);
 
-  const inventory = selectedBranchId 
-    ? allInventory.filter(i => i.branchId === selectedBranchId)
-    : allInventory;
+  const inventory = useMemo(() => {
+    return selectedBranchId 
+      ? allInventory.filter(i => i.branchId === selectedBranchId)
+      : allInventory;
+  }, [allInventory, selectedBranchId]);
 
-  const transactions = selectedBranchId 
-    ? allTransactions.filter(t => t.branchId === selectedBranchId)
-    : allTransactions;
+  const transactions = useMemo(() => {
+    return selectedBranchId 
+      ? allTransactions.filter(t => t.branchId === selectedBranchId)
+      : allTransactions;
+  }, [allTransactions, selectedBranchId]);
 
-  const expenses = selectedBranchId 
-    ? allExpenses.filter(e => e.branchId === selectedBranchId)
-    : allExpenses;
+  const expenses = useMemo(() => {
+    return selectedBranchId 
+      ? allExpenses.filter(e => e.branchId === selectedBranchId)
+      : allExpenses;
+  }, [allExpenses, selectedBranchId]);
 
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
@@ -112,6 +112,14 @@ export default function DashboardPage() {
       netProfit: totRev - totExp
     };
   }, [transactions, expenses, todayStr]);
+
+  if (!mounted) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-slate-500 animate-pulse font-bold">Loading dashboard...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 pb-10">
