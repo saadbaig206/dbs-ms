@@ -25,17 +25,20 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 
+const getToken = (): string => {
+  if (typeof window === 'undefined') return '';
+  const local = localStorage.getItem('access_token');
+  if (local) return local;
+  const match = document.cookie.match(/(?:^|; )access_token=([^;]*)/);
+  return match ? match[1] : '';
+};
+
 export async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${API_BASE_URL}/api/v1${endpoint}`;
-  
-  let token = '';
-  if (typeof document !== 'undefined') {
-    const match = document.cookie.match(/(?:^|; )access_token=([^;]*)/);
-    if (match) token = match[1];
-  }
+  const token = getToken();
 
   const defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -103,6 +106,8 @@ export const authClient = {
       document.cookie = `access_token=${data.access_token}; path=/; max-age=${maxAge}; SameSite=Lax${secureFlag}`;
       document.cookie = `refresh_token=${data.refresh_token}; path=/; max-age=${maxAge}; SameSite=Lax${secureFlag}`;
       document.cookie = `user_role=${data.role}; path=/; max-age=${maxAge}; SameSite=Lax${secureFlag}`;
+      localStorage.setItem('access_token', data.access_token);
+      localStorage.setItem('user_role', data.role);
     }
 
     return data;
@@ -115,15 +120,13 @@ export const authClient = {
       document.cookie = `access_token=; path=/; max-age=0; SameSite=Lax${secureFlag}`;
       document.cookie = `refresh_token=; path=/; max-age=0; SameSite=Lax${secureFlag}`;
       document.cookie = `user_role=; path=/; max-age=0; SameSite=Lax${secureFlag}`;
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('user_role');
     }
   },
 
   async me() {
-    let token = '';
-    if (typeof document !== 'undefined') {
-      const match = document.cookie.match(/(?:^|; )access_token=([^;]*)/);
-      if (match) token = match[1];
-    }
+    const token = getToken();
 
     const res = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
       headers: token ? { 'Authorization': `Bearer ${token}` } : {},
