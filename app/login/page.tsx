@@ -25,20 +25,21 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const data = await authClient.login(email, password);
+      const data = await authClient.login(email.trim(), password);
       setRole(data.role);
 
-      // Force refreshing the context data now that we are logged in
-      await refreshData();
+      try {
+        await refreshData();
+      } catch (rErr) {
+        console.warn('refreshData warning after login:', rErr);
+      }
 
-      setTimeout(() => {
-        setIsLoading(false);
-        if (data.role === 'staff') {
-          router.push('/pos');
-        } else {
-          router.push('/dashboard');
-        }
-      }, 600);
+      setIsLoading(false);
+      if (data.role === 'staff') {
+        window.location.href = '/pos';
+      } else {
+        window.location.href = '/dashboard';
+      }
     } catch (err: any) {
       setIsLoading(false);
       setError(err.message || 'Invalid email or password. Please try again.');

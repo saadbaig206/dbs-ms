@@ -128,7 +128,7 @@ export default function ClientsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           icon={<Search className="w-4 h-4" />}
-          className="max-w-md"
+          className="w-full sm:max-w-md"
         />
         <div className="w-full sm:w-48">
           <Select

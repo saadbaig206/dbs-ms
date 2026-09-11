@@ -13,6 +13,8 @@ router = APIRouter()
 async def list_expenses(
     search: Optional[str] = None,
     branch_id: Optional[str] = None,
+    skip: Optional[int] = None,
+    limit: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_admin_or_partner_user),
     user_branch_id: Optional[str] = Depends(get_user_branch_id)
@@ -24,7 +26,13 @@ async def list_expenses(
     if active_branch_id:
         query = query.where(ExpenseItem.branch_id == active_branch_id)
         
-    result = await db.execute(query.order_by(ExpenseItem.id.desc()))
+    query = query.order_by(ExpenseItem.id.desc())
+    if skip is not None:
+        query = query.offset(skip)
+    if limit is not None:
+        query = query.limit(limit)
+
+    result = await db.execute(query)
     return result.scalars().all()
 
 @router.post("", response_model=ExpenseResponse)

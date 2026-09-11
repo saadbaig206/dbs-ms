@@ -1,4 +1,8 @@
 /**
+ * Utility functions to format and sanitize phone numbers for Pakistan (+92) and international formats.
+ */
+
+/**
  * Standardizes phone number inputs into a uniform format with space after country code (+92 3XXXXXXXXX).
  */
 export function formatPhoneInput(value: string): string {
@@ -28,17 +32,33 @@ export function formatPhoneInput(value: string): string {
   return '+92 ' + digits.substring(0, 10);
 }
 
-/**
- * Formats a phone number for display with clean spacing (+92 300 1234567).
- */
-export function formatPhoneDisplay(value: string | undefined | null): string {
-  if (!value) return 'N/A';
-  let cleaned = value.replace(/\D/g, '');
-  if (cleaned.startsWith('0') && cleaned.length === 11) {
-    cleaned = '92' + cleaned.substring(1);
+export function formatPhoneE164(phone: string, defaultCountryCode: string = '92'): string {
+  if (!phone) return '';
+
+  const digits = phone.replace(/\D/g, '');
+
+  if (digits.startsWith('0')) {
+    return `+${defaultCountryCode}${digits.slice(1)}`;
   }
-  if (cleaned.startsWith('92') && cleaned.length === 12) {
-    return `+92 ${cleaned.substring(2, 5)} ${cleaned.substring(5)}`;
+
+  if (digits.startsWith(defaultCountryCode)) {
+    return `+${digits}`;
   }
-  return value;
+
+  return `+${digits}`;
+}
+
+export function formatPhoneDisplay(phone: string | undefined | null): string {
+  if (!phone) return 'N/A';
+  const clean = phone.replace(/\D/g, '');
+
+  if (clean.length === 11 && clean.startsWith('0')) {
+    return `${clean.slice(0, 4)} ${clean.slice(4)}`;
+  }
+
+  if (clean.length === 12 && clean.startsWith('92')) {
+    return `+92 ${clean.slice(2, 5)} ${clean.slice(5)}`;
+  }
+
+  return phone;
 }

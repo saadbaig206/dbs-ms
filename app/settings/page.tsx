@@ -100,6 +100,16 @@ export default function SettingsPage() {
         </Badge>
       </div>
 
+      {/* Security Advisory Banner */}
+      <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-[20px] flex items-center justify-between text-xs text-amber-900 dark:text-amber-200">
+        <div className="flex items-center gap-3">
+          <ShieldCheck className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+          <span>
+            <strong>Security Recommendation:</strong> Ensure default administrator credentials (<code className="bg-amber-100 dark:bg-amber-900/50 px-1 py-0.5 rounded font-mono">admin@gmail.com</code>) have been updated to a strong password in production.
+          </span>
+        </div>
+      </div>
+
       <form onSubmit={handleSave} className="space-y-6">
         {/* Clinic Identity Card */}
         <div className="luxury-card p-6 space-y-4">

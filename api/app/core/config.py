@@ -25,7 +25,7 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in self.BACKEND_CORS_ORIGINS.split(",") if origin.strip()]
         return self.BACKEND_CORS_ORIGINS
 
-    DATABASE_URL: str = ""
+    DATABASE_URL: str = "postgresql+asyncpg://neondb_owner:npg_qhl7TwXHGn5f@ep-little-mouse-ay4t1irw-pooler.c-5.us-east-2.aws.neon.tech/neondb?ssl=require"
 
     GROQ_API_KEY: str = ""
     WHATSAPP_ACCESS_TOKEN: str = ""
@@ -33,4 +33,8 @@ class Settings(BaseSettings):
     WHATSAPP_VERIFY_TOKEN: str = "aura_clinic_whatsapp_verify_token"
 
 settings = Settings()
+
+if settings.SECRET_KEY == "super-secret-key-change-in-production":
+    import logging
+    logging.warning("SECURITY WARNING: Running with default fallback SECRET_KEY. Please set SECRET_KEY in .env for production environments.")
 

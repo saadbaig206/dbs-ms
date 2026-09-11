@@ -372,7 +372,7 @@ export default function InventoryPage() {
           className="w-full md:w-80"
         />
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 w-full md:w-auto">
           <Select
             options={[
               { label: 'All Stock Statuses', value: 'All' },
@@ -383,7 +383,6 @@ export default function InventoryPage() {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="w-full md:w-60"
-            style={{ minWidth: '240px' }}
           />
         </div>
       </div>
@@ -610,9 +609,6 @@ export default function InventoryPage() {
               <span className="font-bold">Remaining Balance Due to Vendor: </span>
               <span className="font-mono font-black text-sm">{formatPKR(remainingAmount)}</span>
             </div>
-            <Badge variant={remainingAmount > 0 ? 'warning' : 'success'}>
-              {remainingAmount > 0 ? 'Credit Purchase (Pending Balance)' : 'Fully Paid (Debit)'}
-            </Badge>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -783,9 +779,6 @@ export default function InventoryPage() {
               <span className="font-bold">Remaining Dues to Vendor: </span>
               <span className="font-mono font-black text-sm">{formatPKR(renewRemainingAmount)}</span>
             </div>
-            <Badge variant={renewRemainingAmount > 0 ? 'warning' : 'success'}>
-              {renewRemainingAmount > 0 ? 'Credit Renewal (Pending Balance)' : 'Fully Paid (Debit)'}
-            </Badge>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">

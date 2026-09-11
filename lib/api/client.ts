@@ -5,37 +5,35 @@ export interface ApiResponse<T> {
 }
 
 const getApiBaseUrl = () => {
-  const envUrl = process.env.NEXT_PUBLIC_API_URL;
   if (typeof window !== 'undefined') {
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    if (isLocal && envUrl) {
-      return envUrl;
-    }
-    return window.location.origin;
-  }
-
-  if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
-    return envUrl;
+    return '';
   }
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}`;
   }
-  return envUrl || 'http://localhost:8000';
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    return envUrl;
+  }
+  return '';
 };
 
 const API_BASE_URL = getApiBaseUrl();
+
+const getToken = (): string => {
+  if (typeof window === 'undefined') return '';
+  const local = localStorage.getItem('access_token');
+  if (local) return local;
+  const match = document.cookie.match(/(?:^|; )access_token=([^;]*)/);
+  return match ? match[1] : '';
+};
 
 export async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${API_BASE_URL}/api/v1${endpoint}`;
-
-  let token = '';
-  if (typeof document !== 'undefined') {
-    const match = document.cookie.match(/(?:^|; )access_token=([^;]*)/);
-    if (match) token = match[1];
-  }
+  const token = getToken();
 
   const defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -85,6 +83,7 @@ export const authClient = {
   async login(email: string, password: string) {
     const res = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: email.trim(), password }),
     });
@@ -103,6 +102,8 @@ export const authClient = {
       document.cookie = `access_token=${data.access_token}; path=/; max-age=${maxAge}; SameSite=Lax${secureFlag}`;
       document.cookie = `refresh_token=${data.refresh_token}; path=/; max-age=${maxAge}; SameSite=Lax${secureFlag}`;
       document.cookie = `user_role=${data.role}; path=/; max-age=${maxAge}; SameSite=Lax${secureFlag}`;
+      localStorage.setItem('access_token', data.access_token);
+      localStorage.setItem('user_role', data.role);
     }
 
     return data;
@@ -112,18 +113,18 @@ export const authClient = {
     if (typeof window !== 'undefined') {
       const isSecure = window.location.protocol === 'https:';
       const secureFlag = isSecure ? '; Secure' : '';
-      document.cookie = `access_token=; path=/; max-age=0; SameSite=Lax${secureFlag}`;
-      document.cookie = `refresh_token=; path=/; max-age=0; SameSite=Lax${secureFlag}`;
-      document.cookie = `user_role=; path=/; max-age=0; SameSite=Lax${secureFlag}`;
+      const pastDate = 'expires=Thu, 01 Jan 1970 00:00:00 GMT;';
+      document.cookie = `access_token=; path=/; max-age=0; ${pastDate} SameSite=Lax${secureFlag}`;
+      document.cookie = `refresh_token=; path=/; max-age=0; ${pastDate} SameSite=Lax${secureFlag}`;
+      document.cookie = `user_role=; path=/; max-age=0; ${pastDate} SameSite=Lax${secureFlag}`;
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('user_role');
+      localStorage.clear();
     }
   },
 
   async me() {
-    let token = '';
-    if (typeof document !== 'undefined') {
-      const match = document.cookie.match(/(?:^|; )access_token=([^;]*)/);
-      if (match) token = match[1];
-    }
+    const token = getToken();
 
     const res = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
       headers: token ? { 'Authorization': `Bearer ${token}` } : {},

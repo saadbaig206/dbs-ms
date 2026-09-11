@@ -40,7 +40,8 @@ async def login(
         db.add_all([admin_user, staff_user])
         await db.commit()
 
-    result = await db.execute(select(User).where(User.email == login_data.email))
+    from sqlalchemy import func
+    result = await db.execute(select(User).where(func.lower(User.email) == func.lower(login_data.email.strip())))
     user = result.scalars().first()
     if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(
