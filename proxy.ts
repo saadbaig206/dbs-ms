@@ -11,6 +11,15 @@ export function proxy(request: NextRequest) {
   const token = rawToken && rawToken.trim().length > 10 ? rawToken.trim() : null;
   const role = request.cookies.get('user_role')?.value;
 
+  // If logging out explicitly, delete cookies and allow access to login page
+  if (isPublicPath && request.nextUrl.searchParams.get('logout') === '1') {
+    const response = NextResponse.next();
+    response.cookies.delete('access_token');
+    response.cookies.delete('refresh_token');
+    response.cookies.delete('user_role');
+    return response;
+  }
+
   if (isPublicPath) {
     if (token) {
       if (role === 'staff') {
@@ -23,16 +32,16 @@ export function proxy(request: NextRequest) {
 
   // Protected paths
   if (!token) {
-    return NextResponse.redirect(new URL('/login', request.nextUrl));
+    return NextResponse.redirect(new URL('/login?logout=1', request.nextUrl));
   }
 
-  // Admin-only paths
-  const isAdminOnlyPath =
+  // Admin & Partner allowed paths for finance/reports/expenses
+  const isFinanceOrAdminPath =
     path.startsWith('/expenses') ||
     path.startsWith('/finance') ||
     path.startsWith('/reports');
 
-  if (isAdminOnlyPath && role !== 'admin') {
+  if (isFinanceOrAdminPath && role !== 'admin' && role !== 'partner') {
     return NextResponse.redirect(new URL('/pos', request.nextUrl));
   }
 

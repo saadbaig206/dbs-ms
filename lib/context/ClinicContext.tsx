@@ -250,6 +250,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (user && user.role) {
           activeRole = user.role as UserRole;
           setRoleState(activeRole);
+          document.cookie = `user_role=${activeRole}; path=/; max-age=${60 * 60 * 24 * 8}; SameSite=Lax`;
           setUserId(user.id || null);
           setUserEmail(user.email || null);
           const bId = user.branch_id || user.branchId || null;

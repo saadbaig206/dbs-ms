@@ -56,7 +56,7 @@ export async function apiFetch<T>(
       if (typeof window !== 'undefined') {
         authClient.logout();
         if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
-          window.location.href = '/login';
+          window.location.href = '/login?logout=1';
         }
       }
       throw new Error('Unauthorized');
@@ -111,12 +111,13 @@ export const authClient = {
 
   async logout() {
     if (typeof window !== 'undefined') {
-      const isSecure = window.location.protocol === 'https:';
-      const secureFlag = isSecure ? '; Secure' : '';
-      const pastDate = 'expires=Thu, 01 Jan 1970 00:00:00 GMT;';
-      document.cookie = `access_token=; path=/; max-age=0; ${pastDate} SameSite=Lax${secureFlag}`;
-      document.cookie = `refresh_token=; path=/; max-age=0; ${pastDate} SameSite=Lax${secureFlag}`;
-      document.cookie = `user_role=; path=/; max-age=0; ${pastDate} SameSite=Lax${secureFlag}`;
+      const pastDate = 'expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;';
+      document.cookie = `access_token=; max-age=0; ${pastDate}`;
+      document.cookie = `refresh_token=; max-age=0; ${pastDate}`;
+      document.cookie = `user_role=; max-age=0; ${pastDate}`;
+      document.cookie = `access_token=; max-age=0; ${pastDate} SameSite=Lax`;
+      document.cookie = `refresh_token=; max-age=0; ${pastDate} SameSite=Lax`;
+      document.cookie = `user_role=; max-age=0; ${pastDate} SameSite=Lax`;
       localStorage.removeItem('access_token');
       localStorage.removeItem('user_role');
       localStorage.clear();

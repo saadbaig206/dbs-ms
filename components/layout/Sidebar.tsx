@@ -64,10 +64,10 @@ export const Sidebar: React.FC = () => {
     e.preventDefault();
     try {
       await authClient.logout();
-      window.location.href = '/login';
+      window.location.href = '/login?logout=1';
     } catch (err) {
       console.error('Logout failed:', err);
-      window.location.href = '/login';
+      window.location.href = '/login?logout=1';
     }
   };
 

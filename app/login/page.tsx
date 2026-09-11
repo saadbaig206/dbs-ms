@@ -147,38 +147,6 @@ export default function LoginPage() {
             Sign In to Clinic Portal
           </Button>
         </form>
-
-        {/* Credentials Helper */}
-        <div className="mt-6 pt-4 border-t border-slate-800/50">
-          <div className="text-center space-y-1">
-            <p className="text-[10px] text-slate-500 font-medium">Demo Credentials (Click to Autofill)</p>
-            <div className="flex flex-col sm:flex-row justify-center items-center gap-2 text-[10px] text-slate-400">
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('admin@gmail.com');
-                  setPassword('admin');
-                  setError('');
-                }}
-                className="hover:text-blue-300 transition-colors cursor-pointer text-left sm:text-center focus:outline-none"
-              >
-                Admin: <span className="text-blue-400 font-bold underline">admin@gmail.com</span> / <span className="text-blue-400 font-bold underline">admin</span>
-              </button>
-              <span className="hidden sm:inline text-slate-600">|</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('staff@gmail.com');
-                  setPassword('staff');
-                  setError('');
-                }}
-                className="hover:text-indigo-300 transition-colors cursor-pointer text-left sm:text-center focus:outline-none"
-              >
-                Staff: <span className="text-indigo-400 font-bold underline">staff@gmail.com</span> / <span className="text-indigo-400 font-bold underline">staff</span>
-              </button>
-            </div>
-          </div>
-        </div>
       </motion.div>
     </div>
   );
