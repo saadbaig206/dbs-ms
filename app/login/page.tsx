@@ -8,6 +8,7 @@ import { useClinic } from '../../lib/context/ClinicContext';
 import { Button } from '../../components/ui/Button';
 
 import { authClient } from '../../lib/api/client';
+import logoImg from '../../public/dbslogo.png';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -50,20 +51,12 @@ export default function LoginPage() {
       >
         {/* Brand */}
         <div className="text-center mb-8">
-          <div className="flex justify-center mb-5">
-            <div className="bg-white rounded-2xl p-3 shadow-xl border border-white/20 flex items-center justify-center max-w-[160px] h-20">
-              <img
-                src="/dbslogo.png"
-                alt="DBS Logo"
-                className="max-h-full w-auto object-contain"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  if (!target.src.endsWith('/logo.png')) {
-                    target.src = '/logo.png';
-                  }
-                }}
-              />
-            </div>
+          <div className="flex justify-center mb-4">
+            <img
+              src={logoImg.src}
+              alt="DBS Logo"
+              className="h-20 w-auto object-contain mx-auto"
+            />
           </div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white uppercase font-sans leading-tight">
             {clinicInfo.name}
@@ -73,79 +66,81 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Error Message */}
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-2"
-          >
-            <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
-            <p className="text-xs text-red-400">{error}</p>
-          </motion.div>
-        )}
-
-        {/* Credentials Form */}
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Username or Email
-            </label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
-              <input
-                type="text"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  setError('');
-                }}
-                required
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
-                placeholder="Enter username or email"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Password
-            </label>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setError('');
-                }}
-                required
-                className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
-                placeholder="Enter your password"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3.5 top-3 text-slate-500 hover:text-slate-300 focus:outline-none"
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-
-          <Button
-            type="submit"
-            isLoading={isLoading}
-            variant="primary"
-            size="lg"
-            className="w-full mt-2"
-            icon={<ArrowRight className="w-4 h-4" />}
-          >
-            Sign In to Clinic Portal
-          </Button>
-        </form>
+        {/* Error Message */ }
+  {
+    error && (
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-2"
+      >
+        <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+        <p className="text-xs text-red-400">{error}</p>
       </motion.div>
+    )
+  }
+
+  {/* Credentials Form */ }
+  <form onSubmit={handleLogin} className="space-y-4">
+    <div>
+      <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+        Username or Email
+      </label>
+      <div className="relative">
+        <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
+        <input
+          type="text"
+          value={email}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            setError('');
+          }}
+          required
+          className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
+          placeholder="Enter username or email"
+        />
+      </div>
     </div>
+
+    <div>
+      <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+        Password
+      </label>
+      <div className="relative">
+        <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
+        <input
+          type={showPassword ? 'text' : 'password'}
+          value={password}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            setError('');
+          }}
+          required
+          className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
+          placeholder="Enter your password"
+        />
+        <button
+          type="button"
+          onClick={() => setShowPassword(!showPassword)}
+          className="absolute right-3.5 top-3 text-slate-500 hover:text-slate-300 focus:outline-none"
+        >
+          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+        </button>
+      </div>
+    </div>
+
+    <Button
+      type="submit"
+      isLoading={isLoading}
+      variant="primary"
+      size="lg"
+      className="w-full mt-2"
+      icon={<ArrowRight className="w-4 h-4" />}
+    >
+      Sign In to Clinic Portal
+    </Button>
+  </form>
+      </motion.div >
+    </div >
   );
 }
