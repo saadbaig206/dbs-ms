@@ -36,9 +36,9 @@ export default function LoginPage() {
 
       setIsLoading(false);
       if (data.role === 'staff') {
-        router.push('/pos');
+        window.location.href = '/pos';
       } else {
-        router.push('/dashboard');
+        window.location.href = '/dashboard';
       }
     } catch (err: any) {
       setIsLoading(false);
