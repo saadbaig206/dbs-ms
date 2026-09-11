@@ -92,7 +92,17 @@ export const Sidebar: React.FC = () => {
       {/* Brand Header */}
       <div className="flex items-center justify-between p-5 border-b border-slate-800/80 shrink-0">
         <Link href="/dashboard" className="flex items-center gap-3">
-          
+          <img
+            src="/dbslogo.png"
+            alt="DBS Logo"
+            className="w-9 h-9 object-contain rounded-lg shrink-0"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              if (!target.src.endsWith('/logo.png')) {
+                target.src = '/logo.png';
+              }
+            }}
+          />
           {!isCollapsed && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <h1 className="text-base font-extrabold text-white tracking-wider uppercase font-sans">

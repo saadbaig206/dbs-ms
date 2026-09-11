@@ -28,18 +28,8 @@ export default function LoginPage() {
       const data = await authClient.login(email.trim(), password);
       setRole(data.role);
 
-      try {
-        await refreshData();
-      } catch (rErr) {
-        console.warn('refreshData warning after login:', rErr);
-      }
-
-      setIsLoading(false);
-      if (data.role === 'staff') {
-        window.location.href = '/pos';
-      } else {
-        window.location.href = '/dashboard';
-      }
+      const targetUrl = data.role === 'staff' ? '/pos' : '/dashboard';
+      window.location.href = targetUrl;
     } catch (err: any) {
       setIsLoading(false);
       setError(err.message || 'Invalid email or password. Please try again.');
@@ -64,7 +54,13 @@ export default function LoginPage() {
             <img
               src="/dbslogo.png"
               alt="DBS Logo"
-              className="h-22 w-auto object-contain "
+              className="h-20 w-auto max-h-24 object-contain mx-auto drop-shadow-md"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                if (!target.src.endsWith('/logo.png')) {
+                  target.src = '/logo.png';
+                }
+              }}
             />
           </div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white uppercase font-sans leading-tight">

@@ -15,39 +15,35 @@ async def login(
     login_data: LoginRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    # Fallback initialization for serverless runtimes (like Vercel) where ASGI lifespan events are skipped
+    from sqlalchemy import func
+    email_clean = login_data.email.strip().lower()
+
     try:
-        result = await db.execute(select(User))
-        users_exist = bool(result.scalars().first())
+        result = await db.execute(select(User).where(func.lower(User.email) == email_clean))
+        user = result.scalars().first()
     except Exception:
+        # Fallback initialization if table does not exist
         from app.models.base import Base
         async with db.bind.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        users_exist = False
+        
+        result = await db.execute(select(User).where(func.lower(User.email) == email_clean))
+        user = result.scalars().first()
 
-    if not users_exist:
-        from app.core.security import get_password_hash
-        admin_user = User(
-            email="admin@gmail.com",
-            hashed_password=get_password_hash("admin"),
-            role="admin"
-        )
-        staff_user = User(
-            email="staff@gmail.com",
-            hashed_password=get_password_hash("staff"),
-            role="staff"
-        )
-        drzaini_user = User(
-            email="drzaini",
-            hashed_password=get_password_hash("drzaini109"),
-            role="admin"
-        )
-        db.add_all([admin_user, staff_user, drzaini_user])
-        await db.commit()
+    if not user:
+        # Check if database is completely empty and needs initial seeding
+        count_res = await db.execute(select(User))
+        if not count_res.scalars().first():
+            from app.core.security import get_password_hash
+            admin_user = User(email="admin@gmail.com", hashed_password=get_password_hash("admin"), role="admin")
+            staff_user = User(email="staff@gmail.com", hashed_password=get_password_hash("staff"), role="staff")
+            drzaini_user = User(email="drzaini", hashed_password=get_password_hash("drzaini109"), role="admin")
+            db.add_all([admin_user, staff_user, drzaini_user])
+            await db.commit()
 
-    from sqlalchemy import func
-    result = await db.execute(select(User).where(func.lower(User.email) == func.lower(login_data.email.strip())))
-    user = result.scalars().first()
+            result = await db.execute(select(User).where(func.lower(User.email) == email_clean))
+            user = result.scalars().first()
+
     if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
