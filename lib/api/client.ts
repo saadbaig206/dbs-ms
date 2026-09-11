@@ -113,11 +113,13 @@ export const authClient = {
     if (typeof window !== 'undefined') {
       const isSecure = window.location.protocol === 'https:';
       const secureFlag = isSecure ? '; Secure' : '';
-      document.cookie = `access_token=; path=/; max-age=0; SameSite=Lax${secureFlag}`;
-      document.cookie = `refresh_token=; path=/; max-age=0; SameSite=Lax${secureFlag}`;
-      document.cookie = `user_role=; path=/; max-age=0; SameSite=Lax${secureFlag}`;
+      const pastDate = 'expires=Thu, 01 Jan 1970 00:00:00 GMT;';
+      document.cookie = `access_token=; path=/; max-age=0; ${pastDate} SameSite=Lax${secureFlag}`;
+      document.cookie = `refresh_token=; path=/; max-age=0; ${pastDate} SameSite=Lax${secureFlag}`;
+      document.cookie = `user_role=; path=/; max-age=0; ${pastDate} SameSite=Lax${secureFlag}`;
       localStorage.removeItem('access_token');
       localStorage.removeItem('user_role');
+      localStorage.clear();
     }
   },
 

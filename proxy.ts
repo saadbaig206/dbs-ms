@@ -7,7 +7,8 @@ export function proxy(request: NextRequest) {
   // Public paths
   const isPublicPath = path === '/login' || path === '/';
 
-  const token = request.cookies.get('access_token')?.value;
+  const rawToken = request.cookies.get('access_token')?.value;
+  const token = rawToken && rawToken.trim().length > 10 ? rawToken.trim() : null;
   const role = request.cookies.get('user_role')?.value;
 
   if (isPublicPath) {
