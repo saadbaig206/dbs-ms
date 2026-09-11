@@ -21,6 +21,7 @@ import {
 import { useClinic } from '../../lib/context/ClinicContext';
 import { ServiceItem, PaymentMethod } from '../../lib/types/clinic';
 import { formatPKR } from '../../lib/utils/currency';
+import { formatPhoneInput } from '../../lib/utils/phone';
 import { Button } from '../../components/ui/Button';
 import { Input, Select } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
@@ -59,7 +60,7 @@ export default function POSPage() {
   const [cardType, setCardType] = useState('Visa');
   const [bankTxnId, setBankTxnId] = useState('');
   const [cvc, setCvc] = useState('');
-  const [expMonth, setExpMonth] = useState('01');
+  const [expiryDate, setExpiryDate] = useState('');
   
   // Local recent transactions list to guarantee reprint works for staff
   const [localRecentTransactions, setLocalRecentTransactions] = useState<any[]>([]);
@@ -228,7 +229,7 @@ export default function POSPage() {
       setCardType('Visa');
       setBankTxnId('');
       setCvc('');
-      setExpMonth('01');
+      setExpiryDate('');
 
       setTimeout(() => {
         setIsPaidSuccess(false);
@@ -575,16 +576,24 @@ export default function POSPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Exp Month</label>
-                    <select
-                      value={expMonth}
-                      onChange={(e) => setExpMonth(e.target.value)}
-                      className="w-full rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs py-1.5 px-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    >
-                      {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map((m) => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Expiry (MM/YY)</label>
+                    <input
+                      type="text"
+                      maxLength={5}
+                      placeholder="MM/YY"
+                      value={expiryDate}
+                      onChange={(e) => {
+                        let inputVal = e.target.value;
+                        let cleaned = inputVal.replace(/\D/g, '').slice(0, 4);
+                        if (cleaned.length >= 3) {
+                          cleaned = `${cleaned.slice(0, 2)}/${cleaned.slice(2)}`;
+                        } else if (cleaned.length === 2 && inputVal.endsWith('/')) {
+                          cleaned = `${cleaned}/`;
+                        }
+                        setExpiryDate(cleaned);
+                      }}
+                      className="w-full rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs py-1.5 px-2 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                    />
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">CVC#</label>
@@ -666,18 +675,9 @@ export default function POSPage() {
           />
           <Input
             label="Phone Number"
-            placeholder="e.g. +923001234567"
+            placeholder="e.g. +92 3001234567"
             value={quickClientPhone}
-            onChange={(e) => {
-              let val = e.target.value;
-              if (!val.startsWith('+92')) {
-                if (val.startsWith('92')) val = '+' + val;
-                else if (val.startsWith('0')) val = '+92' + val.substring(1);
-                else val = '+92' + val.replace(/\D/g, '');
-              }
-              const digits = val.substring(3).replace(/\D/g, '');
-              setQuickClientPhone('+92' + digits.substring(0, 10));
-            }}
+            onChange={(e) => setQuickClientPhone(formatPhoneInput(e.target.value))}
             required
           />
           <div className="grid grid-cols-2 gap-4">

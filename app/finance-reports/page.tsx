@@ -1068,9 +1068,9 @@ export default function FinanceReportsPage() {
                   <Select
                     options={[
                       { label: 'All Statuses & Dues', value: 'All' },
-                      { label: '⚠️ Unpaid Vendor Dues (Remaining Balance > 0)', value: 'UnpaidVendor' },
-                      { label: '✅ Fully Paid Expenses', value: 'Paid' },
-                      { label: '⏳ Pending Expenses', value: 'Pending' }
+                      { label: 'Unpaid Vendor Dues (Remaining Balance > 0)', value: 'UnpaidVendor' },
+                      { label: 'Fully Paid Expenses', value: 'Paid' },
+                      { label: 'Pending Expenses', value: 'Pending' }
                     ]}
                     value={expStatusFilter}
                     onChange={(e) => setExpStatusFilter(e.target.value)}
@@ -1837,7 +1837,7 @@ export default function FinanceReportsPage() {
                     <div className="flex justify-between items-center">
                       <span className="text-slate-500 font-semibold uppercase text-[10px]">Your Status</span>
                       <span className="font-semibold text-slate-700 dark:text-slate-300">
-                        {hasCurrentUserApproved ? '✅ Already Approved' : '⏳ Pending Your Approval'}
+                        {hasCurrentUserApproved ? 'Already Approved' : 'Pending Your Approval'}
                       </span>
                     </div>
                   </>

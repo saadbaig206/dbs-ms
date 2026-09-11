@@ -43,6 +43,19 @@ async def get_current_user(
     user = result.scalars().first()
     if user is None:
         raise credentials_exception
+
+    if user.role == "staff":
+        from app.models.staff import Staff
+        from sqlalchemy import func
+        s_res = await db.execute(select(Staff).where(func.lower(Staff.email) == func.lower(user.email)))
+        staff_member = s_res.scalars().first()
+        if staff_member and staff_member.status == "Inactive":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Staff account is inactive or disabled.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
     return user
 
 def require_role(allowed_roles: list[str]):

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Plus, Phone, Trash2, Edit2, ShieldAlert, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
+import { formatPhoneInput } from '../../lib/utils/phone';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
@@ -259,9 +260,9 @@ export default function BranchesPage() {
           />
           <Input
             label="Phone Number"
-            placeholder="e.g. +92 (42) 111-222-333"
+            placeholder="e.g. +92 3001234567"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
           />
           <div className="grid grid-cols-2 gap-4">
             <Input
@@ -324,9 +325,9 @@ export default function BranchesPage() {
           />
           <Input
             label="Phone Number"
-            placeholder="e.g. +92 (42) 111-222-333"
+            placeholder="e.g. +92 3001234567"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
           />
           <div className="grid grid-cols-2 gap-4">
             <Input

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { formatPKR } from '../../lib/utils/currency';
+import { formatPhoneInput } from '../../lib/utils/phone';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
@@ -323,23 +324,7 @@ export default function AppointmentsPage() {
               label="Phone Number"
               placeholder="e.g. +92 3001234567"
               value={newPhone}
-              onChange={(e) => {
-                let val = e.target.value;
-                // Enforce starts with +92 
-                if (!val.startsWith('+92 ')) {
-                  if (val.startsWith('+92')) {
-                    val = '+92 ' + val.substring(3);
-                  } else if (val.startsWith('92')) {
-                    val = '+92 ' + val.substring(2);
-                  } else if (val.startsWith('0')) {
-                    val = '+92 ' + val.substring(1);
-                  } else {
-                    val = '+92 ' + val.replace(/\D/g, '');
-                  }
-                }
-                const digits = val.substring(4).replace(/\D/g, '');
-                setNewPhone('+92 ' + digits.substring(0, 10));
-              }}
+              onChange={(e) => setNewPhone(formatPhoneInput(e.target.value))}
               required
             />
           </div>
@@ -419,7 +404,7 @@ export default function AppointmentsPage() {
 
           {hasCollision && (
             <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 text-amber-700 dark:text-amber-300 text-xs font-semibold flex items-center gap-2">
-              <span className="text-sm font-bold">⚠️ Warning:</span>
+              <span className="text-sm font-bold">Warning:</span>
               This specialist is already booked for an appointment at this date and time slot.
             </div>
           )}

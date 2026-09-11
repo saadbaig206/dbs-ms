@@ -173,9 +173,9 @@ async def send_appointment_reminder(
     message = (
         f"Hi {db_apt.client_name}!\n"
         f"This is a reminder that you have an appointment with {clinic_name} tomorrow.\n\n"
-        f"📅 {db_apt.date}\n"
-        f"🕐 {db_apt.time}\n"
-        f"📍 {location_str}\n\n"
+        f"Date: {db_apt.date}\n"
+        f"Time: {db_apt.time}\n"
+        f"Location: {location_str}\n\n"
         f"We look forward to seeing you! If you need to reschedule, please contact us.\n\n"
         f"Thank you!"
     )

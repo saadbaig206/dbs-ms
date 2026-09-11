@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 
 export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
-  
+
   // Public paths
   const isPublicPath = path === '/login' || path === '/';
 
@@ -26,36 +26,26 @@ export function proxy(request: NextRequest) {
   }
 
   // Admin-only paths
-  const isAdminOnlyPath = 
-    path.startsWith('/expenses') || 
-    path.startsWith('/finance') || 
+  const isAdminOnlyPath =
+    path.startsWith('/expenses') ||
+    path.startsWith('/finance') ||
     path.startsWith('/reports');
 
   if (isAdminOnlyPath && role !== 'admin') {
     return NextResponse.redirect(new URL('/pos', request.nextUrl));
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+  response.headers.set('Pragma', 'no-cache');
+  response.headers.set('Expires', '0');
+  return response;
 }
 
 export default proxy;
 
 export const config = {
   matcher: [
-    '/',
-    '/login',
-    '/dashboard/:path*',
-    '/attendance/:path*',
-    '/bookings/:path*',
-    '/calendar/:path*',
-    '/clients/:path*',
-    '/expenses/:path*',
-    '/finance/:path*',
-    '/inventory/:path*',
-    '/pos/:path*',
-    '/reports/:path*',
-    '/services/:path*',
-    '/settings/:path*',
-    '/staff/:path*',
+    '/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)',
   ],
 };

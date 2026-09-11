@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { formatPKR } from '../../lib/utils/currency';
+import { formatPhoneInput } from '../../lib/utils/phone';
 import { Staff, StaffRole, AttendanceStatus } from '../../lib/types/clinic';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -706,18 +707,9 @@ export default function StaffPage() {
             />
             <Input
               label="Phone Number"
-              placeholder="e.g. +923001234567"
+              placeholder="e.g. +92 3001234567"
               value={phone}
-              onChange={(e) => {
-                let val = e.target.value;
-                if (!val.startsWith('+92')) {
-                  if (val.startsWith('92')) val = '+' + val;
-                  else if (val.startsWith('0')) val = '+92' + val.substring(1);
-                  else val = '+92' + val.replace(/\D/g, '');
-                }
-                const digits = val.substring(3).replace(/\D/g, '');
-                setPhone('+92' + digits.substring(0, 10));
-              }}
+              onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
               required
             />
           </div>
@@ -809,18 +801,9 @@ export default function StaffPage() {
             />
             <Input
               label="Phone Number"
-              placeholder="e.g. +923001234567"
+              placeholder="e.g. +92 3001234567"
               value={phone}
-              onChange={(e) => {
-                let val = e.target.value;
-                if (!val.startsWith('+92')) {
-                  if (val.startsWith('92')) val = '+' + val;
-                  else if (val.startsWith('0')) val = '+92' + val.substring(1);
-                  else val = '+92' + val.replace(/\D/g, '');
-                }
-                const digits = val.substring(3).replace(/\D/g, '');
-                setPhone('+92' + digits.substring(0, 10));
-              }}
+              onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
               required
             />
           </div>

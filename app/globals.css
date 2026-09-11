@@ -90,10 +90,6 @@
   width: 6px;
   height: 6px;
 }
-::-webkit-scrollbar:horizontal {
-  height: 0px !important;
-  display: none !important;
-}
 ::-webkit-scrollbar-track {
   background: transparent;
 }

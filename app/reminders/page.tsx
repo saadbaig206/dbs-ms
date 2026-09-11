@@ -90,9 +90,9 @@ export default function RemindersPage() {
       const message = `Hi ${apt.clientName}!
 This is a reminder that you have an appointment with ${clinicName} tomorrow.
 
-📅 ${apt.date}
-🕐 ${apt.time}
-📍 ${locationStr}
+Date: ${apt.date}
+Time: ${apt.time}
+Location: ${locationStr}
 
 We look forward to seeing you! If you need to reschedule, please contact us.
 

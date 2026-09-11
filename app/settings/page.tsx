@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Settings as SettingsIcon, Sparkles, Save, Download, Upload, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { CLINIC_INFO } from '../../lib/constants/clinic';
+import { formatPhoneInput } from '../../lib/utils/phone';
 import { Button } from '../../components/ui/Button';
 import { Input, Select } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
@@ -115,8 +116,9 @@ export default function SettingsPage() {
             />
             <Input
               label="Contact Phone"
+              placeholder="e.g. +92 3001234567"
               value={phone}
-              onChange={(e) => handleFieldChange(setPhone, e.target.value)}
+              onChange={(e) => handleFieldChange(setPhone, formatPhoneInput(e.target.value))}
               required
             />
           </div>
