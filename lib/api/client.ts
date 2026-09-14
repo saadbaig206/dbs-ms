@@ -6,16 +6,15 @@ export interface ApiResponse<T> {
 
 const getApiBaseUrl = () => {
   if (typeof window !== 'undefined') {
+    if (process.env.NEXT_PUBLIC_API_URL && (window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1'))) {
+      return process.env.NEXT_PUBLIC_API_URL;
+    }
     return '';
   }
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}`;
   }
-  const envUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
-    return envUrl;
-  }
-  return '';
+  return process.env.NEXT_PUBLIC_API_URL || '';
 };
 
 const API_BASE_URL = getApiBaseUrl();
@@ -35,6 +34,9 @@ export async function apiFetch<T>(
   const url = `${API_BASE_URL}/api/v1${endpoint}`;
   const token = getToken();
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
+
   const defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
@@ -42,6 +44,7 @@ export async function apiFetch<T>(
 
   const defaultOptions: RequestInit = {
     credentials: 'include',
+    signal: controller.signal,
     headers: {
       ...defaultHeaders,
       ...options.headers,
@@ -51,6 +54,7 @@ export async function apiFetch<T>(
 
   try {
     const response = await fetch(url, defaultOptions);
+    clearTimeout(timeoutId);
 
     if (response.status === 401) {
       if (typeof window !== 'undefined') {
@@ -73,6 +77,7 @@ export async function apiFetch<T>(
 
     return await response.json();
   } catch (error: any) {
+    clearTimeout(timeoutId);
     console.error(`API Fetch error on ${endpoint}:`, error);
     throw error;
   }

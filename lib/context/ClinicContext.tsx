@@ -244,22 +244,36 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (showSpinner) setIsLoading(true);
     setError(null);
     try {
-      let activeRole: UserRole = 'staff';
-      try {
-        const user = await authClient.me();
-        if (user && user.role) {
-          activeRole = user.role as UserRole;
-          setRoleState(activeRole);
-          document.cookie = `user_role=${activeRole}; path=/; max-age=${60 * 60 * 24 * 8}; SameSite=Lax`;
-          setUserId(user.id || null);
-          setUserEmail(user.email || null);
-          const bId = user.branch_id || user.branchId || null;
-          setUserBranchId(bId);
-          if (activeRole === 'staff' && bId) {
-            setSelectedBranchId(prev => prev || bId);
-          }
-        }
-      } catch (e) {
+      // Execute user auth and all entity queries concurrently in parallel
+      const [
+        user,
+        branchesData,
+        staffData,
+        servicesData,
+        clientsData,
+        appointmentsData,
+        inventoryData,
+        attendanceData,
+        notificationsData,
+        expensesData,
+        transactionsData,
+        partnersData
+      ] = await Promise.all([
+        authClient.me().catch(() => null),
+        fetchSafe<Branch[]>('/branches', []),
+        fetchSafe<Staff[]>('/staff', []),
+        fetchSafe<ServiceItem[]>('/services', []),
+        fetchSafe<Client[]>('/clients', []),
+        fetchSafe<Appointment[]>('/appointments', []),
+        fetchSafe<InventoryItem[]>('/inventory', []),
+        fetchSafe<AttendanceRecord[]>('/attendance', []),
+        fetchSafe<NotificationItem[]>('/notifications', []),
+        fetchSafe<ExpenseItem[]>('/expenses', []),
+        fetchSafe<FinancialTransaction[]>('/transactions', []),
+        fetchSafe<{ id: number; username: string }[]>('/auth/partners', [])
+      ]);
+
+      if (!user) {
         // Not logged in or session expired
         setIsLoading(false);
         if (typeof window !== 'undefined' && window.location.pathname !== '/login' && window.location.pathname !== '/') {
@@ -269,25 +283,16 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return;
       }
 
-      const [
-        branchesData,
-        staffData,
-        servicesData,
-        clientsData,
-        appointmentsData,
-        inventoryData,
-        attendanceData,
-        notificationsData
-      ] = await Promise.all([
-        fetchSafe<Branch[]>('/branches', []),
-        fetchSafe<Staff[]>('/staff', []),
-        fetchSafe<ServiceItem[]>('/services', []),
-        fetchSafe<Client[]>('/clients', []),
-        fetchSafe<Appointment[]>('/appointments', []),
-        fetchSafe<InventoryItem[]>('/inventory', []),
-        fetchSafe<AttendanceRecord[]>('/attendance', []),
-        fetchSafe<NotificationItem[]>('/notifications', [])
-      ]);
+      const activeRole = (user.role || 'staff') as UserRole;
+      setRoleState(activeRole);
+      document.cookie = `user_role=${activeRole}; path=/; max-age=${60 * 60 * 24 * 8}; SameSite=Lax`;
+      setUserId(user.id || null);
+      setUserEmail(user.email || null);
+      const bId = user.branch_id || user.branchId || null;
+      setUserBranchId(bId);
+      if (activeRole === 'staff' && bId) {
+        setSelectedBranchId(prev => prev || bId);
+      }
 
       setBranches(branchesData);
       setStaff(staffData);
@@ -298,12 +303,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setAttendance(attendanceData);
       setNotifications(notificationsData);
 
-      // Financial data restricted to admin or partner
       if (activeRole === 'admin' || activeRole === 'partner') {
-        const [expensesData, transactionsData] = await Promise.all([
-          fetchSafe<ExpenseItem[]>('/expenses', []),
-          fetchSafe<FinancialTransaction[]>('/transactions', [])
-        ]);
         setExpenses(expensesData);
         setTransactions(transactionsData);
       } else {
@@ -311,9 +311,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setTransactions([]);
       }
 
-      // Load partners only if admin
       if (activeRole === 'admin') {
-        const partnersData = await fetchSafe<{ id: number; username: string }[]>('/auth/partners', []);
         setPartners(partnersData);
       } else {
         setPartners([]);
