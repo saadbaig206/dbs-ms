@@ -9,7 +9,7 @@ export const staffSchema = z.object({
   name: z.string().min(2, 'Name is required'),
   role: z.string().min(2, 'Role is required'),
   salary: z.number().min(0, 'Salary must be a positive number'),
-  phone: z.string().regex(/^\+?[1-9]\d{1,14}$/, 'Invalid phone number format'),
+  phone: z.string().regex(/^\+?\s?[1-9][\d\s]{1,14}$/, 'Invalid phone number format'),
   email: z.string().email('Invalid email address'),
   joiningDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
   status: z.enum(['Active', 'On Leave', 'Inactive']),

@@ -95,8 +95,8 @@ export default function AppointmentsPage() {
       alert("Client Name must contain only letters and spaces");
       return;
     }
-    if (!/^\+92\s\d{9,10}$/.test(newPhone)) {
-      alert("Please enter a valid Pakistani phone number (+92 followed by a space and 9-10 digits)");
+    if (!/^\+92\s?\d{9,10}$/.test(newPhone)) {
+      alert("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)");
       return;
     }
     if (!aptDate) {

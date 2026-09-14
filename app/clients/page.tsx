@@ -66,7 +66,7 @@ export default function ClientsPage() {
       alert("Full Name must contain only letters and spaces");
       return;
     }
-    if (!/^\+92\d{9,10}$/.test(phone)) {
+    if (!/^\+92\s?\d{9,10}$/.test(phone)) {
       alert("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)");
       return;
     }

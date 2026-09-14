@@ -152,7 +152,7 @@ export default function POSPage() {
       showToast("Full Name must contain only letters and spaces", "error");
       return;
     }
-    if (!/^\+92\d{9,10}$/.test(quickClientPhone)) {
+    if (!/^\+92\s?\d{9,10}$/.test(quickClientPhone)) {
       showToast("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)", "error");
       return;
     }

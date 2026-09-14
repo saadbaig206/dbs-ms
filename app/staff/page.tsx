@@ -145,7 +145,7 @@ export default function StaffPage() {
       showToast("Full Name must contain only letters and spaces", "error");
       return;
     }
-    if (!/^\+92\d{9,10}$/.test(phone)) {
+    if (!/^\+92\s?\d{9,10}$/.test(phone)) {
       showToast("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)", "error");
       return;
     }
@@ -192,7 +192,7 @@ export default function StaffPage() {
       showToast("Full Name must contain only letters and spaces", "error");
       return;
     }
-    if (!/^\+92\d{9,10}$/.test(phone)) {
+    if (!/^\+92\s?\d{9,10}$/.test(phone)) {
       showToast("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)", "error");
       return;
     }
