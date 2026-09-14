@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:api": "python -m uvicorn api.index:app --port 8000 --reload",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

@@ -25,8 +25,9 @@ if db_url:
         db_url,
         connect_args={"ssl": ssl_ctx},
         pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=20
+        pool_size=3,
+        max_overflow=5,
+        pool_recycle=300
     )
 
     SessionLocal = async_sessionmaker(

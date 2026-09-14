@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useClinic } from '../../lib/context/ClinicContext';
-import { formatPKR } from '../../lib/utils/currency';
+import { formatPKR, formatUserName } from '../../lib/utils/currency';
 import { escapeHtml } from '../../lib/utils/sanitize';
 import { ExpenseCategory } from '../../lib/types/clinic';
 import { StatCard } from '../../components/cards/StatCard';
@@ -144,6 +144,7 @@ export default function FinanceReportsPage() {
     role,
     userEmail,
     partners,
+    staff,
     setPrintData,
     branches,
     selectedBranchId,
@@ -1193,11 +1194,11 @@ export default function FinanceReportsPage() {
                             </td>
                             <td className="py-3.5 px-4 text-slate-700 dark:text-slate-200">
                               <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">
-                                {exp.addedBy || 'Admin/Partner'}
+                                {formatUserName(exp.addedBy, staff)}
                               </div>
-                              {exp.paidBy && (
-                                <div className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
-                                  Paid by: {exp.paidBy}
+                              {exp.paidBy && formatUserName(exp.paidBy, staff) !== formatUserName(exp.addedBy, staff) && (
+                                <div className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold mt-0.5">
+                                  Paid by: {formatUserName(exp.paidBy, staff)}
                                 </div>
                               )}
                             </td>
@@ -1805,7 +1806,7 @@ export default function FinanceReportsPage() {
                     <tr key={log.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                       <td className="py-2.5 px-3 font-mono text-slate-500">{log.date}</td>
                       <td className="py-2.5 px-3 font-mono font-bold text-emerald-600">{formatPKR(log.amount)}</td>
-                      <td className="py-2.5 px-3 font-semibold text-slate-900 dark:text-slate-100">{log.paidBy}</td>
+                      <td className="py-2.5 px-3 font-semibold text-slate-900 dark:text-slate-100">{formatUserName(log.paidBy, staff)}</td>
                       <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">{log.paymentMethod}</td>
                       <td className="py-2.5 px-3 text-slate-500">{log.notes || '-'}</td>
                     </tr>
