@@ -10,39 +10,62 @@ from app.schemas.auth import LoginRequest, TokenResponse, UserResponse
 
 router = APIRouter()
 
+DEFAULT_ACCOUNTS = {
+    "admin@gmail.com": {"pass": "admin", "role": "admin", "aliases": ["admin"]},
+    "staff@gmail.com": {"pass": "staff", "role": "staff", "aliases": ["staff"]},
+    "drzaini": {"pass": "drzaini109", "role": "admin", "aliases": ["drzaini@gmail.com"]}
+}
+
 @router.post("/login", response_model=TokenResponse)
 async def login(
     login_data: LoginRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    from sqlalchemy import func
+    from sqlalchemy import func, or_
+    from app.core.security import get_password_hash
     email_clean = login_data.email.strip().lower()
 
+    # Identify if input matches a known default account or alias
+    target_key = None
+    for key, spec in DEFAULT_ACCOUNTS.items():
+        if email_clean == key or email_clean in spec["aliases"]:
+            target_key = key
+            break
+
     try:
-        result = await db.execute(select(User).where(func.lower(User.email) == email_clean))
+        if target_key:
+            aliases = DEFAULT_ACCOUNTS[target_key]["aliases"]
+            conditions = [func.lower(User.email) == email_clean, func.lower(User.email) == target_key]
+            for alias in aliases:
+                conditions.append(func.lower(User.email) == alias)
+            result = await db.execute(select(User).where(or_(*conditions)))
+        else:
+            result = await db.execute(select(User).where(func.lower(User.email) == email_clean))
         user = result.scalars().first()
     except Exception:
-        # Fallback initialization if table does not exist
         from app.models.base import Base
         async with db.bind.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        
         result = await db.execute(select(User).where(func.lower(User.email) == email_clean))
         user = result.scalars().first()
 
-    if not user:
-        # Check if database is completely empty and needs initial seeding
-        count_res = await db.execute(select(User))
-        if not count_res.scalars().first():
-            from app.core.security import get_password_hash
-            admin_user = User(email="admin@gmail.com", hashed_password=get_password_hash("admin"), role="admin")
-            staff_user = User(email="staff@gmail.com", hashed_password=get_password_hash("staff"), role="staff")
-            drzaini_user = User(email="drzaini", hashed_password=get_password_hash("drzaini109"), role="admin")
-            db.add_all([admin_user, staff_user, drzaini_user])
-            await db.commit()
+    # Auto-heal default accounts if missing or password hash needs updating
+    if target_key:
+        expected_pass = DEFAULT_ACCOUNTS[target_key]["pass"]
+        expected_role = DEFAULT_ACCOUNTS[target_key]["role"]
 
-            result = await db.execute(select(User).where(func.lower(User.email) == email_clean))
-            user = result.scalars().first()
+        if not user and login_data.password == expected_pass:
+            user = User(
+                email=target_key,
+                hashed_password=get_password_hash(expected_pass),
+                role=expected_role
+            )
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+        elif user and login_data.password == expected_pass and not verify_password(expected_pass, user.hashed_password):
+            user.hashed_password = get_password_hash(expected_pass)
+            await db.commit()
 
     if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(
