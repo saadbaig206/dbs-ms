@@ -16,12 +16,16 @@ from app.routers import (
     expenses, transactions, attendance, notifications, pos, dashboard, branches, whatsapp
 )
 
+_db_initialized = False
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    try:
-        if engine:
-            # 1. Create tables on startup dynamically
-            async with engine.begin() as conn:
+    global _db_initialized
+    if not _db_initialized:
+        try:
+            if engine:
+                # 1. Create tables on startup dynamically
+                async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
                 # Ensure branch_id columns exist in tables if they already exist without them
                 await conn.execute(text(
@@ -153,6 +157,7 @@ async def lifespan(app: FastAPI):
                     )
                     session.add(default_settings)
                     await session.commit()
+            _db_initialized = True
         else:
             print("Lifespan startup skipped database setup: engine is None.")
     except Exception as e:

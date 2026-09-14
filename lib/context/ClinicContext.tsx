@@ -179,29 +179,56 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem('clinic_info', JSON.stringify(info));
   };
 
+function loadCachedData<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const item = localStorage.getItem(`clinic_cache_${key}`);
+    return item ? JSON.parse(item) : fallback;
+  } catch (e) {
+    return fallback;
+  }
+}
+
+function saveCachedData(key: string, data: any) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(`clinic_cache_${key}`, JSON.stringify(data));
+  } catch (e) {
+    // ignore
+  }
+}
+
   const [theme] = useState<'light' | 'dark'>('dark');
   const [searchQuery, setSearchQuery] = useState('');
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [printData, setPrintData] = useState<{ title: string; type: 'invoice' | 'slip' | 'client'; data: any } | null>(null);
 
-  // Collections state
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [staff, setStaff] = useState<Staff[]>([]);
-  const [services, setServices] = useState<ServiceItem[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
-  const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [partners, setPartners] = useState<{ id: number; username: string }[]>([]);
+  // Collections state initialized from instant local cache
+  const [branches, setBranches] = useState<Branch[]>(() => loadCachedData('branches', []));
+  const [staff, setStaff] = useState<Staff[]>(() => loadCachedData('staff', []));
+  const [services, setServices] = useState<ServiceItem[]>(() => loadCachedData('services', []));
+  const [clients, setClients] = useState<Client[]>(() => loadCachedData('clients', []));
+  const [appointments, setAppointments] = useState<Appointment[]>(() => loadCachedData('appointments', []));
+  const [inventory, setInventory] = useState<InventoryItem[]>(() => loadCachedData('inventory', []));
+  const [expenses, setExpenses] = useState<ExpenseItem[]>(() => loadCachedData('expenses', []));
+  const [transactions, setTransactions] = useState<FinancialTransaction[]>(() => loadCachedData('transactions', []));
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => loadCachedData('attendance', []));
+  const [notifications, setNotifications] = useState<NotificationItem[]>(() => loadCachedData('notifications', []));
+  const [partners, setPartners] = useState<{ id: number; username: string }[]>(() => loadCachedData('partners', []));
 
   // POS
   const [posCart, setPosCart] = useState<POSCartItem[]>([]);
 
-  // Loading / Error
-  const [isLoading, setIsLoading] = useState(true);
+  // Loading state starts false IF cached data or access token exists for instant render
+  const [isLoading, setIsLoading] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const hasToken = !!localStorage.getItem('access_token') || document.cookie.includes('access_token=');
+    const hasCachedData = (localStorage.getItem('clinic_cache_staff') || '[]') !== '[]' || (localStorage.getItem('clinic_cache_services') || '[]') !== '[]';
+    if (hasToken && hasCachedData) {
+      return false;
+    }
+    return true;
+  });
   const [error, setError] = useState<string | null>(null);
 
   // Force dark mode globally
@@ -294,25 +321,25 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setSelectedBranchId(prev => prev || bId);
       }
 
-      setBranches(branchesData);
-      setStaff(staffData);
-      setServices(servicesData);
-      setClients(clientsData);
-      setAppointments(appointmentsData);
-      setInventory(inventoryData);
-      setAttendance(attendanceData);
-      setNotifications(notificationsData);
+      setBranches(branchesData); saveCachedData('branches', branchesData);
+      setStaff(staffData); saveCachedData('staff', staffData);
+      setServices(servicesData); saveCachedData('services', servicesData);
+      setClients(clientsData); saveCachedData('clients', clientsData);
+      setAppointments(appointmentsData); saveCachedData('appointments', appointmentsData);
+      setInventory(inventoryData); saveCachedData('inventory', inventoryData);
+      setAttendance(attendanceData); saveCachedData('attendance', attendanceData);
+      setNotifications(notificationsData); saveCachedData('notifications', notificationsData);
 
       if (activeRole === 'admin' || activeRole === 'partner') {
-        setExpenses(expensesData);
-        setTransactions(transactionsData);
+        setExpenses(expensesData); saveCachedData('expenses', expensesData);
+        setTransactions(transactionsData); saveCachedData('transactions', transactionsData);
       } else {
         setExpenses([]);
         setTransactions([]);
       }
 
       if (activeRole === 'admin') {
-        setPartners(partnersData);
+        setPartners(partnersData); saveCachedData('partners', partnersData);
       } else {
         setPartners([]);
       }
