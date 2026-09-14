@@ -13,7 +13,7 @@ router = APIRouter()
 DEFAULT_ACCOUNTS = {
     "admin@gmail.com": {"pass": "admin", "role": "admin", "aliases": ["admin"]},
     "staff@gmail.com": {"pass": "staff", "role": "staff", "aliases": ["staff"]},
-    "drzaini": {"pass": "drzaini109", "role": "admin", "aliases": ["drzaini@gmail.com"]}
+    "drzaini": {"pass": "drzaini109", "role": "admin", "aliases": ["drzaini@gmail.com", "drzaini109"]}
 }
 
 @router.post("/login", response_model=TokenResponse)
@@ -54,16 +54,17 @@ async def login(
         expected_pass = DEFAULT_ACCOUNTS[target_key]["pass"]
         expected_role = DEFAULT_ACCOUNTS[target_key]["role"]
 
-        if not user and login_data.password == expected_pass:
-            user = User(
-                email=target_key,
-                hashed_password=get_password_hash(expected_pass),
-                role=expected_role
-            )
-            db.add(user)
-            await db.commit()
-            await db.refresh(user)
-        elif user and login_data.password == expected_pass and not verify_password(expected_pass, user.hashed_password):
+        if not user:
+            if login_data.password == expected_pass:
+                user = User(
+                    email=target_key,
+                    hashed_password=get_password_hash(expected_pass),
+                    role=expected_role
+                )
+                db.add(user)
+                await db.commit()
+                await db.refresh(user)
+        elif user and not verify_password(login_data.password, user.hashed_password) and login_data.password == expected_pass:
             user.hashed_password = get_password_hash(expected_pass)
             await db.commit()
 

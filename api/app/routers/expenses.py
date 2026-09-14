@@ -21,7 +21,15 @@ async def list_expenses(
 ):
     query = select(ExpenseItem)
     if search:
-        query = query.where(ExpenseItem.title.ilike(f"%{search}%") | ExpenseItem.category.ilike(f"%{search}%"))
+        pattern = f"%{search}%"
+        query = query.where(
+            ExpenseItem.title.ilike(pattern) |
+            ExpenseItem.category.ilike(pattern) |
+            ExpenseItem.paid_by.ilike(pattern) |
+            ExpenseItem.added_by.ilike(pattern) |
+            ExpenseItem.vendor_name.ilike(pattern) |
+            ExpenseItem.product_name.ilike(pattern)
+        )
     active_branch_id = user_branch_id or branch_id
     if active_branch_id:
         query = query.where(ExpenseItem.branch_id == active_branch_id)

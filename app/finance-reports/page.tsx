@@ -462,11 +462,37 @@ export default function FinanceReportsPage() {
 
   const filteredExpenses = useMemo(() => {
     return expenses.filter((e) => {
-      const matchesSearch =
-        e.title.toLowerCase().includes(expSearch.toLowerCase()) ||
-        (e.vendorName && e.vendorName.toLowerCase().includes(expSearch.toLowerCase())) ||
-        (e.productName && e.productName.toLowerCase().includes(expSearch.toLowerCase())) ||
-        (e.addedBy && e.addedBy.toLowerCase().includes(expSearch.toLowerCase()));
+      const query = expSearch.toLowerCase().trim();
+      
+      let matchesSearch = true;
+      if (query) {
+        const matchesTitle = e.title && e.title.toLowerCase().includes(query);
+        const matchesVendor = e.vendorName && e.vendorName.toLowerCase().includes(query);
+        const matchesProduct = e.productName && e.productName.toLowerCase().includes(query);
+        const matchesAddedBy = e.addedBy && e.addedBy.toLowerCase().includes(query);
+        const matchesPaidBy = e.paidBy && e.paidBy.toLowerCase().includes(query);
+        const matchesNotes = e.notes && e.notes.toLowerCase().includes(query);
+        const matchesMethod = e.paymentMethod && e.paymentMethod.toLowerCase().includes(query);
+        const matchesType = e.paymentType && e.paymentType.toLowerCase().includes(query);
+
+        // Match full or partial payment audit logs
+        const matchesLogs = e.paymentLogs && e.paymentLogs.some((log: any) =>
+          (log.paidBy && log.paidBy.toLowerCase().includes(query)) ||
+          (log.notes && log.notes.toLowerCase().includes(query)) ||
+          (log.paymentMethod && log.paymentMethod.toLowerCase().includes(query))
+        );
+
+        matchesSearch =
+          Boolean(matchesTitle) ||
+          Boolean(matchesVendor) ||
+          Boolean(matchesProduct) ||
+          Boolean(matchesAddedBy) ||
+          Boolean(matchesPaidBy) ||
+          Boolean(matchesNotes) ||
+          Boolean(matchesMethod) ||
+          Boolean(matchesType) ||
+          Boolean(matchesLogs);
+      }
 
       const matchesCat = expCategoryFilter === 'All' || e.category === expCategoryFilter;
 
@@ -1169,8 +1195,8 @@ export default function FinanceReportsPage() {
                               <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">
                                 {exp.addedBy || 'Admin/Partner'}
                               </div>
-                              {exp.paidBy && exp.paidBy !== exp.addedBy && (
-                                <div className="text-[10px] text-slate-400">
+                              {exp.paidBy && (
+                                <div className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
                                   Paid by: {exp.paidBy}
                                 </div>
                               )}

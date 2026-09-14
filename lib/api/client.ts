@@ -35,7 +35,7 @@ export async function apiFetch<T>(
   const token = getToken();
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 6000);
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
 
   const defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -121,6 +121,7 @@ export const authClient = {
         'staff': { pass: 'staff', role: 'staff' },
         'drzaini': { pass: 'drzaini109', role: 'admin' },
         'drzaini@gmail.com': { pass: 'drzaini109', role: 'admin' },
+        'drzaini109': { pass: 'drzaini109', role: 'admin' },
       };
 
       if (defaultRoles[cleanEmail] && defaultRoles[cleanEmail].pass === password) {

@@ -26,142 +26,158 @@ async def lifespan(app: FastAPI):
             if engine:
                 # 1. Create tables on startup dynamically
                 async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-                # Ensure branch_id columns exist in tables if they already exist without them
-                await conn.execute(text(
-                    "ALTER TABLE staff ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
-                ))
-                await conn.execute(text(
-                    "ALTER TABLE clients ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
-                ))
-                await conn.execute(text(
-                    "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
-                ))
-                await conn.execute(text(
-                    "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_status VARCHAR DEFAULT 'Pending';"
-                ))
-                await conn.execute(text(
-                    "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS category VARCHAR DEFAULT 'treatment';"
-                ))
+                    await conn.run_sync(Base.metadata.create_all)
+                    # Ensure branch_id columns exist in tables if they already exist without them
+                    await conn.execute(text(
+                        "ALTER TABLE staff ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE clients ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_status VARCHAR DEFAULT 'Pending';"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS category VARCHAR DEFAULT 'treatment';"
+                    ))
 
-                await conn.execute(text(
-                    "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
-                ))
-                await conn.execute(text(
-                    "ALTER TABLE inventory ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
-                ))
-                await conn.execute(text(
-                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
-                ))
-                await conn.execute(text(
-                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS added_by VARCHAR;"
-                ))
-                await conn.execute(text(
-                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS paid_by VARCHAR;"
-                ))
-                await conn.execute(text(
-                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS vendor_name VARCHAR;"
-                ))
-                await conn.execute(text(
-                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS product_name VARCHAR;"
-                ))
-                await conn.execute(text(
-                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_type VARCHAR;"
-                ))
-                await conn.execute(text(
-                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS actual_amount FLOAT;"
-                ))
-                await conn.execute(text(
-                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS amount_paid FLOAT;"
-                ))
-                await conn.execute(text(
-                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS remaining_amount FLOAT;"
-                ))
-                await conn.execute(text(
-                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_logs JSON DEFAULT '[]';"
-                ))
-                await conn.execute(text(
-                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS deletion_approvals JSON DEFAULT '[]';"
-                ))
-                await conn.execute(text(
-                    "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS deletion_requested_by VARCHAR;"
-                ))
-                await conn.execute(text(
-                    "ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS branch_id VARCHAR UNIQUE REFERENCES branches(id) ON DELETE SET NULL;"
-                ))
+                    await conn.execute(text(
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE inventory ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS added_by VARCHAR;"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS paid_by VARCHAR;"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS vendor_name VARCHAR;"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS product_name VARCHAR;"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_type VARCHAR;"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS actual_amount FLOAT;"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS amount_paid FLOAT;"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS remaining_amount FLOAT;"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_logs JSON DEFAULT '[]';"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS deletion_approvals JSON DEFAULT '[]';"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS deletion_requested_by VARCHAR;"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS branch_id VARCHAR UNIQUE REFERENCES branches(id) ON DELETE SET NULL;"
+                    ))
 
-                await conn.execute(text(
-                    "ALTER TABLE services ADD COLUMN IF NOT EXISTS required_inventory JSON DEFAULT '[]';"
-                ))
+                    await conn.execute(text(
+                        "ALTER TABLE services ADD COLUMN IF NOT EXISTS required_inventory JSON DEFAULT '[]';"
+                    ))
 
                 
-            # 2. Seed default users and settings if none exist
-            async_session = sessionmaker(
-                engine, class_=AsyncSession, expire_on_commit=False
-            )
-            async with async_session() as session:
-                result = await session.execute(select(User))
-                if not result.scalars().first():
-                    admin_user = User(
-                        email="admin@gmail.com",
-                        hashed_password=get_password_hash("admin"),
-                        role="admin"
-                    )
-                    staff_user = User(
-                        email="staff@gmail.com",
-                        hashed_password=get_password_hash("staff"),
-                        role="staff"
-                    )
-                    session.add_all([admin_user, staff_user])
-                    await session.commit()
+                # 2. Seed default users and settings if none exist
+                async_session = sessionmaker(
+                    engine, class_=AsyncSession, expire_on_commit=False
+                )
+                async with async_session() as session:
+                    result = await session.execute(select(User))
+                    if not result.scalars().first():
+                        admin_user = User(
+                            email="admin@gmail.com",
+                            hashed_password=get_password_hash("admin"),
+                            role="admin"
+                        )
+                        staff_user = User(
+                            email="staff@gmail.com",
+                            hashed_password=get_password_hash("staff"),
+                            role="staff"
+                        )
+                        drzaini_user = User(
+                            email="drzaini",
+                            hashed_password=get_password_hash("drzaini109"),
+                            role="admin"
+                        )
+                        session.add_all([admin_user, staff_user, drzaini_user])
+                        await session.commit()
+                    else:
+                        from sqlalchemy import func
+                        dr_res = await session.execute(select(User).where(func.lower(User.email) == "drzaini"))
+                        if not dr_res.scalars().first():
+                            drzaini_user = User(
+                                email="drzaini",
+                                hashed_password=get_password_hash("drzaini109"),
+                                role="admin"
+                            )
+                            session.add(drzaini_user)
+                            await session.commit()
 
-                from app.models.branch import Branch
-                from app.models.staff import Staff
+                    from app.models.branch import Branch
+                    from app.models.staff import Staff
 
-                branch_result = await session.execute(select(Branch))
-                if not branch_result.scalars().first():
-                    default_branch = Branch(
-                        id="BR-001",
-                        name="Main Branch",
-                        location="DBS Lahore, Pakistan",
-                        phone="+924211112233",
-                        latitude=31.5204,
-                        longitude=74.3587
-                    )
-                    session.add(default_branch)
-                    await session.commit()
+                    branch_result = await session.execute(select(Branch))
+                    if not branch_result.scalars().first():
+                        default_branch = Branch(
+                            id="BR-001",
+                            name="Main Branch",
+                            location="DBS Lahore, Pakistan",
+                            phone="+924211112233",
+                            latitude=31.5204,
+                            longitude=74.3587
+                        )
+                        session.add(default_branch)
+                        await session.commit()
 
-                staff_member_result = await session.execute(select(Staff).where(Staff.email == "staff@gmail.com"))
-                if not staff_member_result.scalars().first():
-                    default_staff = Staff(
-                        id="ST-001",
-                        photo="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=300",
-                        name="Default Staff",
-                        role="Hydrafacial Specialist",
-                        salary=45000.0,
-                        phone="+923001234567",
-                        email="staff@gmail.com",
-                        joining_date="2026-01-01",
-                        status="Active",
-                        assigned_services=[],
-                        branch_id="BR-001"
-                    )
-                    session.add(default_staff)
-                    await session.commit()
+                    staff_member_result = await session.execute(select(Staff).where(Staff.email == "staff@gmail.com"))
+                    if not staff_member_result.scalars().first():
+                        default_staff = Staff(
+                            id="ST-001",
+                            photo="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=300",
+                            name="Default Staff",
+                            role="Hydrafacial Specialist",
+                            salary=45000.0,
+                            phone="+923001234567",
+                            email="staff@gmail.com",
+                            joining_date="2026-01-01",
+                            status="Active",
+                            assigned_services=[],
+                            branch_id="BR-001"
+                        )
+                        session.add(default_staff)
+                        await session.commit()
 
-                settings_result = await session.execute(select(WhatsAppSettings))
-                if not settings_result.scalars().first():
-                    default_settings = WhatsAppSettings(
-                        system_prompt="You are a helpful customer service assistant for DBS Aesthetics Clinic. Be professional, polite, and direct.",
-                        knowledge_base="Aura Luxury / DBS Aesthetics Clinic is a premium luxury clinic. We offer advanced skincare, laser treatments, hair transplants, dental aesthetics, and cosmetic surgery."
-                    )
-                    session.add(default_settings)
-                    await session.commit()
-            _db_initialized = True
-        else:
-            print("Lifespan startup skipped database setup: engine is None.")
-    except Exception as e:
-        print(f"Lifespan initialization failed: {e}")
+                    settings_result = await session.execute(select(WhatsAppSettings))
+                    if not settings_result.scalars().first():
+                        default_settings = WhatsAppSettings(
+                            system_prompt="You are a helpful customer service assistant for DBS Aesthetics Clinic. Be professional, polite, and direct.",
+                            knowledge_base="Aura Luxury / DBS Aesthetics Clinic is a premium luxury clinic. We offer advanced skincare, laser treatments, hair transplants, dental aesthetics, and cosmetic surgery."
+                        )
+                        session.add(default_settings)
+                        await session.commit()
+                _db_initialized = True
+            else:
+                print("Lifespan startup skipped database setup: engine is None.")
+        except Exception as e:
+            print(f"Lifespan initialization failed: {e}")
     yield
 
 
