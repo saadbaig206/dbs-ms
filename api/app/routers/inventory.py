@@ -18,12 +18,13 @@ async def list_inventory(
     current_user = Depends(get_staff_user),
     user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
+    from sqlalchemy import or_
     query = select(InventoryItem)
     if search:
         query = query.where(InventoryItem.item_name.ilike(f"%{search}%") | InventoryItem.supplier.ilike(f"%{search}%"))
     active_branch_id = user_branch_id or branch_id
     if active_branch_id:
-        query = query.where(InventoryItem.branch_id == active_branch_id)
+        query = query.where(or_(InventoryItem.branch_id == active_branch_id, InventoryItem.branch_id == None))
         
     result = await db.execute(query.order_by(InventoryItem.id.desc()))
     return result.scalars().all()

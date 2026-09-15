@@ -100,6 +100,7 @@ export const authClient = {
           document.cookie = `user_role=${data.role}; path=/; max-age=${maxAge}; SameSite=Lax${secureFlag}`;
           localStorage.setItem('access_token', data.access_token);
           localStorage.setItem('user_role', data.role);
+          localStorage.setItem('user_email', cleanEmail);
         }
         return data;
       }

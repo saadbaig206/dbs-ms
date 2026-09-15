@@ -62,12 +62,13 @@ async def list_appointments(
     current_user = Depends(get_staff_user),
     user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
+    from sqlalchemy import or_
     query = select(Appointment)
     if search:
         query = query.where(Appointment.client_name.ilike(f"%{search}%") | Appointment.staff_name.ilike(f"%{search}%"))
     active_branch_id = user_branch_id or branch_id
     if active_branch_id:
-        query = query.where(Appointment.branch_id == active_branch_id)
+        query = query.where(or_(Appointment.branch_id == active_branch_id, Appointment.branch_id == None))
         
     query = query.order_by(Appointment.id.desc())
     if skip is not None:

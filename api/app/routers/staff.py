@@ -12,6 +12,8 @@ from app.core.security import get_password_hash
 
 router = APIRouter()
 
+from sqlalchemy import or_
+
 @router.get("", response_model=List[StaffResponse])
 async def list_staff(
     search: Optional[str] = None,
@@ -21,7 +23,7 @@ async def list_staff(
 ):
     query = select(Staff)
     if branch_id:
-        query = query.where(Staff.branch_id == branch_id)
+        query = query.where(or_(Staff.branch_id == branch_id, Staff.branch_id == None))
     if search:
         query = query.where(Staff.name.ilike(f"%{search}%") | Staff.role.ilike(f"%{search}%"))
     

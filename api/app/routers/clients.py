@@ -10,6 +10,8 @@ from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse
 
 router = APIRouter()
 
+from sqlalchemy import or_
+
 @router.get("", response_model=List[ClientResponse])
 async def list_clients(
     search: Optional[str] = None,
@@ -19,7 +21,7 @@ async def list_clients(
 ):
     query = select(Client)
     if branch_id:
-        query = query.where(Client.branch_id == branch_id)
+        query = query.where(or_(Client.branch_id == branch_id, Client.branch_id == None))
     if search:
         query = query.where(Client.name.ilike(f"%{search}%") | Client.phone.ilike(f"%{search}%") | Client.cnic.ilike(f"%{search}%"))
         

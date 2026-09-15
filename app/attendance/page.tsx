@@ -47,7 +47,7 @@ export default function AttendancePage() {
 
   // Bulk attendance modal state
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
-  const [bulkList, setBulkList] = useState<Record<string, 'Present' | 'Absent' | 'Late' | 'Leave' | 'Unmarked'>>({});
+  const [bulkList, setBulkList] = useState<Record<string, AttendanceStatus>>({});
 
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -103,6 +103,32 @@ export default function AttendancePage() {
     });
   };
 
+  const handleOpenBulkModal = () => {
+    const initialList: Record<string, AttendanceStatus> = {};
+    staff.forEach(s => {
+      const rec = dateRecords.find(r => r.staffId === s.id);
+      initialList[s.id] = (rec?.status as AttendanceStatus) || 'Present';
+    });
+    setBulkList(initialList);
+    setIsBulkModalOpen(true);
+  };
+
+  const handleSaveBulkAttendance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const coords = role === 'admin' ? undefined : await getCoordinates();
+      await Promise.all(
+        Object.entries(bulkList).map(([staffId, status]) =>
+          markAttendance(staffId, status, 'Bulk Attendance', coords?.latitude, coords?.longitude)
+        )
+      );
+      showToast("Bulk attendance saved successfully!");
+      setIsBulkModalOpen(false);
+    } catch (err: any) {
+      showToast("Failed to mark bulk attendance: " + (err.message || err), "error");
+    }
+  };
+
   const handleSaveAttendance = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -113,33 +139,6 @@ export default function AttendancePage() {
       setAttNotes('');
     } catch (err: any) {
       showToast("Failed to mark attendance: " + (err.message || err), "error");
-    }
-  };
-
-  const handleOpenBulkModal = () => {
-    const initialList: Record<string, 'Present' | 'Absent' | 'Late' | 'Leave' | 'Unmarked'> = {};
-    staff.forEach(s => {
-      const existing = dateRecords.find(r => r.staffId === s.id);
-      initialList[s.id] = (existing?.status as any) || 'Present';
-    });
-    setBulkList(initialList);
-    setIsBulkModalOpen(true);
-  };
-
-  const handleSaveBulkAttendance = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await Promise.all(
-        Object.entries(bulkList)
-          .filter(([_, status]) => status !== 'Unmarked')
-          .map(([staffId, status]) =>
-            markAttendance(staffId, status as AttendanceStatus, 'Bulk Mark')
-          )
-      );
-      showToast("Bulk attendance updated successfully!");
-      setIsBulkModalOpen(false);
-    } catch (err: any) {
-      showToast("Failed to mark bulk attendance: " + (err.message || err), "error");
     }
   };
 
@@ -202,6 +201,7 @@ export default function AttendancePage() {
           <Button onClick={handleOpenBulkModal} variant="outline" icon={<UserCheck className="w-4 h-4" />}>
             Bulk Attendance
           </Button>
+
           <Button onClick={() => setIsMarkModalOpen(true)} variant="primary" icon={<Plus className="w-4 h-4" />}>
             Mark Attendance
           </Button>
@@ -461,37 +461,40 @@ export default function AttendancePage() {
       <Modal
         isOpen={isBulkModalOpen}
         onClose={() => setIsBulkModalOpen(false)}
-        title="Bulk Staff Attendance"
-        description="Quickly update attendance statuses for all employees"
+        title={`Bulk Attendance Register (${selectedDate})`}
+        description="Quickly update attendance status for all active staff practitioners for the selected date"
         maxWidth="lg"
       >
         <form onSubmit={handleSaveBulkAttendance} className="space-y-4">
-          <div className="max-h-[350px] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+          <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
             {staff.map((s) => (
-              <div
-                key={s.id}
-                className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80"
-              >
+              <div key={s.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">{s.name}</h4>
-                  <p className="text-[10px] text-slate-500">{s.role}</p>
+                  <span className="font-bold text-slate-900 dark:text-slate-100">{s.name}</span>
+                  <span className="text-[10px] text-slate-400 block font-normal">{s.role}</span>
                 </div>
-                <select
-                  value={bulkList[s.id] || 'Present'}
-                  onChange={(e) =>
-                    setBulkList((prev) => ({
-                      ...prev,
-                      [s.id]: e.target.value as any,
-                    }))
-                  }
-                  className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="Present">Present</option>
-                  <option value="Late">Late</option>
-                  <option value="Leave">On Leave</option>
-                  <option value="Absent">Absent</option>
-                  <option value="Unmarked">Unmarked</option>
-                </select>
+                <div className="flex gap-1.5">
+                  {(['Present', 'Late', 'Leave', 'Absent'] as AttendanceStatus[]).map((status) => (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => setBulkList(prev => ({ ...prev, [s.id]: status }))}
+                      className={`px-3 py-1.5 rounded-xl font-bold text-[10px] transition-all cursor-pointer ${
+                        bulkList[s.id] === status
+                          ? status === 'Present'
+                            ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
+                            : status === 'Absent'
+                              ? 'bg-rose-600 text-white shadow-md shadow-rose-500/20'
+                              : status === 'Leave'
+                                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                                : 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                      }`}
+                    >
+                      {status}
+                    </button>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
@@ -501,7 +504,7 @@ export default function AttendancePage() {
               Cancel
             </Button>
             <Button type="submit" variant="primary">
-              Save Bulk Register
+              Save Bulk Attendance
             </Button>
           </div>
         </form>

@@ -278,10 +278,11 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (!activeUser && typeof window !== 'undefined') {
         const localToken = localStorage.getItem('access_token') || (document.cookie.match(/(?:^|; )access_token=([^;]*)/)?.[1]);
         const localRole = (localStorage.getItem('user_role') || (document.cookie.match(/(?:^|; )user_role=([^;]*)/)?.[1])) as UserRole | null;
+        const localEmail = localStorage.getItem('user_email');
         if (localToken && localRole) {
           activeUser = {
             id: 'local-user',
-            email: localRole === 'staff' ? 'staff@gmail.com' : 'admin@gmail.com',
+            email: localEmail || (localRole === 'staff' ? 'staff@gmail.com' : 'admin@gmail.com'),
             role: localRole,
             branch_id: null
           };
