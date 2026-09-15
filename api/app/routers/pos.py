@@ -21,13 +21,17 @@ class POSCheckoutPayload(CamelModel):
     client_phone: Optional[str] = None
     client_id: Optional[str] = None
 
+from app.core.deps import get_db, get_staff_user, get_user_branch_id
+
 @router.post("/checkout", response_model=FinancialTransactionResponse)
 async def pos_checkout(
     payload: POSCheckoutPayload,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_staff_user)
+    current_user = Depends(get_staff_user),
+    user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
     try:
+        active_branch = user_branch_id or payload.branch_id
         transaction = await checkout(
             db=db,
             client_name=payload.client_name,
@@ -38,7 +42,7 @@ async def pos_checkout(
             card_last_four=payload.card_last_four,
             card_type=payload.card_type,
             bank_txn_id=payload.bank_txn_id,
-            branch_id=payload.branch_id,
+            branch_id=active_branch,
             client_phone=payload.client_phone,
             client_id=payload.client_id
         )

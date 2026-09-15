@@ -26,6 +26,8 @@ async def list_clients(
     result = await db.execute(query.order_by(Client.id.desc()))
     return result.scalars().all()
 
+import secrets
+
 @router.post("", response_model=ClientResponse)
 async def create_client(
     client_in: ClientCreate,
@@ -33,9 +35,7 @@ async def create_client(
     current_user = Depends(get_staff_user),
     user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
-    count_result = await db.execute(select(Client))
-    count = len(count_result.scalars().all())
-    client_id = f"CLT-{800 + count + 1}"
+    client_id = f"CLT-{secrets.token_hex(3).upper()}"
     
     db_client = Client(
         id=client_id,
@@ -50,7 +50,7 @@ async def create_client(
         preferred_service=client_in.preferred_service,
         notes=client_in.notes,
         total_spent=0.0,
-        visits_count=1,
+        visits_count=0,
         history=[],
         joined_date=datetime.now().strftime("%Y-%m-%d"),
         branch_id=user_branch_id or client_in.branch_id

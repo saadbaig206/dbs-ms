@@ -2,6 +2,7 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func
+from sqlalchemy.orm.attributes import flag_modified
 from app.models.client import Client
 from app.models.transaction import FinancialTransaction
 from app.models.notification import NotificationItem
@@ -56,21 +57,19 @@ async def checkout(
     # 1. Update client totals and history (creating client on the fly if needed)
     client = None
     if client_id:
-        c_res = await db.execute(select(Client).where(Client.id == client_id))
+        c_res = await db.execute(select(Client).where(Client.id == client_id).with_for_update())
         client = c_res.scalars().first()
     if not client and client_phone and client_phone != "0000000000":
-        c_res = await db.execute(select(Client).where(Client.phone == client_phone))
+        c_res = await db.execute(select(Client).where(Client.phone == client_phone).with_for_update())
         client = c_res.scalars().first()
     if not client:
-        c_res = await db.execute(select(Client).where(Client.name.ilike(client_name)))
+        c_res = await db.execute(select(Client).where(Client.name.ilike(client_name)).with_for_update())
         client = c_res.scalars().first()
     
     service_names = ", ".join(item["name"] for item in cart_items)
     
     if not client:
-        count_result = await db.execute(select(Client))
-        count = len(count_result.scalars().all())
-        new_client_id = f"CLT-{800 + count + 1}"
+        new_client_id = f"CLT-{secrets.token_hex(3).upper()}"
         client = Client(
             id=new_client_id,
             name=client_name,
@@ -85,9 +84,10 @@ async def checkout(
             branch_id=branch_id
         )
         db.add(client)
+        await db.flush()
 
-    client.visits_count += 1
-    client.total_spent += grand_total
+    client.visits_count = (client.visits_count or 0) + 1
+    client.total_spent = (client.total_spent or 0.0) + grand_total
     
     # Append history item
     history_item = {
@@ -99,7 +99,10 @@ async def checkout(
         "status": "Paid"
     }
     
+    if client.history is None:
+        client.history = []
     client.history.append(history_item)
+    flag_modified(client, "history")
     db.add(client)
         
     # 2. Decrement inventory where applicable
@@ -119,6 +122,7 @@ async def checkout(
                 inv_query = select(InventoryItem).where(InventoryItem.id == inv_item_id)
                 if branch_id:
                     inv_query = inv_query.where(InventoryItem.branch_id == branch_id)
+                inv_query = inv_query.with_for_update()
                 
                 inv_result = await db.execute(inv_query)
                 inv_item = inv_result.scalars().first()
@@ -150,6 +154,7 @@ async def checkout(
             query = select(InventoryItem).where(InventoryItem.item_name.ilike(f"%{item['name']}%"))
             if branch_id:
                 query = query.where(InventoryItem.branch_id == branch_id)
+            query = query.with_for_update()
                 
             inv_result = await db.execute(query)
             inv_item = inv_result.scalars().first()

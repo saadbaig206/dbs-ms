@@ -81,30 +81,32 @@ async def mark_attendance(
     )
     existing_record = existing_result.scalars().first()
     
-    check_in_time = None
+    current_time_str = attendance_in.client_time or datetime.now().strftime("%I:%M %p")
+    check_in_time = attendance_in.check_in_time
+    check_out_time = attendance_in.check_out_time
+
     if attendance_in.status == "Checked Out":
         if not existing_record:
             raise HTTPException(
                 status_code=400,
                 detail="Cannot check-out. You have not checked-in yet today."
             )
-        existing_record.check_out_time = datetime.now().strftime("%I:%M %p")
+        existing_record.check_out_time = check_out_time or current_time_str
+        existing_record.status = "Checked Out"
         db_record = existing_record
     else:
         if attendance_in.status in ["Present", "Late"]:
-            check_in_time = datetime.now().strftime("%I:%M %p")
+            check_in_time = check_in_time or current_time_str
             
         if existing_record:
             existing_record.status = attendance_in.status
-            existing_record.notes = attendance_in.notes
+            existing_record.notes = attendance_in.notes or existing_record.notes
             if check_in_time:
                 existing_record.check_in_time = check_in_time
             db_record = existing_record
         else:
-            # Get count for ID generation
-            count_result = await db.execute(select(AttendanceRecord))
-            count = len(count_result.scalars().all())
-            record_id = f"ATT-{count + 1}"
+            import secrets
+            record_id = f"ATT-{secrets.token_hex(3).upper()}"
             
             db_record = AttendanceRecord(
                 id=record_id,
@@ -114,7 +116,7 @@ async def mark_attendance(
                 date=today_str,
                 status=attendance_in.status,
                 check_in_time=check_in_time,
-                check_out_time=None,
+                check_out_time=check_out_time,
                 notes=attendance_in.notes
             )
             db.add(db_record)

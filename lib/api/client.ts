@@ -105,48 +105,13 @@ export const authClient = {
       }
 
       const errorData = await res.json().catch(() => ({}));
-      if (res.status === 401) {
-        throw new Error(errorData.detail || errorData.error || 'Invalid email or password');
-      }
+      throw new Error(errorData.detail || errorData.error || 'Invalid email or password');
     } catch (err: any) {
-      if (err.message && err.message.includes('Invalid email or password')) {
+      if (err.message) {
         throw err;
       }
-
-      // Offline / network fallback for default admin/staff accounts
-      const defaultRoles: Record<string, { pass: string; role: string }> = {
-        'admin@gmail.com': { pass: 'admin', role: 'admin' },
-        'admin': { pass: 'admin', role: 'admin' },
-        'staff@gmail.com': { pass: 'staff', role: 'staff' },
-        'staff': { pass: 'staff', role: 'staff' },
-        'drzaini': { pass: 'drzaini109', role: 'admin' },
-        'drzaini@gmail.com': { pass: 'drzaini109', role: 'admin' },
-        'drzaini109': { pass: 'drzaini109', role: 'admin' },
-      };
-
-      if (defaultRoles[cleanEmail] && defaultRoles[cleanEmail].pass === password) {
-        const mockRole = defaultRoles[cleanEmail].role;
-        const mockData = {
-          access_token: 'mock-offline-token',
-          refresh_token: 'mock-offline-token',
-          token_type: 'bearer',
-          role: mockRole
-        };
-        if (typeof window !== 'undefined') {
-          const maxAge = 60 * 60 * 24 * 8;
-          document.cookie = `access_token=${mockData.access_token}; path=/; max-age=${maxAge}; SameSite=Lax`;
-          document.cookie = `refresh_token=${mockData.refresh_token}; path=/; max-age=${maxAge}; SameSite=Lax`;
-          document.cookie = `user_role=${mockRole}; path=/; max-age=${maxAge}; SameSite=Lax`;
-          localStorage.setItem('access_token', mockData.access_token);
-          localStorage.setItem('user_role', mockRole);
-        }
-        return mockData;
-      }
-
       throw new Error('Unable to connect to login server. Please check your network connection.');
     }
-
-    throw new Error('Invalid email or password');
   },
 
   async logout() {

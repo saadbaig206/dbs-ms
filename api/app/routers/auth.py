@@ -49,24 +49,19 @@ async def login(
         result = await db.execute(select(User).where(func.lower(User.email) == email_clean))
         user = result.scalars().first()
 
-    # Auto-heal default accounts if missing or password hash needs updating
-    if target_key:
+    # Default account initialization on missing user
+    if target_key and not user:
         expected_pass = DEFAULT_ACCOUNTS[target_key]["pass"]
         expected_role = DEFAULT_ACCOUNTS[target_key]["role"]
-
-        if not user:
-            if login_data.password == expected_pass:
-                user = User(
-                    email=target_key,
-                    hashed_password=get_password_hash(expected_pass),
-                    role=expected_role
-                )
-                db.add(user)
-                await db.commit()
-                await db.refresh(user)
-        elif user and not verify_password(login_data.password, user.hashed_password) and login_data.password == expected_pass:
-            user.hashed_password = get_password_hash(expected_pass)
+        if login_data.password == expected_pass:
+            user = User(
+                email=target_key,
+                hashed_password=get_password_hash(expected_pass),
+                role=expected_role
+            )
+            db.add(user)
             await db.commit()
+            await db.refresh(user)
 
     if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(
@@ -104,35 +99,6 @@ async def get_me(
         "role": current_user.role,
         "branch_id": branch_id
     }
-
-@router.get("/debug-db")
-async def debug_db(db: AsyncSession = Depends(get_db)):
-    try:
-        from app.core.security import verify_password
-        result = await db.execute(select(User))
-        users = result.scalars().all()
-        
-        users_info = []
-        for u in users:
-            is_admin_pass_correct = verify_password("admin", u.hashed_password) if u.email == "admin@gmail.com" else None
-            is_staff_pass_correct = verify_password("staff", u.hashed_password) if u.email == "staff@gmail.com" else None
-            users_info.append({
-                "email": u.email,
-                "role": u.role,
-                "hashed_password": u.hashed_password,
-                "test_pass_ok": is_admin_pass_correct if u.email == "admin@gmail.com" else is_staff_pass_correct
-            })
-            
-        return {
-            "status": "connected",
-            "users_count": len(users),
-            "users": users_info
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "error_detail": str(e)
-        }
 
 from typing import List
 from app.core.deps import get_admin_user

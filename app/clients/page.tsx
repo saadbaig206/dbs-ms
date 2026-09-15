@@ -179,7 +179,7 @@ export default function ClientsPage() {
                     {client.gender}, {client.age} yrs
                   </td>
                   <td className="py-3.5 px-4 text-slate-700 dark:text-slate-200">
-                    {client.assignedStaffName || 'Dr. Elena Rostova'}
+                    {client.assignedStaffName || staff[0]?.name || 'Unassigned'}
                   </td>
                   <td className="py-3.5 px-4">
                     <Badge variant="primary">{client.visitsCount} visits</Badge>
@@ -324,7 +324,7 @@ export default function ClientsPage() {
               </div>
               <div>
                 <span className="text-[11px] font-semibold text-slate-400 uppercase block">Assigned Doctor</span>
-                <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{selectedClient.assignedStaffName || 'Dr. Elena Rostova'}</span>
+                <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{selectedClient.assignedStaffName || staff[0]?.name || 'Unassigned'}</span>
               </div>
             </div>
 

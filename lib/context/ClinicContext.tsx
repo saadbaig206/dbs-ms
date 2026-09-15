@@ -43,7 +43,7 @@ interface ClinicContextType {
   role: UserRole;
   setRole: (role: UserRole) => void;
   toggleRole: () => void;
-  
+
   // Theme
   theme: 'light' | 'dark';
   toggleTheme: () => void;
@@ -101,8 +101,8 @@ interface ClinicContextType {
 
   attendance: AttendanceRecord[];
   markAttendance: (
-    staffId: string, 
-    status: AttendanceRecord['status'], 
+    staffId: string,
+    status: AttendanceRecord['status'],
     notes?: string,
     latitude?: number,
     longitude?: number
@@ -120,9 +120,9 @@ interface ClinicContextType {
   updatePosQuantity: (serviceId: string, delta: number) => void;
   clearPosCart: () => void;
   completePosCheckout: (
-    clientName: string, 
-    paymentMethod: FinancialTransaction['paymentMethod'], 
-    discountPercent: number, 
+    clientName: string,
+    paymentMethod: FinancialTransaction['paymentMethod'],
+    discountPercent: number,
     taxPercent: number,
     cardDetails?: { cardLastFour?: string; cardType?: string; bankTxnId?: string }
   ) => Promise<FinancialTransaction>;
@@ -179,24 +179,24 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem('clinic_info', JSON.stringify(info));
   };
 
-function loadCachedData<T>(key: string, fallback: T): T {
-  if (typeof window === 'undefined') return fallback;
-  try {
-    const item = localStorage.getItem(`clinic_cache_${key}`);
-    return item ? JSON.parse(item) : fallback;
-  } catch (e) {
-    return fallback;
+  function loadCachedData<T>(key: string, fallback: T): T {
+    if (typeof window === 'undefined') return fallback;
+    try {
+      const item = localStorage.getItem(`clinic_cache_${key}`);
+      return item ? JSON.parse(item) : fallback;
+    } catch (e) {
+      return fallback;
+    }
   }
-}
 
-function saveCachedData(key: string, data: any) {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(`clinic_cache_${key}`, JSON.stringify(data));
-  } catch (e) {
-    // ignore
+  function saveCachedData(key: string, data: any) {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(`clinic_cache_${key}`, JSON.stringify(data));
+    } catch (e) {
+      // ignore
+    }
   }
-}
 
   const [theme] = useState<'light' | 'dark'>('dark');
   const [searchQuery, setSearchQuery] = useState('');
@@ -241,7 +241,7 @@ function saveCachedData(key: string, data: any) {
     document.documentElement.classList.add('dark');
     localStorage.setItem('clinic_theme', 'dark');
   };
-  
+
   const setRole = (newRole: UserRole) => {
     setRoleState(newRole);
     // Write cookie
@@ -501,7 +501,7 @@ function saveCachedData(key: string, data: any) {
       ...newClientData,
       id: `CLT-${Math.floor(Math.random() * 900) + 100}`,
       totalSpent: 0,
-      visitsCount: 1,
+      visitsCount: 0,
       joinedDate: new Date().toISOString().split('T')[0],
       history: []
     };
@@ -773,13 +773,15 @@ function saveCachedData(key: string, data: any) {
   };
 
   const markAttendance = async (
-    staffId: string, 
-    status: AttendanceRecord['status'], 
+    staffId: string,
+    status: AttendanceRecord['status'],
     notes?: string,
     latitude?: number,
     longitude?: number
   ) => {
     const staffMember = staff.find(s => s.id === staffId);
+    const clientTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    const isCheckout = status === 'Checked Out';
     const rec: AttendanceRecord = {
       id: `ATT-${Math.floor(Math.random() * 900) + 100}`,
       staffId,
@@ -787,13 +789,23 @@ function saveCachedData(key: string, data: any) {
       role: staffMember?.role || 'Staff',
       date: new Date().toISOString().split('T')[0],
       status,
-      checkInTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      checkInTime: isCheckout ? undefined : clientTime,
+      checkOutTime: isCheckout ? clientTime : undefined,
       notes
     };
     try {
       await apiFetch('/attendance', {
         method: 'POST',
-        body: JSON.stringify({ staffId, status, notes, latitude, longitude }),
+        body: JSON.stringify({
+          staffId,
+          status,
+          notes,
+          latitude,
+          longitude,
+          clientTime,
+          checkInTime: isCheckout ? undefined : clientTime,
+          checkOutTime: isCheckout ? clientTime : undefined
+        }),
       });
       await refreshData();
     } catch (e) {
@@ -875,9 +887,9 @@ function saveCachedData(key: string, data: any) {
   const clearPosCart = () => setPosCart([]);
 
   const completePosCheckout = async (
-    clientName: string, 
-    paymentMethod: FinancialTransaction['paymentMethod'], 
-    discountPercent: number, 
+    clientName: string,
+    paymentMethod: FinancialTransaction['paymentMethod'],
+    discountPercent: number,
     taxPercent: number,
     cardDetails?: { cardLastFour?: string; cardType?: string; bankTxnId?: string }
   ): Promise<FinancialTransaction> => {
@@ -900,35 +912,9 @@ function saveCachedData(key: string, data: any) {
       clearPosCart();
       refreshData().catch(err => console.error(err));
       return txn;
-    } catch (e) {
-      const subtotal = posCart.reduce((acc, item) => acc + item.price * item.quantity, 0);
-      const discount = (subtotal * discountPercent) / 100;
-      const tax = ((subtotal - discount) * taxPercent) / 100;
-      const totalAmount = subtotal - discount + tax;
-
-      const mockTxn: FinancialTransaction = {
-        id: `TXN-${Math.floor(Math.random() * 9000) + 1000}`,
-        invoiceId: `INV-${Math.floor(Math.random() * 9000) + 1000}`,
-        clientName,
-        serviceName: posCart.map(item => `${item.name} (x${item.quantity})`).join(', '),
-        amount: subtotal,
-        discount,
-        tax,
-        taxPercent,
-        grandTotal: totalAmount,
-        paymentMethod,
-        date: new Date().toISOString().split('T')[0],
-        status: 'Paid',
-        items: posCart.map(item => ({ name: item.name, price: item.price, quantity: item.quantity }))
-      };
-
-      setTransactions(prev => {
-        const next = [mockTxn, ...prev];
-        saveCachedData('transactions', next);
-        return next;
-      });
-      clearPosCart();
-      return mockTxn;
+    } catch (e: any) {
+      console.error('POS Checkout failed:', e);
+      throw e;
     }
   };
 

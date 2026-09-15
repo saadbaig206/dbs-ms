@@ -42,10 +42,8 @@ async def create_staff_member(
             detail="A user/staff member with this email already exists"
         )
 
-    # Auto-generate ID
-    count_result = await db.execute(select(Staff))
-    count = len(count_result.scalars().all())
-    staff_id = f"STF-{100 + count + 1}"
+    import secrets
+    staff_id = f"STF-{secrets.token_hex(3).upper()}"
     
     db_staff = Staff(
         id=staff_id,

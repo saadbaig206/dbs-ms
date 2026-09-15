@@ -17,6 +17,9 @@ class AttendanceCreate(CamelModel):
     notes: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    check_in_time: Optional[str] = None
+    check_out_time: Optional[str] = None
+    client_time: Optional[str] = None
 
 class AttendanceResponse(AttendanceBase):
     id: str

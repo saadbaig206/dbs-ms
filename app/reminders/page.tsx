@@ -81,10 +81,10 @@ export default function RemindersPage() {
 
       // 1. Find branch & clinic details for the location
       const branch = branches.find(b => b.id === apt.branchId) || (branches.length > 0 ? branches[0] : null);
-      const clinicName = clinicInfo?.name || 'DBS Aesthetic Clinic and Salon';
+      const clinicName = clinicInfo?.name || 'Aura Luxury Clinic';
       const locationStr = branch
-        ? `${branch.name} Branch — ${branch.location}`
-        : (clinicInfo?.address || '13-C Khayaban-e-Saadi, Phase 7 Ext Karachi');
+        ? `${branch.name} — ${branch.location}`
+        : (clinicInfo?.address || 'Main Clinic Location');
 
       // 2. Format the message properly using the requested template
       const message = `Hi ${apt.clientName}!

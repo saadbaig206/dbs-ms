@@ -49,9 +49,8 @@ async def create_expense(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_admin_or_partner_user)
 ):
-    count_result = await db.execute(select(ExpenseItem))
-    count = len(count_result.scalars().all())
-    expense_id = f"EXP-{400 + count + 1}"
+    import secrets
+    expense_id = f"EXP-{secrets.token_hex(3).upper()}"
     
     user_identifier = getattr(current_user, 'email', 'Admin/Partner')
     

@@ -64,133 +64,137 @@ async def verify_webhook(
         print("Webhook verification failed.")
         raise HTTPException(status_code=403, detail="Verification token mismatch")
 
+from app.db.session import SessionLocal
+
 # --- Background Task to Handle Incoming Webhook Message ---
-async def process_incoming_message(payload: dict, db: AsyncSession):
-    try:
-        entry = payload.get("entry", [])
-        if not entry:
-            return
-        changes = entry[0].get("changes", [])
-        if not changes:
-            return
-        value = changes[0].get("value", {})
-        messages = value.get("messages", [])
-        if not messages:
-            return
+async def process_incoming_message(payload: dict):
+    if not SessionLocal:
+        return
+    async with SessionLocal() as db:
+        try:
+            entry = payload.get("entry", [])
+            if not entry:
+                return
+            changes = entry[0].get("changes", [])
+            if not changes:
+                return
+            value = changes[0].get("value", {})
+            messages = value.get("messages", [])
+            if not messages:
+                return
 
-        msg = messages[0]
-        from_phone = msg.get("from")
-        msg_body = msg.get("text", {}).get("body", "")
-        whatsapp_msg_id = msg.get("id")
-        
-        # Extract contact name
-        contact_name = None
-        contacts = value.get("contacts", [])
-        if contacts:
-            contact_name = contacts[0].get("profile", {}).get("name")
-
-        if not from_phone or not msg_body:
-            return
-
-        # Find or create Conversation
-        stmt = select(WhatsAppConversation).where(WhatsAppConversation.phone == from_phone)
-        result = await db.execute(stmt)
-        conversation = result.scalars().first()
-
-        if not conversation:
-            conversation = WhatsAppConversation(
-                id=uuid.uuid4().hex,
-                phone=from_phone,
-                name=contact_name or from_phone,
-                mode="agent"
-            )
-            db.add(conversation)
-            await db.commit()
-            await db.refresh(conversation)
-        else:
-            if contact_name and not conversation.name:
-                conversation.name = contact_name
-            conversation.updated_at = datetime.utcnow()
-            db.add(conversation)
-            await db.commit()
-
-        # Save incoming User message
-        user_message = WhatsAppMessage(
-            id=uuid.uuid4().hex,
-            conversation_id=conversation.id,
-            role="user",
-            content=msg_body,
-            whatsapp_msg_id=whatsapp_msg_id
-        )
-        db.add(user_message)
-        await db.commit()
-
-        # If agent mode, trigger AI reply
-        if conversation.mode == "agent":
-            # Fetch client's branch_id
-            client_stmt = select(Client).where(Client.phone == from_phone)
-            client_res = await db.execute(client_stmt)
-            client = client_res.scalars().first()
+            msg = messages[0]
+            from_phone = msg.get("from")
+            msg_body = msg.get("text", {}).get("body", "")
+            whatsapp_msg_id = msg.get("id")
             
-            whatsapp_settings = None
-            if client and client.branch_id:
-                settings_stmt = select(WhatsAppSettings).where(WhatsAppSettings.branch_id == client.branch_id)
-                settings_res = await db.execute(settings_stmt)
-                whatsapp_settings = settings_res.scalars().first()
-                
-            if not whatsapp_settings:
-                settings_stmt = select(WhatsAppSettings).where(WhatsAppSettings.branch_id == None)
-                settings_res = await db.execute(settings_stmt)
-                whatsapp_settings = settings_res.scalars().first()
+            # Extract contact name
+            contact_name = None
+            contacts = value.get("contacts", [])
+            if contacts:
+                contact_name = contacts[0].get("profile", {}).get("name")
 
-            system_prompt = "You are a helpful customer service assistant for DBS Aesthetics Clinic."
-            knowledge_base = ""
-            if whatsapp_settings:
-                system_prompt = whatsapp_settings.system_prompt or system_prompt
-                knowledge_base = whatsapp_settings.knowledge_base or knowledge_base
+            if not from_phone or not msg_body:
+                return
 
-            # Fetch last 10 messages for history
-            history_stmt = (
-                select(WhatsAppMessage)
-                .where(WhatsAppMessage.conversation_id == conversation.id)
-                .order_by(WhatsAppMessage.created_at.desc())
-                .limit(10)
-            )
-            history_res = await db.execute(history_stmt)
-            history_messages = reversed(history_res.scalars().all())
-            
-            history_list = []
-            for h_msg in history_messages:
-                history_list.append({
-                    "role": h_msg.role,
-                    "content": h_msg.content
-                })
+            # Find or create Conversation
+            stmt = select(WhatsAppConversation).where(WhatsAppConversation.phone == from_phone)
+            result = await db.execute(stmt)
+            conversation = result.scalars().first()
 
-            # Get AI reply
-            ai_reply = await GroqService.get_reply(history_list, system_prompt, knowledge_base)
+            if not conversation:
+                conversation = WhatsAppConversation(
+                    id=uuid.uuid4().hex,
+                    phone=from_phone,
+                    name=contact_name or from_phone,
+                    mode="agent"
+                )
+                db.add(conversation)
+                await db.commit()
+                await db.refresh(conversation)
+            else:
+                if contact_name and not conversation.name:
+                    conversation.name = contact_name
+                conversation.updated_at = datetime.utcnow()
+                db.add(conversation)
+                await db.commit()
 
-            # Send WhatsApp message
-            sent = await WhatsAppService.send_message(from_phone, ai_reply)
-
-            # Save assistant message
-            assistant_message = WhatsAppMessage(
+            # Save incoming User message
+            user_message = WhatsAppMessage(
                 id=uuid.uuid4().hex,
                 conversation_id=conversation.id,
-                role="assistant",
-                content=ai_reply
+                role="user",
+                content=msg_body,
+                whatsapp_msg_id=whatsapp_msg_id
             )
-            db.add(assistant_message)
+            db.add(user_message)
             await db.commit()
 
-    except Exception as e:
-        print(f"Error processing webhook: {e}")
+            # If agent mode, trigger AI reply
+            if conversation.mode == "agent":
+                # Fetch client's branch_id
+                client_stmt = select(Client).where(Client.phone == from_phone)
+                client_res = await db.execute(client_stmt)
+                client = client_res.scalars().first()
+                
+                whatsapp_settings = None
+                if client and client.branch_id:
+                    settings_stmt = select(WhatsAppSettings).where(WhatsAppSettings.branch_id == client.branch_id)
+                    settings_res = await db.execute(settings_stmt)
+                    whatsapp_settings = settings_res.scalars().first()
+                    
+                if not whatsapp_settings:
+                    settings_stmt = select(WhatsAppSettings).where(WhatsAppSettings.branch_id == None)
+                    settings_res = await db.execute(settings_stmt)
+                    whatsapp_settings = settings_res.scalars().first()
+
+                system_prompt = "You are a helpful customer service assistant for DBS Aesthetics Clinic."
+                knowledge_base = ""
+                if whatsapp_settings:
+                    system_prompt = whatsapp_settings.system_prompt or system_prompt
+                    knowledge_base = whatsapp_settings.knowledge_base or knowledge_base
+
+                # Fetch last 10 messages for history
+                history_stmt = (
+                    select(WhatsAppMessage)
+                    .where(WhatsAppMessage.conversation_id == conversation.id)
+                    .order_by(WhatsAppMessage.created_at.desc())
+                    .limit(10)
+                )
+                history_res = await db.execute(history_stmt)
+                history_messages = reversed(history_res.scalars().all())
+                
+                history_list = []
+                for h_msg in history_messages:
+                    history_list.append({
+                        "role": h_msg.role,
+                        "content": h_msg.content
+                    })
+
+                # Get AI reply
+                ai_reply = await GroqService.get_reply(history_list, system_prompt, knowledge_base)
+
+                # Send WhatsApp message
+                sent = await WhatsAppService.send_message(from_phone, ai_reply)
+
+                # Save assistant message
+                assistant_message = WhatsAppMessage(
+                    id=uuid.uuid4().hex,
+                    conversation_id=conversation.id,
+                    role="assistant",
+                    content=ai_reply
+                )
+                db.add(assistant_message)
+                await db.commit()
+
+        except Exception as e:
+            print(f"Error processing webhook: {e}")
 
 # --- Webhook Callback (POST) ---
 @router.post("/webhook")
 async def receive_webhook(
     request: Request,
-    background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db)
+    background_tasks: BackgroundTasks
 ):
     try:
         payload = await request.json()
@@ -204,7 +208,12 @@ async def receive_webhook(
                 value = changes[0].get("value", {})
                 if "messages" in value:
                     # Trigger background processing to reply quickly with 200 OK
-                    background_tasks.add_task(process_incoming_message, payload, db)
+                    background_tasks.add_task(process_incoming_message, payload)
+                    
+        return {"status": "event_received"}
+    except Exception as e:
+        print(f"Webhook error: {e}")
+        return {"status": "error", "message": str(e)}
                     
         return {"status": "event_received"}
     except Exception as e:

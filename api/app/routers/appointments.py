@@ -11,23 +11,46 @@ from app.schemas.appointment import AppointmentCreate, AppointmentUpdate, Appoin
 
 router = APIRouter()
 
-async def check_double_booking(db: AsyncSession, staff_id: str, date: str, time: str, exclude_id: Optional[str] = None):
+import secrets
+
+def parse_time_minutes(time_str: str) -> int:
+    """Parse time string like '10:00 AM', '10:30', '14:00' into minutes from midnight."""
+    clean = time_str.strip().upper()
+    is_pm = "PM" in clean
+    is_am = "AM" in clean
+    clean = clean.replace("AM", "").replace("PM", "").strip()
+    parts = clean.split(":")
+    hours = int(parts[0]) if len(parts) > 0 else 0
+    minutes = int(parts[1]) if len(parts) > 1 else 0
+    if is_pm and hours < 12:
+        hours += 12
+    elif is_am and hours == 12:
+        hours = 0
+    return hours * 60 + minutes
+
+async def check_double_booking(db: AsyncSession, staff_id: str, date: str, time: str, exclude_id: Optional[str] = None, duration_minutes: int = 45):
+    new_start = parse_time_minutes(time)
+    new_end = new_start + duration_minutes
+
     query = select(Appointment).where(
         Appointment.staff_id == staff_id,
         Appointment.date == date,
-        Appointment.time == time,
         Appointment.status != "Cancelled"
-    )
+    ).with_for_update()
     if exclude_id:
         query = query.where(Appointment.id != exclude_id)
         
     result = await db.execute(query)
-    existing = result.scalars().first()
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Staff member is already booked on {date} at {time}."
-        )
+    existing_apts = result.scalars().all()
+
+    for apt in existing_apts:
+        existing_start = parse_time_minutes(apt.time)
+        existing_end = existing_start + 45  # Standard appointment slot duration
+        if new_start < existing_end and new_end > existing_start:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Staff member is already booked on {date} around {apt.time} (conflict with appointment ID {apt.id})."
+            )
 
 @router.get("", response_model=List[AppointmentResponse])
 async def list_appointments(
@@ -64,18 +87,7 @@ async def create_appointment(
     # Enforce no double-booking
     await check_double_booking(db, apt_in.staff_id, apt_in.date, apt_in.time)
     
-    count_result = await db.execute(select(Appointment))
-    appointments = count_result.scalars().all()
-    max_num = 1000
-    for apt in appointments:
-        if apt.id and apt.id.startswith("APT-"):
-            try:
-                num = int(apt.id.split("-")[1])
-                if num > max_num:
-                    max_num = num
-            except (ValueError, IndexError):
-                pass
-    apt_id = f"APT-{max_num + 1}"
+    apt_id = f"APT-{secrets.token_hex(3).upper()}"
     
     db_apt = Appointment(
         id=apt_id,
@@ -170,13 +182,14 @@ async def send_appointment_reminder(
     if not db_apt:
         raise HTTPException(status_code=404, detail="Appointment not found")
         
-    clinic_name = "DBS Aesthetic Clinic and Salon"
-    location_str = "13-C Khayaban-e-Saadi, Phase 7 Ext Karachi"
+    clinic_name = settings.PROJECT_NAME
+    location_str = "Main Clinic Branch"
     if db_apt.branch_id:
         branch_result = await db.execute(select(Branch).where(Branch.id == db_apt.branch_id))
         branch = branch_result.scalars().first()
         if branch:
-            location_str = f"{branch.name} ({branch.location})"
+            clinic_name = branch.name
+            location_str = branch.location
             
     message = (
         f"Hi {db_apt.client_name}!\n"

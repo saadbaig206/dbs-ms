@@ -13,7 +13,7 @@ import { Input, Select } from '../../components/ui/Input';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 
 export default function ServicesPage() {
-  const { services, addService, updateService, role, inventory } = useClinic();
+  const { services, addService, updateService, role, inventory, staff } = useClinic();
 
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -45,13 +45,14 @@ export default function ServicesPage() {
 
   const handleCreateService = (e: React.FormEvent) => {
     e.preventDefault();
+    const activeStaff = staff && staff.length > 0 ? staff : [];
     addService({
       name,
       category,
       price: Number(price) || 0,
       durationMinutes: Number(durationMinutes) || 0,
-      assignedStaffIds: ['STF-101'],
-      assignedStaffNames: ['Dr. Elena Rostova'],
+      assignedStaffIds: activeStaff.map(s => s.id),
+      assignedStaffNames: activeStaff.map(s => s.name),
       status: 'Active',
       image,
       description,

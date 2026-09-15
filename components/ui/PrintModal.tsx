@@ -130,7 +130,7 @@ function InvoicePrintContent({ data, clinicInfo }: { data: any; clinicInfo: any 
       {/* Thank you */}
       <div className="pt-4 text-center space-y-0.5">
         <p className="font-black">Thank you for choosing</p>
-        <p className="font-black">DBS Aesthetic Clinic & Salon</p>
+        <p className="font-black">{clinicInfo?.name || 'DBS Aesthetic Clinic & Salon'}</p>
       </div>
     </div>
   );
@@ -147,7 +147,7 @@ function PrintDocument({ type, data }: { type: string; data: any }) {
   // Single source of truth for the invoice/reference number —
   // used for the printed label, the QR code payload, and the barcode.
   const referenceNumber: string =
-    data.invoiceId || data.id || '135081-60821171915673';
+    data.invoiceId || data.id || `INV-${Date.now()}`;
 
   return (
     <div className="bg-white text-slate-900 p-6 font-sans max-w-[380px] mx-auto">
@@ -157,13 +157,13 @@ function PrintDocument({ type, data }: { type: string; data: any }) {
           <img src="/logo.png" alt="DBS Logo" className="h-22 w-auto object-contain" />
         </div>
         <h1 className="text-lg font-black tracking-tight text-slate-950 uppercase leading-tight">
-          DBS Aesthetic Clinic & Salon
+          {displayClinicName}
         </h1>
         <p className="text-[11px] text-slate-600 leading-snug max-w-[300px] mx-auto">
           {displayAddress}
         </p>
         <p className="text-[11px] text-slate-800 font-bold">
-          UAN: 021-33485322
+          Tel: {displayPhone}
         </p>
 
       </div>
@@ -180,7 +180,7 @@ function PrintDocument({ type, data }: { type: string; data: any }) {
             <p>Contact Phone : <span className="font-bold">{data.phone || 'N/A'}</span></p>
             <p>Scheduled Service : <span className="font-bold">{data.serviceName}</span></p>
             {data.category && <p>Category : <span className="font-bold capitalize">{data.category}</span></p>}
-            <p>Assigned Specialist : <span className="font-bold">{data.staffName || 'Dr. Ali Imran (Consultant)'}</span></p>
+            <p>Assigned Specialist : <span className="font-bold">{data.staffName || 'Assigned Specialist'}</span></p>
             <p>Treatment Date : <span className="font-bold">{data.date}</span></p>
             <p>Treatment Time : <span className="font-bold">{data.time}</span></p>
           </div>
