@@ -27,10 +27,14 @@ export default function LoginPage() {
 
     try {
       const data = await authClient.login(email.trim(), password);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('user_role', data.role);
+      }
       setRole(data.role);
+      refreshData(false).catch(() => {});
 
       const targetUrl = data.role === 'staff' ? '/pos' : '/dashboard';
-      window.location.href = targetUrl;
+      router.push(targetUrl);
     } catch (err: any) {
       setIsLoading(false);
       setError(err.message || 'Invalid email or password. Please try again.');

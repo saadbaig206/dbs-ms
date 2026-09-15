@@ -132,7 +132,7 @@ interface ClinicContextType {
   // Loading & error states
   isLoading: boolean;
   error: string | null;
-  refreshData: () => Promise<void>;
+  refreshData: (showSpinner?: boolean) => Promise<void>;
 
   // Selected Branch for Dashboard/List filtering
   selectedBranchId: string | null;
@@ -268,40 +268,13 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // Main fetch function to load all backend data
+  // Main fetch function to load all backend data
   const refreshData = async (showSpinner = false) => {
     if (showSpinner) setIsLoading(true);
     setError(null);
     try {
-      // Execute user auth and all entity queries concurrently in parallel
-      const [
-        user,
-        branchesData,
-        staffData,
-        servicesData,
-        clientsData,
-        appointmentsData,
-        inventoryData,
-        attendanceData,
-        notificationsData,
-        expensesData,
-        transactionsData,
-        partnersData
-      ] = await Promise.all([
-        authClient.me().catch(() => null),
-        fetchSafe<Branch[]>('/branches', []),
-        fetchSafe<Staff[]>('/staff', []),
-        fetchSafe<ServiceItem[]>('/services', []),
-        fetchSafe<Client[]>('/clients', []),
-        fetchSafe<Appointment[]>('/appointments', []),
-        fetchSafe<InventoryItem[]>('/inventory', []),
-        fetchSafe<AttendanceRecord[]>('/attendance', []),
-        fetchSafe<NotificationItem[]>('/notifications', []),
-        fetchSafe<ExpenseItem[]>('/expenses', []),
-        fetchSafe<FinancialTransaction[]>('/transactions', []),
-        fetchSafe<{ id: number; username: string }[]>('/auth/partners', [])
-      ]);
-
-      let activeUser = user;
+      // 1. Resolve active user and role first
+      let activeUser = await authClient.me().catch(() => null);
       if (!activeUser && typeof window !== 'undefined') {
         const localToken = localStorage.getItem('access_token') || (document.cookie.match(/(?:^|; )access_token=([^;]*)/)?.[1]);
         const localRole = (localStorage.getItem('user_role') || (document.cookie.match(/(?:^|; )user_role=([^;]*)/)?.[1])) as UserRole | null;
@@ -336,6 +309,45 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setSelectedBranchId(prev => prev || bId);
       }
 
+      // 2. Execute entity queries concurrently, skipping unauthorized endpoints for staff/partner
+      const expensesPromise = (activeRole === 'admin' || activeRole === 'partner')
+        ? fetchSafe<ExpenseItem[]>('/expenses', [])
+        : Promise.resolve([]);
+
+      const transactionsPromise = (activeRole === 'admin' || activeRole === 'partner')
+        ? fetchSafe<FinancialTransaction[]>('/transactions', [])
+        : Promise.resolve([]);
+
+      const partnersPromise = (activeRole === 'admin')
+        ? fetchSafe<{ id: number; username: string }[]>('/auth/partners', [])
+        : Promise.resolve([]);
+
+      const [
+        branchesData,
+        staffData,
+        servicesData,
+        clientsData,
+        appointmentsData,
+        inventoryData,
+        attendanceData,
+        notificationsData,
+        expensesData,
+        transactionsData,
+        partnersData
+      ] = await Promise.all([
+        fetchSafe<Branch[]>('/branches', []),
+        fetchSafe<Staff[]>('/staff', []),
+        fetchSafe<ServiceItem[]>('/services', []),
+        fetchSafe<Client[]>('/clients', []),
+        fetchSafe<Appointment[]>('/appointments', []),
+        fetchSafe<InventoryItem[]>('/inventory', []),
+        fetchSafe<AttendanceRecord[]>('/attendance', []),
+        fetchSafe<NotificationItem[]>('/notifications', []),
+        expensesPromise,
+        transactionsPromise,
+        partnersPromise
+      ]);
+
       setBranches(branchesData); saveCachedData('branches', branchesData);
       setStaff(staffData); saveCachedData('staff', staffData);
       setServices(servicesData); saveCachedData('services', servicesData);
@@ -344,20 +356,9 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setInventory(inventoryData); saveCachedData('inventory', inventoryData);
       setAttendance(attendanceData); saveCachedData('attendance', attendanceData);
       setNotifications(notificationsData); saveCachedData('notifications', notificationsData);
-
-      if (activeRole === 'admin' || activeRole === 'partner') {
-        setExpenses(expensesData); saveCachedData('expenses', expensesData);
-        setTransactions(transactionsData); saveCachedData('transactions', transactionsData);
-      } else {
-        setExpenses([]);
-        setTransactions([]);
-      }
-
-      if (activeRole === 'admin') {
-        setPartners(partnersData); saveCachedData('partners', partnersData);
-      } else {
-        setPartners([]);
-      }
+      setExpenses(expensesData); saveCachedData('expenses', expensesData);
+      setTransactions(transactionsData); saveCachedData('transactions', transactionsData);
+      setPartners(partnersData); saveCachedData('partners', partnersData);
     } catch (err: any) {
       console.error('Failed to load clinic data:', err);
       setError(err.message || 'Failed to fetch data');

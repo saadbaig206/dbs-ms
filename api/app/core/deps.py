@@ -79,17 +79,15 @@ async def get_user_branch_id(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> Optional[str]:
+    branch_id = request.query_params.get("branch_id") or request.headers.get("X-Branch-ID")
     if current_user.role == "staff":
         from app.models.staff import Staff
         from sqlalchemy import func
         staff_result = await db.execute(select(Staff).where(func.lower(Staff.email) == func.lower(current_user.email)))
         staff_member = staff_result.scalars().first()
-        if staff_member:
+        if staff_member and staff_member.branch_id:
             return staff_member.branch_id
-        return None
+        return branch_id
     elif current_user.role in ("admin", "partner"):
-        branch_id = request.query_params.get("branch_id")
-        if not branch_id:
-            branch_id = request.headers.get("X-Branch-ID")
         return branch_id
     return None
