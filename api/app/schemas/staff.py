@@ -17,7 +17,7 @@ class StaffBase(CamelModel):
     branch_id: Optional[str] = None
 
 class StaffCreate(StaffBase):
-    password: str
+    password: Optional[str] = None
 
 class StaffUpdate(CamelModel):
     photo: Optional[str] = None

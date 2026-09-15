@@ -124,3 +124,17 @@ async def mark_attendance(
     await db.commit()
     await db.refresh(db_record)
     return db_record
+
+@router.delete("/{record_id}")
+async def revert_attendance(
+    record_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_admin_user)
+):
+    result = await db.execute(select(AttendanceRecord).where(AttendanceRecord.id == record_id))
+    record = result.scalars().first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Attendance record not found")
+    await db.delete(record)
+    await db.commit()
+    return {"message": "Attendance reverted successfully"}

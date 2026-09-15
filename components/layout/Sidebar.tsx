@@ -79,6 +79,7 @@ export const Sidebar: React.FC = () => {
     { title: 'Billing', href: '/pos', icon: CreditCard, adminOnly: false },
     { title: 'Services', href: '/services', icon: Sparkles, adminOnly: false },
     { title: 'Inventory', href: '/inventory', icon: Package, adminOnly: false },
+    { title: 'Attendance', href: '/attendance', icon: UserCheck, adminOnly: false },
     { title: 'Branches', href: '/branches', icon: MapPin, adminOnly: true },
     { title: 'Finance & Reports', href: '/finance-reports', icon: DollarSign, adminOnly: true },
     { title: 'Staff', href: '/staff', icon: Users2, adminOnly: true },

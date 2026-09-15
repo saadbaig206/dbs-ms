@@ -54,7 +54,7 @@ async def update_transaction(
     transaction_id: str,
     transaction_in: FinancialTransactionUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_admin_or_partner_user)
+    current_user = Depends(get_admin_user)
 ):
     result = await db.execute(select(FinancialTransaction).where(FinancialTransaction.id == transaction_id))
     db_transaction = result.scalars().first()

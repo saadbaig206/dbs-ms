@@ -17,6 +17,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { Input, Select } from '../../components/ui/Input';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
+import { getLocalDateString } from '../../lib/utils/date';
 
 export default function AppointmentsPage() {
   const { appointments, addAppointment, updateAppointmentStatus, deleteAppointment, staff, services, setPrintData, branches, selectedBranchId, userBranchId } = useClinic();
@@ -43,9 +44,51 @@ export default function AppointmentsPage() {
   const [selectedServiceId, setSelectedServiceId] = useState(services[0]?.id || '');
   const [selectedStaffId, setSelectedStaffId] = useState(staff[0]?.id || '');
   const [category, setCategory] = useState<'treatment' | 'consultation'>('treatment');
-  const [aptDate, setAptDate] = useState(new Date().toISOString().split('T')[0]);
+  const [aptDate, setAptDate] = useState(getLocalDateString());
   const [aptTime, setAptTime] = useState('11:00 AM');
   const [aptNotes, setAptNotes] = useState('');
+
+  // Multi-session State
+  const [numberOfSessions, setNumberOfSessions] = useState<number>(1);
+  const [sessionsList, setSessionsList] = useState<Array<{ sessionNumber: number; date: string; time: string }>>([
+    { sessionNumber: 1, date: getLocalDateString(), time: '11:00 AM' }
+  ]);
+
+  const handleSessionsCountChange = (count: number) => {
+    const validCount = Math.max(1, Math.min(20, count));
+    setNumberOfSessions(validCount);
+
+    setSessionsList(prev => {
+      const nextList: Array<{ sessionNumber: number; date: string; time: string }> = [];
+      const baseDate = new Date(aptDate || getLocalDateString());
+
+      for (let i = 0; i < validCount; i++) {
+        if (prev[i]) {
+          nextList.push({ ...prev[i], sessionNumber: i + 1 });
+        } else {
+          const sessDate = new Date(baseDate);
+          sessDate.setDate(sessDate.getDate() + (i * 7));
+          const dateStr = getLocalDateString(sessDate);
+          nextList.push({
+            sessionNumber: i + 1,
+            date: dateStr,
+            time: aptTime || '11:00 AM'
+          });
+        }
+      }
+      return nextList;
+    });
+  };
+
+  const handleUpdateSession = (index: number, field: 'date' | 'time', value: string) => {
+    setSessionsList(prev => {
+      const copy = [...prev];
+      if (copy[index]) {
+        copy[index] = { ...copy[index], [field]: value };
+      }
+      return copy;
+    });
+  };
 
   // Check for staff double-booking collisions
   const hasCollision = useMemo(() => {
@@ -68,19 +111,19 @@ export default function AppointmentsPage() {
     const matchesCategory = categoryFilter === 'All' || apt.category === categoryFilter;
 
     let matchesDate = true;
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
     if (dateFilter === 'Today') {
       matchesDate = apt.date === todayStr;
     } else if (dateFilter === 'Tomorrow') {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
-      matchesDate = apt.date === tomorrow.toISOString().split('T')[0];
+      matchesDate = apt.date === getLocalDateString(tomorrow);
     }
 
     return matchesBranch && matchesSearch && matchesStatus && matchesDate && matchesCategory;
   });
 
-  const handleCreateAppointment = (e: React.FormEvent) => {
+  const handleCreateAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
     const serviceObj = services.find(s => s.id === selectedServiceId);
     const staffObj = staff.find(st => st.id === selectedStaffId);
@@ -99,32 +142,57 @@ export default function AppointmentsPage() {
       alert("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)");
       return;
     }
-    if (!aptDate) {
-      alert("Please select an appointment date");
-      return;
+
+    try {
+      if (numberOfSessions === 1) {
+        await addAppointment({
+          clientId: `CLT-${Math.floor(Math.random() * 900) + 100}`,
+          clientName: newClientName,
+          phone: newPhone.replace(/\s+/g, ''),
+          serviceId: serviceObj.id,
+          serviceName: serviceObj.name,
+          staffId: staffObj.id,
+          staffName: staffObj.name,
+          date: aptDate,
+          time: aptTime,
+          status: 'Confirmed',
+          notes: aptNotes,
+          price: serviceObj.price,
+          category: category
+        });
+      } else {
+        // Multi-session creation
+        for (let i = 0; i < sessionsList.length; i++) {
+          const sess = sessionsList[i];
+          const sessionTag = `Session ${i + 1}/${sessionsList.length}`;
+          await addAppointment({
+            clientId: `CLT-${Math.floor(Math.random() * 900) + 100}`,
+            clientName: newClientName,
+            phone: newPhone.replace(/\s+/g, ''),
+            serviceId: serviceObj.id,
+            serviceName: `${serviceObj.name} (${sessionTag})`,
+            staffId: staffObj.id,
+            staffName: staffObj.name,
+            date: sess.date,
+            time: sess.time,
+            status: 'Confirmed',
+            notes: aptNotes ? `${aptNotes} - ${sessionTag}` : sessionTag,
+            price: serviceObj.price,
+            category: category
+          });
+        }
+      }
+
+      setIsModalOpen(false);
+      setNewClientName('');
+      setNewPhone('+92 ');
+      setCategory('treatment');
+      setAptNotes('');
+      setNumberOfSessions(1);
+      setSessionsList([{ sessionNumber: 1, date: getLocalDateString(), time: '11:00 AM' }]);
+    } catch (err: any) {
+      alert("Failed to create appointment: " + (err.message || err));
     }
-
-    addAppointment({
-      clientId: `CLT-${Math.floor(Math.random() * 900) + 100}`,
-      clientName: newClientName,
-      phone: newPhone.replace(/\s+/g, ''),
-      serviceId: serviceObj.id,
-      serviceName: serviceObj.name,
-      staffId: staffObj.id,
-      staffName: staffObj.name,
-      date: aptDate,
-      time: aptTime,
-      status: 'Confirmed',
-      notes: aptNotes,
-      price: serviceObj.price,
-      category: category
-    });
-
-    setIsModalOpen(false);
-    setNewClientName('');
-    setNewPhone('+92 ');
-    setCategory('treatment');
-    setAptNotes('');
   };
 
   return (
@@ -354,46 +422,137 @@ export default function AppointmentsPage() {
               value={selectedStaffId}
               onChange={(e) => setSelectedStaffId(e.target.value)}
             />
+            <Select
+              label="Number of Sessions"
+              options={[
+                { label: '1 Session', value: '1' },
+                { label: '2 Sessions', value: '2' },
+                { label: '3 Sessions', value: '3' },
+                { label: '4 Sessions', value: '4' },
+                { label: '5 Sessions', value: '5' },
+                { label: '6 Sessions', value: '6' },
+                { label: '7 Sessions', value: '7' },
+                { label: '8 Sessions', value: '8' },
+                { label: '9 Sessions', value: '9' },
+                { label: '10 Sessions', value: '10' }
+              ]}
+              value={numberOfSessions.toString()}
+              onChange={(e) => handleSessionsCountChange(parseInt(e.target.value) || 1)}
+            />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Date"
-              type="date"
-              value={aptDate}
-              onChange={(e) => setAptDate(e.target.value)}
-              rightIcon={<CalendarDays className="w-4 h-4 text-blue-500" />}
-              className="booking-date-input cursor-pointer bg-gradient-to-br from-white to-blue-50/70 dark:from-slate-900 dark:to-blue-950/30 border-blue-100 dark:border-blue-900/60 font-semibold tracking-wide"
-              required
-            />
-            <div className="w-full space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Time Slot
-              </label>
-              <div className="relative flex items-center">
-                <Clock3 className="absolute left-3.5 z-10 w-4 h-4 text-blue-500 pointer-events-none" />
-                <Select
-                  aria-label="Time Slot"
-                  options={[
-                    { label: '11:00 AM', value: '11:00 AM' },
-                    { label: '12:15 PM', value: '12:15 PM' },
-                    { label: '01:30 PM', value: '01:30 PM' },
-                    { label: '02:45 PM', value: '02:45 PM' },
-                    { label: '04:00 PM', value: '04:00 PM' },
-                    { label: '05:15 PM', value: '05:15 PM' },
-                    { label: '06:30 PM', value: '06:30 PM' },
-                    { label: '07:30 PM', value: '07:30 PM' },
-                    { label: '08:00 PM', value: '08:00 PM' }
-                  ]}
-                  value={aptTime}
-                  onChange={(e) => setAptTime(e.target.value)}
-                  className="booking-time-select pl-10 bg-gradient-to-br from-white to-blue-50/70 dark:from-slate-900 dark:to-blue-950/30 border-blue-100 dark:border-blue-900/60 font-semibold tracking-wide cursor-pointer"
-                />
+          {numberOfSessions === 1 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label="Date"
+                type="date"
+                value={aptDate}
+                onChange={(e) => {
+                  setAptDate(e.target.value);
+                  handleUpdateSession(0, 'date', e.target.value);
+                }}
+                rightIcon={<CalendarDays className="w-4 h-4 text-blue-500" />}
+                className="booking-date-input cursor-pointer bg-gradient-to-br from-white to-blue-50/70 dark:from-slate-900 dark:to-blue-950/30 border-blue-100 dark:border-blue-900/60 font-semibold tracking-wide"
+                required
+              />
+              <div className="w-full space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Time Slot
+                </label>
+                <div className="relative flex items-center">
+                  <Clock3 className="absolute left-3.5 z-10 w-4 h-4 text-blue-500 pointer-events-none" />
+                  <Select
+                    aria-label="Time Slot"
+                    options={[
+                      { label: '11:00 AM', value: '11:00 AM' },
+                      { label: '12:15 PM', value: '12:15 PM' },
+                      { label: '01:30 PM', value: '01:30 PM' },
+                      { label: '02:45 PM', value: '02:45 PM' },
+                      { label: '04:00 PM', value: '04:00 PM' },
+                      { label: '05:15 PM', value: '05:15 PM' },
+                      { label: '06:30 PM', value: '06:30 PM' },
+                      { label: '07:30 PM', value: '07:30 PM' },
+                      { label: '08:00 PM', value: '08:00 PM' }
+                    ]}
+                    value={aptTime}
+                    onChange={(e) => {
+                      setAptTime(e.target.value);
+                      handleUpdateSession(0, 'time', e.target.value);
+                    }}
+                    className="booking-time-select pl-10 bg-gradient-to-br from-white to-blue-50/70 dark:from-slate-900 dark:to-blue-950/30 border-blue-100 dark:border-blue-900/60 font-semibold tracking-wide cursor-pointer"
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                  Session Schedule ({numberOfSessions} Boxes Created)
+                </label>
+                <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                  Auto-spaced weekly • Edit dates individually below
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-72 overflow-y-auto p-1 bg-slate-50/80 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800">
+                {sessionsList.map((sess, idx) => {
+                  const currentService = services.find(s => s.id === selectedServiceId);
+                  return (
+                    <div
+                      key={idx}
+                      className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-blue-100 dark:border-blue-900/50 shadow-sm space-y-2.5"
+                    >
+                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300">
+                          Session {sess.sessionNumber} / {numberOfSessions}
+                        </span>
+                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 truncate max-w-[140px]" title={currentService?.name || 'Service'}>
+                          {currentService?.name || 'Service'}
+                        </span>
+                      </div>
 
-
+                      <div className="space-y-2">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            Date
+                          </label>
+                          <Input
+                            type="date"
+                            value={sess.date}
+                            onChange={(e) => handleUpdateSession(idx, 'date', e.target.value)}
+                            className="text-xs py-1.5 font-medium"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            Time Slot
+                          </label>
+                          <Select
+                            aria-label={`Session ${sess.sessionNumber} Time Slot`}
+                            options={[
+                              { label: '11:00 AM', value: '11:00 AM' },
+                              { label: '12:15 PM', value: '12:15 PM' },
+                              { label: '01:30 PM', value: '01:30 PM' },
+                              { label: '02:45 PM', value: '02:45 PM' },
+                              { label: '04:00 PM', value: '04:00 PM' },
+                              { label: '05:15 PM', value: '05:15 PM' },
+                              { label: '06:30 PM', value: '06:30 PM' },
+                              { label: '07:30 PM', value: '07:30 PM' },
+                              { label: '08:00 PM', value: '08:00 PM' }
+                            ]}
+                            value={sess.time}
+                            onChange={(e) => handleUpdateSession(idx, 'time', e.target.value)}
+                            className="text-xs py-1.5 font-medium"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <Input
             label="Special Clinical Notes"

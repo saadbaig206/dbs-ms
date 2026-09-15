@@ -17,6 +17,7 @@ class FinancialTransactionBase(CamelModel):
     tax_percent: float = Field(default=0.0, ge=0)
     grand_total: float = Field(ge=0)
     date: str
+    time: Optional[str] = None
     payment_method: str
     status: str = "Paid"
     items: Optional[List[InvoiceLineItemSchema]] = None

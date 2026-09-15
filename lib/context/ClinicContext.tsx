@@ -17,6 +17,7 @@ import {
 } from '../types/clinic';
 import { apiFetch, authClient } from '../api/client';
 import { CLINIC_INFO } from '../constants/clinic';
+import { getLocalDateString, getLocalTimeString } from '../utils/date';
 
 interface ClinicContextType {
   // Clinic General Info
@@ -107,6 +108,7 @@ interface ClinicContextType {
     latitude?: number,
     longitude?: number
   ) => Promise<void>;
+  revertAttendance: (id: string) => Promise<void>;
 
   notifications: NotificationItem[];
   markNotificationRead: (id: string) => Promise<void>;
@@ -397,7 +399,9 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Fetch data on load
   useEffect(() => {
-    refreshData(true);
+    const hasCachedData = typeof window !== 'undefined' && 
+      ((localStorage.getItem('clinic_cache_staff') || '[]') !== '[]' || (localStorage.getItem('clinic_cache_services') || '[]') !== '[]');
+    refreshData(!hasCachedData);
   }, []);
 
   // Branches CRUD
@@ -544,9 +548,16 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const created: Appointment = {
       ...newApt,
       id: `APT-${Math.floor(Math.random() * 900) + 100}`,
-      status: newApt.status || 'Scheduled',
+      status: newApt.status || 'Confirmed',
       reminderStatus: newApt.reminderStatus || 'Pending'
     };
+    // Optimistic UI update for instant feedback
+    setAppointments(prev => {
+      const next = [created, ...prev];
+      saveCachedData('appointments', next);
+      return next;
+    });
+
     try {
       await apiFetch('/appointments', {
         method: 'POST',
@@ -555,9 +566,9 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           branchId: newApt.branchId || selectedBranchId || userBranchId || undefined
         }),
       });
-      await refreshAppointments();
+      refreshAppointments().catch(() => {});
     } catch (e) {
-      setAppointments(prev => { const next = [created, ...prev]; saveCachedData('appointments', next); return next; });
+      // Optimistic state already set
     }
   };
 
@@ -791,14 +802,14 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     longitude?: number
   ) => {
     const staffMember = staff.find(s => s.id === staffId);
-    const clientTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    const clientTime = getLocalTimeString();
     const isCheckout = status === 'Checked Out';
     const rec: AttendanceRecord = {
       id: `ATT-${Math.floor(Math.random() * 900) + 100}`,
       staffId,
       staffName: staffMember?.name || 'Staff Member',
       role: staffMember?.role || 'Staff',
-      date: new Date().toISOString().split('T')[0],
+      date: getLocalDateString(),
       status,
       checkInTime: isCheckout ? undefined : clientTime,
       checkOutTime: isCheckout ? clientTime : undefined,
@@ -821,6 +832,21 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       await refreshAttendance();
     } catch (e) {
       setAttendance(prev => { const next = [rec, ...prev]; saveCachedData('attendance', next); return next; });
+    }
+  };
+
+  const revertAttendance = async (id: string) => {
+    try {
+      await apiFetch(`/attendance/${id}`, {
+        method: 'DELETE',
+      });
+      await refreshAttendance();
+    } catch (e) {
+      setAttendance(prev => {
+        const next = prev.filter(a => a.id !== id);
+        saveCachedData('attendance', next);
+        return next;
+      });
     }
   };
 
@@ -933,7 +959,11 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
 
       clearPosCart();
-      refreshData().catch(err => console.error(err));
+      Promise.all([
+        refreshTransactions(),
+        refreshClients(),
+        refreshInventory()
+      ]).catch(err => console.error(err));
       return txn;
     } catch (e: any) {
       console.error('POS Checkout failed:', e);
@@ -1000,6 +1030,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         attendance,
         markAttendance,
+        revertAttendance,
 
         partners,
         addPartner,

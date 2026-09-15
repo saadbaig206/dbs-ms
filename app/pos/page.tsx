@@ -808,14 +808,16 @@ export default function POSPage() {
                           >
                             Reprint
                           </Button>
-                          <Button
-                            onClick={() => handleOpenEditTxnModal(txn)}
-                            variant="secondary"
-                            size="sm"
-                            icon={<Edit2 className="w-3.5 h-3.5" />}
-                          >
-                            Edit
-                          </Button>
+                           {role === 'admin' && (
+                            <Button
+                              onClick={() => handleOpenEditTxnModal(txn)}
+                              variant="secondary"
+                              size="sm"
+                              icon={<Edit2 className="w-3.5 h-3.5" />}
+                            >
+                              Edit
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>

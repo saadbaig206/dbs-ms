@@ -355,81 +355,155 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Today's Schedule Table */}
-      <div className="luxury-card p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-          <div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-              Today's Live Treatment Schedule
-            </h3>
-            <p className="text-xs text-slate-500">Active client bookings and specialist assignments</p>
+      {/* Conditional Dashboard Table: Recent Transactions for Partner role, Live Treatment Schedule for Admin/Staff */}
+      {role === 'partner' ? (
+        <div className="luxury-card p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+                Recent Payment Transactions
+              </h3>
+              <p className="text-xs text-slate-500">Latest POS checkout receipts and payment transactions</p>
+            </div>
+            <Link href="/finance-reports">
+              <Button variant="ghost" size="sm" icon={<ArrowRight className="w-4 h-4" />}>
+                View Financial Reports
+              </Button>
+            </Link>
           </div>
-          {role !== 'partner' && (
+
+          <div className="responsive-table-wrapper">
+            <table className="w-full min-w-[650px] text-left text-xs sm:text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[11px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
+                <tr>
+                  <th className="py-3 px-4 rounded-l-xl">Invoice No</th>
+                  <th className="py-3 px-4">Date</th>
+                  <th className="py-3 px-4">Client Name</th>
+                  <th className="py-3 px-4">Service / Package</th>
+                  <th className="py-3 px-4">Payment Method</th>
+                  <th className="py-3 px-4">Amount</th>
+                  <th className="py-3 px-4 text-right rounded-r-xl">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
+                {transactions.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-xs text-slate-400">
+                      No payment transactions recorded yet.
+                    </td>
+                  </tr>
+                ) : (
+                  transactions.slice(0, 8).map((txn) => (
+                    <tr key={txn.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-slate-100">
+                        {txn.invoiceId || txn.id}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-slate-600 dark:text-slate-300">
+                        {txn.date}
+                      </td>
+                      <td className="py-3.5 px-4 font-semibold text-slate-900 dark:text-slate-100">
+                        {txn.clientName}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
+                        {txn.serviceName}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <Badge variant="neutral">{txn.paymentMethod}</Badge>
+                      </td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                        {formatPKR(txn.grandTotal)}
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <button
+                          onClick={() => setPrintData({ title: `Invoice ${txn.invoiceId}`, type: 'invoice', data: txn })}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors"
+                          title="Print Official Invoice Receipt"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        /* Today's Schedule Table */
+        <div className="luxury-card p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+                Today's Live Treatment Schedule
+              </h3>
+              <p className="text-xs text-slate-500">Active client bookings and specialist assignments</p>
+            </div>
             <Link href="/appointments">
               <Button variant="ghost" size="sm" icon={<ArrowRight className="w-4 h-4" />}>
                 View All Bookings
               </Button>
             </Link>
-          )}
-        </div>
+          </div>
 
-        <div className="responsive-table-wrapper">
-          <table className="w-full min-w-[650px] text-left text-xs sm:text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[11px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
-              <tr>
-                <th className="py-3 px-4 rounded-l-xl">Time</th>
-                <th className="py-3 px-4">Client Name</th>
-                <th className="py-3 px-4">Service</th>
-                <th className="py-3 px-4">Staff Specialist</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right rounded-r-xl">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-              {todayAppointments.slice(0, 5).map((apt) => (
-                <tr key={apt.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                  <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-slate-100">
-                    {apt.time}
-                  </td>
-                  <td className="py-3.5 px-4 font-semibold text-slate-900 dark:text-slate-100">
-                    {apt.clientName}
-                  </td>
-                  <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
-                    {apt.serviceName}
-                  </td>
-                  <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
-                    {apt.staffName}
-                  </td>
-                  <td className="py-3.5 px-4">
-                    <Badge
-                      variant={
-                        apt.status === 'Completed'
-                          ? 'success'
-                          : apt.status === 'In-Progress'
-                            ? 'warning'
-                            : apt.status === 'Confirmed'
-                              ? 'primary'
-                              : 'neutral'
-                      }
-                    >
-                      {apt.status}
-                    </Badge>
-                  </td>
-                  <td className="py-3.5 px-4 text-right">
-                    <button
-                      onClick={() => setPrintData({ title: `Slip ${apt.id}`, type: 'slip', data: apt })}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors"
-                      title="Print Booking Slip"
-                    >
-                      <Printer className="w-4 h-4" />
-                    </button>
-                  </td>
+          <div className="responsive-table-wrapper">
+            <table className="w-full min-w-[650px] text-left text-xs sm:text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[11px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
+                <tr>
+                  <th className="py-3 px-4 rounded-l-xl">Time</th>
+                  <th className="py-3 px-4">Client Name</th>
+                  <th className="py-3 px-4">Service</th>
+                  <th className="py-3 px-4">Staff Specialist</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-right rounded-r-xl">Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
+                {todayAppointments.slice(0, 5).map((apt) => (
+                  <tr key={apt.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                    <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-slate-100">
+                      {apt.time}
+                    </td>
+                    <td className="py-3.5 px-4 font-semibold text-slate-900 dark:text-slate-100">
+                      {apt.clientName}
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
+                      {apt.serviceName}
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
+                      {apt.staffName}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <Badge
+                        variant={
+                          apt.status === 'Completed'
+                            ? 'success'
+                            : apt.status === 'In-Progress'
+                              ? 'warning'
+                              : apt.status === 'Confirmed'
+                                ? 'primary'
+                                : 'neutral'
+                        }
+                      >
+                        {apt.status}
+                      </Badge>
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <button
+                        onClick={() => setPrintData({ title: `Slip ${apt.id}`, type: 'slip', data: apt })}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors"
+                        title="Print Booking Slip"
+                      >
+                        <Printer className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

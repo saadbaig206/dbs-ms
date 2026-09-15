@@ -23,6 +23,35 @@ import { Input, Select } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 
+function isReminderEligible(dateStr: string, timeStr: string): { eligible: boolean; hoursRemaining?: number } {
+  try {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    let hours = 0;
+    let minutes = 0;
+    if (timeStr) {
+      const match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (match) {
+        hours = parseInt(match[1], 10);
+        minutes = parseInt(match[2], 10);
+        const ampm = match[3].toUpperCase();
+        if (ampm === 'PM' && hours < 12) hours += 12;
+        if (ampm === 'AM' && hours === 12) hours = 0;
+      }
+    }
+    const aptDateTime = new Date(year, month - 1, day, hours, minutes, 0);
+    const now = new Date();
+    const diffMs = aptDateTime.getTime() - now.getTime();
+    const diffHours = diffMs / (1000 * 60 * 60);
+
+    if (diffHours > 24) {
+      return { eligible: false, hoursRemaining: Math.ceil(diffHours - 24) };
+    }
+    return { eligible: true };
+  } catch (e) {
+    return { eligible: true };
+  }
+}
+
 export default function RemindersPage() {
   const { 
     appointments, 
@@ -78,6 +107,15 @@ export default function RemindersPage() {
     try {
       const apt = appointments.find(a => a.id === id);
       if (!apt) throw new Error('Appointment not found');
+
+      const { eligible } = isReminderEligible(apt.date, apt.time);
+      if (!eligible) {
+        setToastMessage({
+          text: 'Reminder sending option is available only 24 hours prior to the appointment.',
+          type: 'error'
+        });
+        return;
+      }
 
       // 1. Find branch & clinic details for the location
       const branch = branches.find(b => b.id === apt.branchId) || (branches.length > 0 ? branches[0] : null);
@@ -200,6 +238,8 @@ Thank you!`;
           ) : (
             filteredAppointments.map((apt) => {
               const remStatus = apt.reminderStatus || 'Pending';
+              const { eligible, hoursRemaining } = isReminderEligible(apt.date, apt.time);
+
               return (
                 <motion.div
                   key={apt.id}
@@ -240,6 +280,12 @@ Thank you!`;
                         >
                           Reminder: {remStatus}
                         </Badge>
+
+                        {remStatus === 'Pending' && !eligible && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50">
+                            Available 24h prior (in ~{hoursRemaining}h)
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">
@@ -281,14 +327,27 @@ Thank you!`;
                         >
                           Reject
                         </Button>
-                        <Button
-                          onClick={() => handleSend(apt.id, apt.clientName)}
-                          variant="primary"
-                          size="sm"
-                          icon={<Send className="w-4 h-4" />}
-                        >
-                          Send Reminder
-                        </Button>
+                        {eligible ? (
+                          <Button
+                            onClick={() => handleSend(apt.id, apt.clientName)}
+                            variant="primary"
+                            size="sm"
+                            icon={<Send className="w-4 h-4" />}
+                          >
+                            Send Reminder
+                          </Button>
+                        ) : (
+                          <Button
+                            disabled
+                            variant="outline"
+                            size="sm"
+                            icon={<Send className="w-4 h-4 opacity-40" />}
+                            className="opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-800/80 text-slate-400 border-slate-200 dark:border-slate-800"
+                            title="Reminder option becomes available 24 hours prior to appointment"
+                          >
+                            Send Reminder (24h Prior)
+                          </Button>
+                        )}
                       </>
                     )}
 

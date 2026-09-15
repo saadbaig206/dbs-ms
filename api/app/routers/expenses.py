@@ -122,6 +122,18 @@ async def delete_expense(
             "totalRequired": len(required_emails)
         }
     else:
+        from app.models.notification import NotificationItem
+        alert_id = f"NOT-DEL-{int(datetime.now().timestamp() * 1000)}"
+        vendor_name_label = db_expense.vendor_name or db_expense.title or "Vendor Expense"
+        del_notif = NotificationItem(
+            id=alert_id,
+            title="Vendor Delete Approval Request",
+            message=f"Deletion approval requested for vendor record: '{vendor_name_label}' (Rs. {db_expense.amount}). Approval ({len(current_approvals)}/{len(required_emails)}).",
+            time=datetime.now().strftime("%Y-%m-%d %I:%M %p"),
+            type="vendor_approval",
+            read=False
+        )
+        db.add(del_notif)
         db.add(db_expense)
         await db.commit()
         await db.refresh(db_expense)

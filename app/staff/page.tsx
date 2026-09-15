@@ -204,11 +204,6 @@ export default function StaffPage() {
       showToast("Salary must be a positive number", "error");
       return;
     }
-    if (password.length < 6) {
-      showToast("Password must be at least 6 characters long", "error");
-      return;
-    }
-
     addStaff({
       photo,
       name,
@@ -216,7 +211,6 @@ export default function StaffPage() {
       salary: Number(salary) || 0,
       phone,
       email,
-      password,
       joiningDate: new Date().toISOString().split('T')[0],
       status: 'Active',
       performanceRating: 5.0,
@@ -719,14 +713,6 @@ export default function StaffPage() {
             placeholder="staff@dbsaesthetic.pk"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-          <Input
-            label="Portal Password"
-            type="password"
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
             required
           />
 

@@ -6,8 +6,8 @@ class Client(Base):
     __tablename__ = "clients"
 
     id = Column(String, primary_key=True, index=True)
-    name = Column(String, nullable=False)
-    phone = Column(String, nullable=False)
+    name = Column(String, nullable=False, index=True)
+    phone = Column(String, nullable=False, index=True)
     cnic = Column(String, nullable=True)
     gender = Column(String, nullable=False) # Female, Male, Other
     age = Column(Integer, nullable=False)
@@ -20,4 +20,4 @@ class Client(Base):
     notes = Column(String, nullable=True)
     history = Column(MutableList.as_mutable(JSON), nullable=False, default=list) # List of ClientHistoryItem dicts
     joined_date = Column(String, nullable=False) # YYYY-MM-DD
-    branch_id = Column(String, ForeignKey("branches.id"), nullable=True)
+    branch_id = Column(String, ForeignKey("branches.id"), nullable=True, index=True)

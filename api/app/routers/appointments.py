@@ -171,6 +171,35 @@ async def delete_appointment(
 from app.services.whatsapp_service import WhatsAppService
 from app.models.branch import Branch
 
+def verify_reminder_24h_window(date_str: str, time_str: str):
+    try:
+        clean_time = time_str.strip().upper()
+        is_pm = "PM" in clean_time
+        is_am = "AM" in clean_time
+        clean = clean_time.replace("AM", "").replace("PM", "").strip()
+        parts = clean.split(":")
+        hours = int(parts[0]) if len(parts) > 0 else 0
+        minutes = int(parts[1]) if len(parts) > 1 else 0
+        if is_pm and hours < 12:
+            hours += 12
+        elif is_am and hours == 12:
+            hours = 0
+            
+        apt_date = datetime.strptime(date_str, "%Y-%m-%d")
+        apt_datetime = apt_date.replace(hour=hours, minute=minutes)
+        now = datetime.now()
+        diff_hours = (apt_datetime - now).total_seconds() / 3600.0
+        
+        if diff_hours > 24.0:
+            raise HTTPException(
+                status_code=400,
+                detail="Reminder sending option is only available 24 hours prior to the appointment."
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+
 @router.post("/{apt_id}/reminder/send", response_model=AppointmentResponse)
 async def send_appointment_reminder(
     apt_id: str,
@@ -182,6 +211,8 @@ async def send_appointment_reminder(
     if not db_apt:
         raise HTTPException(status_code=404, detail="Appointment not found")
         
+    verify_reminder_24h_window(db_apt.date, db_apt.time)
+
     clinic_name = settings.PROJECT_NAME
     location_str = "Main Clinic Branch"
     if db_apt.branch_id:
@@ -237,6 +268,8 @@ async def mark_appointment_reminder_sent(
     if not db_apt:
         raise HTTPException(status_code=404, detail="Appointment not found")
         
+    verify_reminder_24h_window(db_apt.date, db_apt.time)
+
     db_apt.reminder_status = "Sent"
     db.add(db_apt)
     await db.commit()

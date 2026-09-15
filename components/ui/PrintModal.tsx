@@ -7,6 +7,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import Barcode from 'react-barcode';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { formatPKR } from '../../lib/utils/currency';
+import { getLocalDateString, getLocalTimeString, formatDateDisplay } from '../../lib/utils/date';
 import { Button } from './Button';
 import { Modal } from './Modal';
 
@@ -29,8 +30,8 @@ function InvoicePrintContent({ data, clinicInfo }: { data: any; clinicInfo: any 
     <div className="space-y-0 text-[13px] text-slate-900 font-mono">
       {/* Date / Time */}
       <div className="flex justify-between font-bold pb-3 pt-2">
-        <span>Date: <span className="font-normal">{data.date || new Date().toLocaleDateString('en-GB')}</span></span>
-        <span>Time: <span className="font-normal">{data.time || new Date().toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}</span></span>
+        <span>Date: <span className="font-normal">{data.date ? formatDateDisplay(data.date) : formatDateDisplay(getLocalDateString())}</span></span>
+        <span>Time: <span className="font-normal">{data.time || getLocalTimeString()}</span></span>
       </div>
 
       <div className="border-t border-dashed border-slate-400" />
@@ -39,7 +40,6 @@ function InvoicePrintContent({ data, clinicInfo }: { data: any; clinicInfo: any 
       <div className="pt-3 pb-3 space-y-1">
         <p className="font-black font-bold uppercase tracking-wide">Customer Info</p>
         <p>Name : <span className="font-bold">{data.clientName || 'Valued Client'}</span></p>
-        <p>Contact No : <span className="font-bold">{data.phone || 'N/A'}</span></p>
       </div>
 
       <div className="border-t border-dashed border-slate-400" />
@@ -177,7 +177,6 @@ function PrintDocument({ type, data }: { type: string; data: any }) {
           <div className="space-y-1 font-semibold text-slate-800">
             <p className="font-black uppercase tracking-wide text-slate-900">Appointment Details</p>
             <p>Client Name : <span className="font-bold">{data.clientName}</span></p>
-            <p>Contact Phone : <span className="font-bold">{data.phone || 'N/A'}</span></p>
             <p>Scheduled Service : <span className="font-bold">{data.serviceName}</span></p>
             {data.category && <p>Category : <span className="font-bold capitalize">{data.category}</span></p>}
             <p>Assigned Specialist : <span className="font-bold">{data.staffName || 'Assigned Specialist'}</span></p>

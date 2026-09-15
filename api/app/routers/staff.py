@@ -62,13 +62,14 @@ async def create_staff_member(
     )
     db.add(db_staff)
 
-    # Create corresponding User account
-    db_user = User(
-        email=staff_in.email,
-        hashed_password=get_password_hash(staff_in.password),
-        role="staff"
-    )
-    db.add(db_user)
+    # Create corresponding User account if password was explicitly provided
+    if staff_in.password:
+        db_user = User(
+            email=staff_in.email,
+            hashed_password=get_password_hash(staff_in.password),
+            role="staff"
+        )
+        db.add(db_user)
 
     await db.commit()
     await db.refresh(db_staff)

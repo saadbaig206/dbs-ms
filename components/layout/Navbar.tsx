@@ -87,7 +87,25 @@ export const Navbar: React.FC = () => {
     };
   }, []);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const displayNotifications = React.useMemo(() => {
+    if (role === 'partner') {
+      return notifications.filter(n => {
+        const typeMatch = n.type === 'vendor_approval' || n.type === 'vendor';
+        const titleLower = (n.title || '').toLowerCase();
+        const msgLower = (n.message || '').toLowerCase();
+        const textMatch = titleLower.includes('vendor') ||
+                          titleLower.includes('delete') ||
+                          titleLower.includes('approval') ||
+                          msgLower.includes('vendor') ||
+                          msgLower.includes('delete') ||
+                          msgLower.includes('approval');
+        return typeMatch || textMatch;
+      });
+    }
+    return notifications;
+  }, [notifications, role]);
+
+  const unreadCount = displayNotifications.filter(n => !n.read).length;
   const currentDate = new Date().toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
@@ -180,12 +198,12 @@ export const Navbar: React.FC = () => {
                 </div>
 
                 <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60">
-                  {notifications.length === 0 ? (
+                  {displayNotifications.length === 0 ? (
                     <div className="p-6 text-center text-xs text-slate-400">
                       No notifications available.
                     </div>
                   ) : (
-                    notifications.map(notif => (
+                    displayNotifications.map(notif => (
                       <div
                         key={notif.id}
                         onClick={() => markNotificationRead(notif.id)}

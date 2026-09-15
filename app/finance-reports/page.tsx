@@ -1032,23 +1032,25 @@ export default function FinanceReportsPage() {
                           </td>
                           <td className="py-3.5 px-4 text-right">
                             <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => {
-                                  setSelectedTxn(txn);
-                                  setTxnClientName(txn.clientName);
-                                  setTxnServiceName(txn.serviceName);
-                                  setTxnAmount(txn.amount.toString());
-                                  setTxnDiscount(txn.discount.toString());
-                                  setTxnGrandTotal(txn.grandTotal.toString());
-                                  setTxnDate(txn.date);
-                                  setTxnPaymentMethod(txn.paymentMethod as any);
-                                  setIsEditTxnModalOpen(true);
-                                }}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-slate-800 transition-colors"
-                                title="Edit Transaction / Receipt"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
+                              {role === 'admin' && (
+                                <button
+                                  onClick={() => {
+                                    setSelectedTxn(txn);
+                                    setTxnClientName(txn.clientName);
+                                    setTxnServiceName(txn.serviceName);
+                                    setTxnAmount(txn.amount.toString());
+                                    setTxnDiscount(txn.discount.toString());
+                                    setTxnGrandTotal(txn.grandTotal.toString());
+                                    setTxnDate(txn.date);
+                                    setTxnPaymentMethod(txn.paymentMethod as any);
+                                    setIsEditTxnModalOpen(true);
+                                  }}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-slate-800 transition-colors"
+                                  title="Edit Transaction / Receipt"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                              )}
                               <button
                                 onClick={() => setPrintData({ title: `Invoice ${txn.invoiceId}`, type: 'invoice', data: txn })}
                                 className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors"

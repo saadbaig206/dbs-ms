@@ -200,6 +200,7 @@ export interface FinancialTransaction {
   taxPercent?: number;
   grandTotal: number;
   date: string;
+  time?: string;
   paymentMethod: PaymentMethod;
   status: 'Paid' | 'Refunded' | 'Pending';
   items?: InvoiceLineItem[];
@@ -225,7 +226,7 @@ export interface NotificationItem {
   title: string;
   message: string;
   time: string;
-  type: 'appointment' | 'payment' | 'inventory' | 'staff' | 'schedule';
+  type: 'appointment' | 'payment' | 'inventory' | 'staff' | 'schedule' | 'vendor_approval' | 'vendor';
   read: boolean;
 }
 

@@ -180,6 +180,8 @@ async def checkout(
                     )
                     db.add(stock_alert)
 
+    current_time_str = datetime.now().strftime("%I:%M %p")
+
     # 3. Create the FinancialTransaction record
     transaction = FinancialTransaction(
         id=txn_id,
@@ -192,6 +194,7 @@ async def checkout(
         tax_percent=tax_percent,
         grand_total=grand_total,
         date=today_str,
+        time=current_time_str,
         payment_method=payment_method,
         status="Paid",
         items=[{
