@@ -622,14 +622,20 @@ export default function POSPage() {
                       placeholder="MM/YY"
                       value={expiryDate}
                       onChange={(e) => {
-                        let inputVal = e.target.value;
-                        let cleaned = inputVal.replace(/\D/g, '').slice(0, 4);
-                        if (cleaned.length >= 3) {
-                          cleaned = `${cleaned.slice(0, 2)}/${cleaned.slice(2)}`;
-                        } else if (cleaned.length === 2 && inputVal.endsWith('/')) {
-                          cleaned = `${cleaned}/`;
+                        const inputVal = e.target.value;
+                        let digits = inputVal.replace(/\D/g, '').slice(0, 4);
+                        if (digits.length === 1 && parseInt(digits, 10) > 1) {
+                          digits = `0${digits}`;
                         }
-                        setExpiryDate(cleaned);
+                        if (digits.length >= 2) {
+                          if (expiryDate.endsWith('/') && inputVal.length === 2) {
+                            setExpiryDate(digits.slice(0, 1));
+                            return;
+                          }
+                          setExpiryDate(`${digits.slice(0, 2)}/${digits.slice(2)}`);
+                        } else {
+                          setExpiryDate(digits);
+                        }
                       }}
                       className="w-full rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs py-1.5 px-2 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
                     />
