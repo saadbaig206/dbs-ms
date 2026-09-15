@@ -30,12 +30,6 @@ export default function InventoryPage() {
 
   const router = useRouter();
 
-  // Role guard: Staff role cannot access Inventory tab
-  useEffect(() => {
-    if (!isLoading && role === 'staff') {
-      router.push('/dashboard');
-    }
-  }, [role, isLoading, router]);
 
   const [filterBranchId, setFilterBranchId] = useState<string>('');
 

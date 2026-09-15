@@ -365,22 +365,33 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // Targeted Refetch Helpers
-  const refreshBranches = async () => setBranches(await fetchSafe('/branches', []));
-  const refreshStaff = async () => setStaff(await fetchSafe('/staff', []));
-  const refreshServices = async () => setServices(await fetchSafe('/services', []));
-  const refreshClients = async () => setClients(await fetchSafe('/clients', []));
-  const refreshAppointments = async () => setAppointments(await fetchSafe('/appointments', []));
-  const refreshInventory = async () => setInventory(await fetchSafe('/inventory', []));
-  const refreshAttendance = async () => setAttendance(await fetchSafe('/attendance', []));
-  const refreshNotifications = async () => setNotifications(await fetchSafe('/notifications', []));
+  const refreshBranches = async () => { const data = await fetchSafe('/branches', []); setBranches(data); saveCachedData('branches', data); };
+  const refreshStaff = async () => { const data = await fetchSafe('/staff', []); setStaff(data); saveCachedData('staff', data); };
+  const refreshServices = async () => { const data = await fetchSafe('/services', []); setServices(data); saveCachedData('services', data); };
+  const refreshClients = async () => { const data = await fetchSafe('/clients', []); setClients(data); saveCachedData('clients', data); };
+  const refreshAppointments = async () => { const data = await fetchSafe('/appointments', []); setAppointments(data); saveCachedData('appointments', data); };
+  const refreshInventory = async () => { const data = await fetchSafe('/inventory', []); setInventory(data); saveCachedData('inventory', data); };
+  const refreshAttendance = async () => { const data = await fetchSafe('/attendance', []); setAttendance(data); saveCachedData('attendance', data); };
+  const refreshNotifications = async () => { const data = await fetchSafe('/notifications', []); setNotifications(data); saveCachedData('notifications', data); };
   const refreshExpenses = async () => {
     if (role === 'admin' || role === 'partner') {
-      setExpenses(await fetchSafe('/expenses', []));
+      const data = await fetchSafe('/expenses', []);
+      setExpenses(data);
+      saveCachedData('expenses', data);
     }
   };
   const refreshTransactions = async () => {
     if (role === 'admin' || role === 'partner') {
-      setTransactions(await fetchSafe('/transactions', []));
+      const data = await fetchSafe('/transactions', []);
+      setTransactions(data);
+      saveCachedData('transactions', data);
+    }
+  };
+  const refreshPartners = async () => {
+    if (role === 'admin') {
+      const data = await fetchSafe('/auth/partners', []);
+      setPartners(data);
+      saveCachedData('partners', data);
     }
   };
 
@@ -578,7 +589,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       await apiFetch(`/appointments/${id}/reminder/send`, {
         method: 'POST',
       });
-      await refreshData();
+      await refreshAppointments();
     } catch (e) {
       setAppointments(prev => {
         const next = prev.map(a => a.id === id ? { ...a, reminderStatus: 'Sent' as const } : a);
@@ -593,7 +604,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       await apiFetch(`/appointments/${id}/reminder/reject`, {
         method: 'POST',
       });
-      await refreshData();
+      await refreshAppointments();
     } catch (e) {
       setAppointments(prev => {
         const next = prev.map(a => a.id === id ? { ...a, reminderStatus: 'Rejected' as const } : a);
@@ -608,7 +619,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       await apiFetch(`/appointments/${id}/reminder/mark-sent`, {
         method: 'POST',
       });
-      await refreshData();
+      await refreshAppointments();
     } catch (e) {
       setAppointments(prev => {
         const next = prev.map(a => a.id === id ? { ...a, reminderStatus: 'Sent' as const } : a);
@@ -729,7 +740,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Transactions
   const addTransaction = async (txn: Omit<FinancialTransaction, 'id'>) => {
-    await refreshData();
+    await refreshTransactions();
   };
 
   const updateTransaction = async (id: string, updated: Partial<FinancialTransaction>) => {
@@ -738,7 +749,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         method: 'PUT',
         body: JSON.stringify(updated),
       });
-      await refreshData();
+      await refreshTransactions();
     } catch (e) {
       setTransactions(prev => {
         const next = prev.map(t => t.id === id ? { ...t, ...updated } : t);
@@ -755,7 +766,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         method: 'POST',
         body: JSON.stringify({ username, password }),
       });
-      await refreshData();
+      await refreshPartners();
     } catch (e) {
       setPartners(prev => { const next = [newPartner, ...prev]; saveCachedData('partners', next); return next; });
     }
@@ -766,7 +777,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       await apiFetch(`/auth/partners/${id}`, {
         method: 'DELETE',
       });
-      await refreshData();
+      await refreshPartners();
     } catch (e) {
       setPartners(prev => { const next = prev.filter(p => p.id !== id); saveCachedData('partners', next); return next; });
     }
@@ -807,7 +818,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           checkOutTime: isCheckout ? clientTime : undefined
         }),
       });
-      await refreshData();
+      await refreshAttendance();
     } catch (e) {
       setAttendance(prev => { const next = [rec, ...prev]; saveCachedData('attendance', next); return next; });
     }
@@ -819,7 +830,11 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       await apiFetch(`/notifications/${id}/read`, {
         method: 'PATCH',
       });
-      await refreshData();
+      setNotifications(prev => {
+        const next = prev.map(n => n.id === id ? { ...n, isRead: true } : n);
+        saveCachedData('notifications', next);
+        return next;
+      });
     } catch (e) {
       setNotifications(prev => {
         const next = prev.map(n => n.id === id ? { ...n, isRead: true } : n);
@@ -834,7 +849,11 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       await apiFetch('/notifications/read-all', {
         method: 'POST',
       });
-      await refreshData();
+      setNotifications(prev => {
+        const next = prev.map(n => ({ ...n, isRead: true }));
+        saveCachedData('notifications', next);
+        return next;
+      });
     } catch (e) {
       setNotifications(prev => {
         const next = prev.map(n => ({ ...n, isRead: true }));
@@ -849,7 +868,11 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       await apiFetch(`/notifications/${id}`, {
         method: 'DELETE',
       });
-      await refreshData();
+      setNotifications(prev => {
+        const next = prev.filter(n => n.id !== id);
+        saveCachedData('notifications', next);
+        return next;
+      });
     } catch (e) {
       setNotifications(prev => {
         const next = prev.filter(n => n.id !== id);
