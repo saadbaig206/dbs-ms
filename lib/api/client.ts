@@ -5,16 +5,16 @@ export interface ApiResponse<T> {
 }
 
 const getApiBaseUrl = () => {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '');
+  }
   if (typeof window !== 'undefined') {
-    if (process.env.NEXT_PUBLIC_API_URL && (window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1'))) {
-      return process.env.NEXT_PUBLIC_API_URL;
-    }
     return '';
   }
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}`;
   }
-  return process.env.NEXT_PUBLIC_API_URL || '';
+  return '';
 };
 
 const API_BASE_URL = getApiBaseUrl();

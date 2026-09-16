@@ -267,18 +267,45 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  // Main fetch function to load all backend data
+  // Main fetch function to load all backend data in a single ultra-fast /bootstrap request
   const refreshData = async (showSpinner = false) => {
     if (showSpinner) setIsLoading(true);
     setError(null);
     try {
-      // Determine initial active role from local storage/cookies to fire entity queries immediately
+      const bootstrapRes = await fetchSafe<any>('/bootstrap', null);
+      if (bootstrapRes && bootstrapRes.user) {
+        const activeUser = bootstrapRes.user;
+        const activeRole = (activeUser.role || 'staff') as UserRole;
+        setRoleState(activeRole);
+        document.cookie = `user_role=${activeRole}; path=/; max-age=${60 * 60 * 24 * 8}; SameSite=Lax`;
+        setUserId(activeUser.id || null);
+        setUserEmail(activeUser.email || null);
+        const bId = activeUser.branch_id || activeUser.branchId || null;
+        setUserBranchId(bId);
+        if (activeRole === 'staff' && bId) {
+          setSelectedBranchId(prev => prev || bId);
+        }
+
+        if (bootstrapRes.branches) { setBranches(bootstrapRes.branches); saveCachedData('branches', bootstrapRes.branches); }
+        if (bootstrapRes.staff) { setStaff(bootstrapRes.staff); saveCachedData('staff', bootstrapRes.staff); }
+        if (bootstrapRes.services) { setServices(bootstrapRes.services); saveCachedData('services', bootstrapRes.services); }
+        if (bootstrapRes.clients) { setClients(bootstrapRes.clients); saveCachedData('clients', bootstrapRes.clients); }
+        if (bootstrapRes.appointments) { setAppointments(bootstrapRes.appointments); saveCachedData('appointments', bootstrapRes.appointments); }
+        if (bootstrapRes.inventory) { setInventory(bootstrapRes.inventory); saveCachedData('inventory', bootstrapRes.inventory); }
+        if (bootstrapRes.attendance) { setAttendance(bootstrapRes.attendance); saveCachedData('attendance', bootstrapRes.attendance); }
+        if (bootstrapRes.notifications) { setNotifications(bootstrapRes.notifications); saveCachedData('notifications', bootstrapRes.notifications); }
+        if (bootstrapRes.expenses) { setExpenses(bootstrapRes.expenses); saveCachedData('expenses', bootstrapRes.expenses); }
+        if (bootstrapRes.transactions) { setTransactions(bootstrapRes.transactions); saveCachedData('transactions', bootstrapRes.transactions); }
+        if (bootstrapRes.partners) { setPartners(bootstrapRes.partners); saveCachedData('partners', bootstrapRes.partners); }
+        return;
+      }
+
+      // Fallback if bootstrap endpoint is unavailable
       const localRole = (typeof window !== 'undefined'
         ? (localStorage.getItem('user_role') || (document.cookie.match(/(?:^|; )user_role=([^;]*)/)?.[1]))
         : null) as UserRole | null;
       const initialRole = localRole || role || 'staff';
 
-      // 1. Fire activeUser verification and entity queries concurrently
       const mePromise = authClient.me().catch(() => null);
       const expensesPromise = fetchSafe<ExpenseItem[]>('/expenses', []);
       const transactionsPromise = (initialRole === 'admin' || initialRole === 'partner')

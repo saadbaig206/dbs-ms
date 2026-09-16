@@ -13,7 +13,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.future import select
 from app.routers import (
     auth, staff, services, clients, appointments, inventory,
-    expenses, transactions, attendance, notifications, pos, dashboard, branches, whatsapp
+    expenses, transactions, attendance, notifications, pos, dashboard, branches, whatsapp, bootstrap
 )
 
 _db_initialized = False
@@ -150,6 +150,7 @@ if settings.cors_origins:
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # Include Routers
+app.include_router(bootstrap.router, prefix=f"{settings.API_V1_STR}/bootstrap", tags=["bootstrap"])
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
 app.include_router(staff.router, prefix=f"{settings.API_V1_STR}/staff", tags=["staff"])
 app.include_router(services.router, prefix=f"{settings.API_V1_STR}/services", tags=["services"])
