@@ -5,16 +5,14 @@ export interface ApiResponse<T> {
 }
 
 const getApiBaseUrl = () => {
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '');
-  }
   if (typeof window !== 'undefined') {
+    // In browser, use relative URL '' so requests hit current origin / Next.js proxy rewrite
     return '';
   }
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}`;
   }
-  return '';
+  return process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || '';
 };
 
 const API_BASE_URL = getApiBaseUrl();
