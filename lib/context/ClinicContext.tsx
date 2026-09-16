@@ -877,13 +877,13 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         method: 'PATCH',
       });
       setNotifications(prev => {
-        const next = prev.map(n => n.id === id ? { ...n, isRead: true } : n);
+        const next = prev.map(n => n.id === id ? { ...n, read: true } : n);
         saveCachedData('notifications', next);
         return next;
       });
     } catch (e) {
       setNotifications(prev => {
-        const next = prev.map(n => n.id === id ? { ...n, isRead: true } : n);
+        const next = prev.map(n => n.id === id ? { ...n, read: true } : n);
         saveCachedData('notifications', next);
         return next;
       });
@@ -896,13 +896,13 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         method: 'POST',
       });
       setNotifications(prev => {
-        const next = prev.map(n => ({ ...n, isRead: true }));
+        const next = prev.map(n => ({ ...n, read: true }));
         saveCachedData('notifications', next);
         return next;
       });
     } catch (e) {
       setNotifications(prev => {
-        const next = prev.map(n => ({ ...n, isRead: true }));
+        const next = prev.map(n => ({ ...n, read: true }));
         saveCachedData('notifications', next);
         return next;
       });

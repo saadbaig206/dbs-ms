@@ -27,90 +27,35 @@ async def lifespan(app: FastAPI):
                 # 1. Create tables on startup dynamically
                 async with engine.begin() as conn:
                     await conn.run_sync(Base.metadata.create_all)
-                    # Ensure branch_id columns exist in tables if they already exist without them
-                    await conn.execute(text(
-                        "ALTER TABLE staff ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE clients ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_status VARCHAR DEFAULT 'Pending';"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS category VARCHAR DEFAULT 'treatment';"
-                    ))
-
-                    await conn.execute(text(
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS time VARCHAR;"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS tax_percent FLOAT DEFAULT 0.0;"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS items JSON;"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS card_last_four VARCHAR;"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS card_type VARCHAR;"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS bank_txn_id VARCHAR;"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE inventory ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS added_by VARCHAR;"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS paid_by VARCHAR;"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS vendor_name VARCHAR;"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS product_name VARCHAR;"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_type VARCHAR;"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS actual_amount FLOAT;"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS amount_paid FLOAT;"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS remaining_amount FLOAT;"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_logs JSON DEFAULT '[]';"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS deletion_approvals JSON DEFAULT '[]';"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS deletion_requested_by VARCHAR;"
-                    ))
-                    await conn.execute(text(
-                        "ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS branch_id VARCHAR UNIQUE REFERENCES branches(id) ON DELETE SET NULL;"
-                    ))
-
-                    await conn.execute(text(
-                        "ALTER TABLE services ADD COLUMN IF NOT EXISTS required_inventory JSON DEFAULT '[]';"
-                    ))
+                    await conn.execute(text("""
+                        ALTER TABLE staff ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;
+                        ALTER TABLE clients ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;
+                        ALTER TABLE appointments ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;
+                        ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_status VARCHAR DEFAULT 'Pending';
+                        ALTER TABLE appointments ADD COLUMN IF NOT EXISTS category VARCHAR DEFAULT 'treatment';
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS time VARCHAR;
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS tax_percent FLOAT DEFAULT 0.0;
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS items JSON;
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS card_last_four VARCHAR;
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS card_type VARCHAR;
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS bank_txn_id VARCHAR;
+                        ALTER TABLE inventory ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS added_by VARCHAR;
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS paid_by VARCHAR;
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS vendor_name VARCHAR;
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS product_name VARCHAR;
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_type VARCHAR;
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS actual_amount FLOAT;
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS amount_paid FLOAT;
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS remaining_amount FLOAT;
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_logs JSON DEFAULT '[]';
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS deletion_approvals JSON DEFAULT '[]';
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS deletion_requested_by VARCHAR;
+                        ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS branch_id VARCHAR UNIQUE REFERENCES branches(id) ON DELETE SET NULL;
+                        ALTER TABLE services ADD COLUMN IF NOT EXISTS required_inventory JSON DEFAULT '[]';
+                    """))
 
                 
                 # 2. Seed default users and settings if none exist
@@ -191,6 +136,8 @@ app = FastAPI(
 )
 
 # CORS configuration
+from fastapi.middleware.gzip import GZipMiddleware
+
 if settings.cors_origins:
     app.add_middleware(
         CORSMiddleware,
@@ -199,6 +146,8 @@ if settings.cors_origins:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # Include Routers
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])

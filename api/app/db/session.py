@@ -23,7 +23,11 @@ if db_url:
 
     engine = create_async_engine(
         db_url,
-        connect_args={"ssl": ssl_ctx},
+        connect_args={
+            "ssl": ssl_ctx,
+            "statement_cache_size": 0,
+            "prepared_statement_cache_size": 0
+        },
         pool_pre_ping=True,
         pool_size=15,
         max_overflow=25,

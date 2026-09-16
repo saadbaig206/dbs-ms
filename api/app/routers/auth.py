@@ -23,6 +23,7 @@ async def login(
 ):
     from sqlalchemy import func, or_
     from app.core.security import get_password_hash
+    from app.core.deps import clear_user_cache
     email_clean = login_data.email.strip().lower()
 
     # Identify if input matches a known default account or alias
@@ -35,18 +36,18 @@ async def login(
     try:
         if target_key:
             aliases = DEFAULT_ACCOUNTS[target_key]["aliases"]
-            conditions = [func.lower(User.email) == email_clean, func.lower(User.email) == target_key]
+            conditions = [User.email == email_clean, User.email == target_key, func.lower(User.email) == email_clean]
             for alias in aliases:
-                conditions.append(func.lower(User.email) == alias)
+                conditions.append(User.email == alias)
             result = await db.execute(select(User).where(or_(*conditions)))
         else:
-            result = await db.execute(select(User).where(func.lower(User.email) == email_clean))
+            result = await db.execute(select(User).where(or_(User.email == email_clean, func.lower(User.email) == email_clean)))
         user = result.scalars().first()
     except Exception:
         from app.models.base import Base
         async with db.bind.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        result = await db.execute(select(User).where(func.lower(User.email) == email_clean))
+        result = await db.execute(select(User).where(or_(User.email == email_clean, func.lower(User.email) == email_clean)))
         user = result.scalars().first()
 
     # Default account initialization on missing user
@@ -71,6 +72,8 @@ async def login(
     
     access_token = create_access_token(subject=user.email)
     refresh_token = create_refresh_token(subject=user.email)
+
+    clear_user_cache()
     
     return {
         "access_token": access_token,

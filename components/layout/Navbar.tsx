@@ -218,21 +218,40 @@ export const Navbar: React.FC = () => {
                           </div>
                           <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed pr-6">{notif.message}</p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            try {
-                              await deleteNotification(notif.id);
-                            } catch (err) {
-                              console.error("Failed to delete notification:", err);
-                            }
-                          }}
-                          className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0 self-center opacity-0 group-hover:opacity-100 focus:opacity-100"
-                          title="Delete notification"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0 self-center">
+                          {!notif.read && (
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                try {
+                                  await markNotificationRead(notif.id);
+                                } catch (err) {
+                                  console.error("Failed to mark read:", err);
+                                }
+                              }}
+                              className="text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition-colors p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                              title="Mark as read"
+                            >
+                              <CheckCheck className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                await deleteNotification(notif.id);
+                              } catch (err) {
+                                console.error("Failed to delete notification:", err);
+                              }
+                            }}
+                            className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                            title="Delete notification"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     ))
                   )}
