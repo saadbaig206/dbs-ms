@@ -43,26 +43,37 @@ export default function ServicesPage() {
     return matchesCat && matchesSearch;
   });
 
-  const handleCreateService = (e: React.FormEvent) => {
-    e.preventDefault();
-    const activeStaff = staff && staff.length > 0 ? staff : [];
-    addService({
-      name,
-      category,
-      price: Number(price) || 0,
-      durationMinutes: Number(durationMinutes) || 0,
-      assignedStaffIds: activeStaff.map(s => s.id),
-      assignedStaffNames: activeStaff.map(s => s.name),
-      status: 'Active',
-      image,
-      description,
-      requiredInventory
-    });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-    setIsAddModalOpen(false);
-    setName('');
-    setDescription('');
-    setRequiredInventory([]);
+  const handleCreateService = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSubmitting) return;
+
+    const activeStaff = staff && staff.length > 0 ? staff : [];
+    try {
+      setIsSubmitting(true);
+      await addService({
+        name,
+        category,
+        price: Number(price) || 0,
+        durationMinutes: Number(durationMinutes) || 0,
+        assignedStaffIds: activeStaff.map(s => s.id),
+        assignedStaffNames: activeStaff.map(s => s.name),
+        status: 'Active',
+        image,
+        description,
+        requiredInventory
+      });
+
+      setIsAddModalOpen(false);
+      setName('');
+      setDescription('');
+      setRequiredInventory([]);
+    } catch (err: any) {
+      alert("Failed to save service: " + (err.message || err));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleEditPrice = (srv: ServiceItem) => {
@@ -329,11 +340,11 @@ export default function ServicesPage() {
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              Save Service
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Service'}
             </Button>
           </div>
         </form>
@@ -347,12 +358,18 @@ export default function ServicesPage() {
         description="Update service pricing and active status"
         maxWidth="md"
       >
-        <form onSubmit={(e) => {
+        <form onSubmit={async (e) => {
           e.preventDefault();
-          if (editingService) {
+          if (isSubmitting || !editingService) return;
+          try {
+            setIsSubmitting(true);
             const numericPrice = Number(editPrice);
-            updateService(editingService.id, { price: isNaN(numericPrice) ? 0 : numericPrice, status: editStatus });
+            await updateService(editingService.id, { price: isNaN(numericPrice) ? 0 : numericPrice, status: editStatus });
             setEditingService(null);
+          } catch (err: any) {
+            alert("Failed to update service: " + (err.message || err));
+          } finally {
+            setIsSubmitting(false);
           }
         }} className="space-y-4">
           <Input
@@ -374,11 +391,11 @@ export default function ServicesPage() {
           />
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setEditingService(null)}>
+            <Button type="button" variant="outline" onClick={() => setEditingService(null)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              Save Changes
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
             </Button>
           </div>
         </form>

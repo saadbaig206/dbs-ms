@@ -133,9 +133,11 @@ export default function StaffPage() {
     setIsEditModalOpen(true);
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleEditStaff = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingStaffId) return;
+    if (isSubmitting || !editingStaffId) return;
 
     if (name.trim().length < 3) {
       showToast("Full Name must be at least 3 characters long", "error");
@@ -159,6 +161,7 @@ export default function StaffPage() {
     }
 
     try {
+      setIsSubmitting(true);
       await updateStaff(editingStaffId, {
         photo,
         name,
@@ -178,11 +181,14 @@ export default function StaffPage() {
     } catch (err) {
       console.error(err);
       showToast('Failed to update staff member', 'error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleAddStaff = (e: React.FormEvent) => {
+  const handleAddStaff = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
 
     if (name.trim().length < 3) {
       showToast("Full Name must be at least 3 characters long", "error");
@@ -204,27 +210,34 @@ export default function StaffPage() {
       showToast("Salary must be a positive number", "error");
       return;
     }
-    addStaff({
-      photo,
-      name,
-      role: staffRole,
-      salary: Number(salary) || 0,
-      phone,
-      email,
-      joiningDate: new Date().toISOString().split('T')[0],
-      status: 'Active',
-      performanceRating: 5.0,
-      assignedServices: ['Signature Treatments'],
-      attendanceRate: 100,
-      branchId: staffBranchId || undefined
-    });
+    try {
+      setIsSubmitting(true);
+      await addStaff({
+        photo,
+        name,
+        role: staffRole,
+        salary: Number(salary) || 0,
+        phone,
+        email,
+        joiningDate: new Date().toISOString().split('T')[0],
+        status: 'Active',
+        performanceRating: 5.0,
+        assignedServices: ['Signature Treatments'],
+        attendanceRate: 100,
+        branchId: staffBranchId || undefined
+      });
 
-    setIsAddModalOpen(false);
-    setName('');
-    setPhone('+92');
-    setEmail('');
-    setPassword('');
-    setStaffBranchId('');
+      setIsAddModalOpen(false);
+      setName('');
+      setPhone('+92');
+      setEmail('');
+      setPassword('');
+      setStaffBranchId('');
+    } catch (err: any) {
+      showToast("Failed to add staff member: " + (err.message || err), "error");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const getCoordinates = (): Promise<{ latitude: number; longitude: number } | undefined> => {
@@ -243,7 +256,9 @@ export default function StaffPage() {
 
   const handleSaveAttendance = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     try {
+      setIsSubmitting(true);
       const coords = role === 'admin' ? undefined : await getCoordinates();
       await markAttendance(selectedStaffId, attStatus, attNotes, coords?.latitude, coords?.longitude);
       showToast("Attendance marked successfully!");
@@ -251,12 +266,16 @@ export default function StaffPage() {
       setAttNotes('');
     } catch (err: any) {
       showToast("Failed to mark attendance: " + err.message, "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleAddPartner = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     try {
+      setIsSubmitting(true);
       await addPartner(partnerUsername, partnerPassword);
       setPartnerUsername('');
       setPartnerPassword('');
@@ -265,6 +284,8 @@ export default function StaffPage() {
     } catch (err: any) {
       console.error(err);
       showToast('Failed to add partner', 'error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -293,7 +314,9 @@ export default function StaffPage() {
 
   const handleSaveBulkAttendance = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     try {
+      setIsSubmitting(true);
       // Admins bypass GPS validation, so we pass undefined for coords
       await Promise.all(
         Object.entries(bulkList)
@@ -306,6 +329,8 @@ export default function StaffPage() {
       setIsBulkModalOpen(false);
     } catch (err: any) {
       showToast("Failed to mark bulk attendance: " + err.message, "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -718,11 +743,11 @@ export default function StaffPage() {
 
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              Save Staff Member
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Staff Member'}
             </Button>
           </div>
         </form>
@@ -806,11 +831,11 @@ export default function StaffPage() {
             <Button type="button" variant="outline" onClick={() => {
               setIsEditModalOpen(false);
               setEditingStaffId(null);
-            }}>
+            }} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              Update Staff Member
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Updating...' : 'Update Staff Member'}
             </Button>
           </div>
         </form>
@@ -852,11 +877,11 @@ export default function StaffPage() {
           />
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsMarkModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsMarkModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              Save Attendance Record
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Attendance Record'}
             </Button>
           </div>
         </form>
@@ -902,11 +927,11 @@ export default function StaffPage() {
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsBulkModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsBulkModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              Save Bulk Attendance
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Bulk Attendance'}
             </Button>
           </div>
         </form>
@@ -939,11 +964,11 @@ export default function StaffPage() {
           />
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsAddPartnerModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsAddPartnerModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              Create Partner Account
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Creating...' : 'Create Partner Account'}
             </Button>
           </div>
         </form>

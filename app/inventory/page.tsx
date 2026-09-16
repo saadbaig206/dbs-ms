@@ -127,8 +127,11 @@ export default function InventoryPage() {
     setTimeout(() => setToast(null), 4000);
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleAddVendor = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
 
     if (!vendorName.trim() || !productName.trim()) {
       showToast("Vendor Name and Product Name are required", "error");
@@ -140,6 +143,7 @@ export default function InventoryPage() {
       return;
     }
 
+    setIsSubmitting(true);
     // 1. Immediately close modal to confirm action
     setIsAddVendorModalOpen(false);
 
@@ -219,11 +223,14 @@ export default function InventoryPage() {
     } catch (err: any) {
       console.error("Failed to persist vendor purchase:", err);
       showToast("Error persisting vendor purchase", "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleRenewVendor = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
 
     const targetItem = inventory.find(i => i.id === renewItemId);
     if (!targetItem) {
@@ -231,6 +238,7 @@ export default function InventoryPage() {
       return;
     }
 
+    setIsSubmitting(true);
     setIsRenewVendorModalOpen(false);
 
     const qtyNum = Number(renewQty) || 1;
@@ -288,24 +296,34 @@ export default function InventoryPage() {
     } catch (err: any) {
       console.error("Failed to renew vendor order:", err);
       showToast("Error renewing vendor order", "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleReduceStock = (e: React.FormEvent) => {
+  const handleReduceStock = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     const amount = Number(reduceAmount) || 0;
     if (!reduceModalItemId || amount <= 0) return;
-    updateInventoryQuantity(reduceModalItemId, -amount);
-    setReduceModalItemId(null);
-    setReduceAmount('1');
+    try {
+      setIsSubmitting(true);
+      await updateInventoryQuantity(reduceModalItemId, -amount);
+      setReduceModalItemId(null);
+      setReduceAmount('1');
+    } catch (err: any) {
+      showToast("Failed to reduce stock: " + (err.message || err), "error");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const reduceItem = inventory.find(i => i.id === reduceModalItemId);
 
-  if (isLoading || role === 'staff') {
+  if (isLoading) {
     return (
       <div className="p-8 text-center text-slate-500 font-bold">
-        Loading inventory permissions...
+        Loading inventory...
       </div>
     );
   }
@@ -606,11 +624,11 @@ export default function InventoryPage() {
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsAddVendorModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsAddVendorModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              Save Vendor & Record Purchase
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Vendor & Record Purchase'}
             </Button>
           </div>
         </form>
@@ -636,11 +654,11 @@ export default function InventoryPage() {
             Use this when stock is used during treatments or disposed. Stock cannot go below zero.
           </p>
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setReduceModalItemId(null)}>
+            <Button type="button" variant="outline" onClick={() => setReduceModalItemId(null)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" icon={<Minus className="w-4 h-4" />}>
-              Confirm Reduction
+            <Button type="submit" variant="primary" icon={<Minus className="w-4 h-4" />} disabled={isSubmitting}>
+              {isSubmitting ? 'Reducing...' : 'Confirm Reduction'}
             </Button>
           </div>
         </form>
@@ -776,11 +794,11 @@ export default function InventoryPage() {
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsRenewVendorModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsRenewVendorModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" icon={<RotateCw className="w-4 h-4" />}>
-              Confirm Vendor Renewal
+            <Button type="submit" variant="primary" icon={<RotateCw className="w-4 h-4" />} disabled={isSubmitting}>
+              {isSubmitting ? 'Renewing...' : 'Confirm Vendor Renewal'}
             </Button>
           </div>
         </form>

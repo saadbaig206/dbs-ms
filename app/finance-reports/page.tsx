@@ -272,9 +272,11 @@ export default function FinanceReportsPage() {
     }
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handlePayExpenseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedPayExp) return;
+    if (isSubmitting || !selectedPayExp) return;
 
     const actual = selectedPayExp.actualAmount ?? selectedPayExp.amount;
     const currentPaid = selectedPayExp.amountPaid ?? (selectedPayExp.status === 'Paid' ? actual : 0);
@@ -283,39 +285,46 @@ export default function FinanceReportsPage() {
     const payAmt = payType === 'Full' ? currentRem : (Number(payAmountInput) || 0);
     if (payAmt <= 0) return;
 
-    const newAmountPaid = currentPaid + payAmt;
-    const newRemainingAmount = Math.max(0, actual - newAmountPaid);
-    const newStatus: 'Paid' | 'Pending' = newRemainingAmount === 0 ? 'Paid' : 'Pending';
+    try {
+      setIsSubmitting(true);
+      const newAmountPaid = currentPaid + payAmt;
+      const newRemainingAmount = Math.max(0, actual - newAmountPaid);
+      const newStatus: 'Paid' | 'Pending' = newRemainingAmount === 0 ? 'Paid' : 'Pending';
 
-    const activeUser = userEmail || role || 'Admin/Partner';
-    const nowFormatStr = new Date().toLocaleString('en-US', {
-      dateStyle: 'medium',
-      timeStyle: 'short'
-    });
+      const activeUser = userEmail || role || 'Admin/Partner';
+      const nowFormatStr = new Date().toLocaleString('en-US', {
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      });
 
-    const newLog = {
-      id: `PAYLOG-${Date.now()}`,
-      amount: payAmt,
-      paidBy: activeUser,
-      date: nowFormatStr,
-      paymentMethod: payMethod,
-      notes: payNotes || (payType === 'Full' ? 'Full Settlement' : 'Partial Payment')
-    };
+      const newLog = {
+        id: `PAYLOG-${Date.now()}`,
+        amount: payAmt,
+        paidBy: activeUser,
+        date: nowFormatStr,
+        paymentMethod: payMethod,
+        notes: payNotes || (payType === 'Full' ? 'Full Settlement' : 'Partial Payment')
+      };
 
-    const existingLogs = selectedPayExp.paymentLogs || [];
-    const updatedLogs = [...existingLogs, newLog];
+      const existingLogs = selectedPayExp.paymentLogs || [];
+      const updatedLogs = [...existingLogs, newLog];
 
-    await updateExpense(selectedPayExp.id, {
-      amountPaid: newAmountPaid,
-      remainingAmount: newRemainingAmount,
-      status: newStatus,
-      paidBy: activeUser,
-      paymentMethod: payMethod,
-      paymentLogs: updatedLogs
-    });
+      await updateExpense(selectedPayExp.id, {
+        amountPaid: newAmountPaid,
+        remainingAmount: newRemainingAmount,
+        status: newStatus,
+        paidBy: activeUser,
+        paymentMethod: payMethod,
+        paymentLogs: updatedLogs
+      });
 
-    setIsPayModalOpen(false);
-    setSelectedPayExp(null);
+      setIsPayModalOpen(false);
+      setSelectedPayExp(null);
+    } catch (err: any) {
+      showToast("Failed to process payment: " + (err.message || err), "error");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
 
@@ -510,27 +519,36 @@ export default function FinanceReportsPage() {
     });
   }, [expenses, expSearch, expCategoryFilter, expStatusFilter]);
 
-  const handleAddExpense = (ev: React.FormEvent) => {
+  const handleAddExpense = async (ev: React.FormEvent) => {
     ev.preventDefault();
-    addExpense({
-      title: expTitle,
-      category: expCategory,
-      amount: Number(expAmount) || 0,
-      date: new Date().toISOString().split('T')[0],
-      status: 'Paid',
-      paymentMethod: expPaymentMethod,
-      notes: expNotes
-    });
+    if (isSubmitting) return;
+    try {
+      setIsSubmitting(true);
+      await addExpense({
+        title: expTitle,
+        category: expCategory,
+        amount: Number(expAmount) || 0,
+        date: new Date().toISOString().split('T')[0],
+        status: 'Paid',
+        paymentMethod: expPaymentMethod,
+        notes: expNotes
+      });
 
-    setIsAddExpenseModalOpen(false);
-    setExpTitle('');
-    setExpNotes('');
+      setIsAddExpenseModalOpen(false);
+      setExpTitle('');
+      setExpNotes('');
+    } catch (e: any) {
+      showToast("Failed to add expense: " + (e.message || e), "error");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleEditTransactionSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
-    if (!selectedTxn) return;
+    if (isSubmitting || !selectedTxn) return;
     try {
+      setIsSubmitting(true);
       const subtotal = Number(txnAmount) || 0;
       const discVal = Number(txnDiscount) || 0;
       const total = subtotal - discVal;
@@ -547,13 +565,16 @@ export default function FinanceReportsPage() {
       setSelectedTxn(null);
     } catch (e) {
       console.error("Failed to update transaction:", e);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleEditExpenseSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
-    if (!selectedExp) return;
+    if (isSubmitting || !selectedExp) return;
     try {
+      setIsSubmitting(true);
       await updateExpense(selectedExp.id, {
         title: editExpTitle,
         category: editExpCategory,
@@ -567,6 +588,8 @@ export default function FinanceReportsPage() {
       setSelectedExp(null);
     } catch (e) {
       console.error("Failed to update expense:", e);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1484,11 +1507,11 @@ export default function FinanceReportsPage() {
           />
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsAddExpenseModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsAddExpenseModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              Save Expense Entry
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Expense Entry'}
             </Button>
           </div>
         </form>
@@ -1575,11 +1598,11 @@ export default function FinanceReportsPage() {
           />
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsEditExpModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsEditExpModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              Save Changes
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
             </Button>
           </div>
         </form>
@@ -1661,11 +1684,11 @@ export default function FinanceReportsPage() {
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsEditTxnModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsEditTxnModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              Save Changes
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
             </Button>
           </div>
         </form>
@@ -1749,11 +1772,11 @@ export default function FinanceReportsPage() {
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsPayModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsPayModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              Confirm Payment & Update Logs
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Confirming...' : 'Confirm Payment & Update Logs'}
             </Button>
           </div>
         </form>

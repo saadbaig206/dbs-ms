@@ -68,10 +68,13 @@ export default function BranchesPage() {
     }, 4000);
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleAddBranch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !location) return;
+    if (isSubmitting || !name || !location) return;
     try {
+      setIsSubmitting(true);
       await addBranch({ 
         name, 
         location, 
@@ -88,6 +91,8 @@ export default function BranchesPage() {
       showToast("Branch created successfully!");
     } catch (err: any) {
       showToast("Failed to create branch: " + err.message, "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -103,8 +108,9 @@ export default function BranchesPage() {
 
   const handleEditBranch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !location) return;
+    if (isSubmitting || !name || !location) return;
     try {
+      setIsSubmitting(true);
       await updateBranch(selectedBranchId, { 
         name, 
         location, 
@@ -122,6 +128,8 @@ export default function BranchesPage() {
       showToast("Branch updated successfully!");
     } catch (err: any) {
       showToast("Failed to update branch: " + err.message, "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -290,11 +298,11 @@ export default function BranchesPage() {
             </Button>
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              Create Branch
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Creating...' : 'Create Branch'}
             </Button>
           </div>
         </form>
@@ -355,11 +363,11 @@ export default function BranchesPage() {
             </Button>
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              Save Changes
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
             </Button>
           </div>
         </form>

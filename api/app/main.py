@@ -48,6 +48,24 @@ async def lifespan(app: FastAPI):
                         "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
                     ))
                     await conn.execute(text(
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS time VARCHAR;"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS tax_percent FLOAT DEFAULT 0.0;"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS items JSON;"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS card_last_four VARCHAR;"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS card_type VARCHAR;"
+                    ))
+                    await conn.execute(text(
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS bank_txn_id VARCHAR;"
+                    ))
+                    await conn.execute(text(
                         "ALTER TABLE inventory ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;"
                     ))
                     await conn.execute(text(

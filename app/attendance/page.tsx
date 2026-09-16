@@ -113,9 +113,13 @@ export default function AttendancePage() {
     setIsBulkModalOpen(true);
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleSaveBulkAttendance = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     try {
+      setIsSubmitting(true);
       const coords = role === 'admin' ? undefined : await getCoordinates();
       await Promise.all(
         Object.entries(bulkList).map(([staffId, status]) =>
@@ -126,12 +130,16 @@ export default function AttendancePage() {
       setIsBulkModalOpen(false);
     } catch (err: any) {
       showToast("Failed to mark bulk attendance: " + (err.message || err), "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleSaveAttendance = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     try {
+      setIsSubmitting(true);
       const coords = role === 'admin' ? undefined : await getCoordinates();
       await markAttendance(selectedStaffId, attStatus, attNotes, coords?.latitude, coords?.longitude);
       showToast("Attendance marked successfully!");
@@ -139,10 +147,13 @@ export default function AttendancePage() {
       setAttNotes('');
     } catch (err: any) {
       showToast("Failed to mark attendance: " + (err.message || err), "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleRevertAttendance = async (recordId: string, staffName: string) => {
+    if (isSubmitting) return;
     if (role !== 'admin') {
       showToast("Only Admin can revert attendance records.", "error");
       return;
@@ -151,10 +162,13 @@ export default function AttendancePage() {
       return;
     }
     try {
+      setIsSubmitting(true);
       await revertAttendance(recordId);
       showToast(`Attendance for ${staffName} reverted successfully!`);
     } catch (err: any) {
       showToast("Failed to revert attendance: " + (err.message || err), "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -447,11 +461,11 @@ export default function AttendancePage() {
           />
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsMarkModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsMarkModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              Save Attendance
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Attendance'}
             </Button>
           </div>
         </form>
@@ -500,11 +514,11 @@ export default function AttendancePage() {
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsBulkModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsBulkModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              Save Bulk Attendance
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Bulk Attendance'}
             </Button>
           </div>
         </form>

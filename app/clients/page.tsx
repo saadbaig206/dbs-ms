@@ -35,6 +35,7 @@ export default function ClientsPage() {
 
   // Add Client Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('+92');
   const [gender, setGender] = useState<'Female' | 'Male' | 'Other'>('Female');
@@ -54,8 +55,10 @@ export default function ClientsPage() {
     return matchesBranch && matchesSearch;
   });
 
-  const handleRegisterClient = (e: React.FormEvent) => {
+  const handleRegisterClient = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     const staffObj = staff.find(st => st.id === assignedStaffId);
 
     if (name.trim().length < 3) {
@@ -80,26 +83,33 @@ export default function ClientsPage() {
       return;
     }
 
-    addClient({
-      name,
-      phone,
-      gender,
-      age: ageNum,
-      address,
-      assignedStaffId: staffObj?.id,
-      assignedStaffName: staffObj?.name,
-      preferredService,
-      notes,
-      branchId: clientBranchId || undefined
-    });
+    try {
+      setIsSubmitting(true);
+      await addClient({
+        name,
+        phone,
+        gender,
+        age: ageNum,
+        address,
+        assignedStaffId: staffObj?.id,
+        assignedStaffName: staffObj?.name,
+        preferredService,
+        notes,
+        branchId: clientBranchId || undefined
+      });
 
-    setIsAddModalOpen(false);
-    setName('');
-    setPhone('+92');
-    setAge('32');
-    setAddress('');
-    setNotes('');
-    setClientBranchId('');
+      setIsAddModalOpen(false);
+      setName('');
+      setPhone('+92');
+      setAge('32');
+      setAddress('');
+      setNotes('');
+      setClientBranchId('');
+    } catch (err: any) {
+      alert("Failed to register client: " + (err.message || err));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -293,11 +303,11 @@ export default function ClientsPage() {
           />
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              Register Client
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Registering...' : 'Register Client'}
             </Button>
           </div>
         </form>

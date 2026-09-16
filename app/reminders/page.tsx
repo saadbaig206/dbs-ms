@@ -46,6 +46,9 @@ function isReminderEligible(dateStr: string, timeStr: string): { eligible: boole
     if (diffHours > 24) {
       return { eligible: false, hoursRemaining: Math.ceil(diffHours - 24) };
     }
+    if (diffHours < 0) {
+      return { eligible: false };
+    }
     return { eligible: true };
   } catch (e) {
     return { eligible: true };
@@ -84,7 +87,7 @@ export default function RemindersPage() {
     );
   }
 
-  // Filter pending/upcoming appointments
+  // Filter pending/upcoming appointments within 24 hours prior to appointment time
   const filteredAppointments = appointments.filter((apt) => {
     // Only display reminders for Pending or Confirmed status appointments
     if (apt.status !== 'Pending' && apt.status !== 'Confirmed') return false;
@@ -93,6 +96,10 @@ export default function RemindersPage() {
     const remStatus = apt.reminderStatus || 'Pending';
     const matchesReminderFilter = statusFilter === 'All' || remStatus === statusFilter;
     if (!matchesReminderFilter) return false;
+
+    // Show only appointments within 24 hours prior to the appointment
+    const { eligible } = isReminderEligible(apt.date, apt.time);
+    if (!eligible) return false;
 
     // Filter by search text
     const matchesSearch = 

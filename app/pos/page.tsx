@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CreditCard,
@@ -28,7 +29,13 @@ import { Badge } from '../../components/ui/Badge';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 import { Modal } from '../../components/ui/Modal';
 
-export default function POSPage() {
+function POSContent() {
+  const searchParams = useSearchParams();
+  const clientParam = searchParams.get('client');
+  const serviceIdParam = searchParams.get('serviceId');
+  const serviceNameParam = searchParams.get('serviceName');
+  const priceParam = searchParams.get('price');
+
   const {
     services,
     clients,
@@ -54,6 +61,7 @@ export default function POSPage() {
   const [discountPercent, setDiscountPercent] = useState<string>('0');
   const [taxPercent, setTaxPercent] = useState<string>('10');
   const [isPaidSuccess, setIsPaidSuccess] = useState(false);
+  const [mobilePosTab, setMobilePosTab] = useState<'catalog' | 'ticket'>('catalog');
   
   // Card details states
   const [cardLastFour, setCardLastFour] = useState('');
@@ -64,6 +72,48 @@ export default function POSPage() {
   
   // Local recent transactions list to guarantee reprint works for staff
   const [localRecentTransactions, setLocalRecentTransactions] = useState<any[]>([]);
+
+  // Auto-populate client and service from appointment parameters
+  const autoBillProcessedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const key = `${clientParam || ''}-${serviceIdParam || ''}-${serviceNameParam || ''}`;
+    if (!clientParam && !serviceIdParam && !serviceNameParam) return;
+    if (autoBillProcessedRef.current === key) return;
+
+    if (clientParam) {
+      setClientName(clientParam);
+      setClientSearch(clientParam);
+    }
+
+    if (serviceIdParam || serviceNameParam) {
+      let matchedService = services.find(s => s.id === serviceIdParam);
+      if (!matchedService && serviceNameParam) {
+        const cleanName = serviceNameParam.split('(')[0].trim().toLowerCase();
+        matchedService = services.find(s => s.name.toLowerCase() === serviceNameParam.toLowerCase()) ||
+                         services.find(s => s.name.toLowerCase().includes(cleanName) || cleanName.includes(s.name.toLowerCase()));
+      }
+
+      if (matchedService) {
+        addToPosCart(matchedService);
+      } else if (serviceNameParam) {
+        addToPosCart({
+          id: serviceIdParam || `SRV-${Date.now()}`,
+          name: serviceNameParam,
+          category: 'Facial & Skin Care',
+          price: Number(priceParam) || 5000,
+          durationMinutes: 45,
+          assignedStaffIds: [],
+          assignedStaffNames: [],
+          status: 'Active',
+          image: '',
+          description: 'Custom booked treatment'
+        });
+      }
+    }
+
+    autoBillProcessedRef.current = key;
+  }, [clientParam, serviceIdParam, serviceNameParam, priceParam, services, addToPosCart]);
 
   // Custom Toast State
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -140,9 +190,11 @@ export default function POSPage() {
     }
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleQuickAddClient = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!quickClientName || !quickClientPhone) return;
+    if (isSubmitting || !quickClientName || !quickClientPhone) return;
 
     if (quickClientName.trim().length < 3) {
       showToast("Full Name must be at least 3 characters long", "error");
@@ -163,6 +215,7 @@ export default function POSPage() {
     }
 
     try {
+      setIsSubmitting(true);
       await addClient({
         name: quickClientName,
         phone: quickClientPhone,
@@ -181,6 +234,8 @@ export default function POSPage() {
       showToast("Client registered successfully!");
     } catch (err: any) {
       showToast("Failed to register client: " + err.message, "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -210,9 +265,10 @@ export default function POSPage() {
   }, [posCart, discountPercent, taxPercent]);
 
   const handleCheckout = async () => {
-    if (posCart.length === 0) return;
+    if (isSubmitting || posCart.length === 0) return;
     const activeClient = clientSearch.trim() || clientName.trim() || 'Walk-in Client';
     try {
+      setIsSubmitting(true);
       const cardDetails = (paymentMethod === 'Card' || paymentMethod === 'Online') ? {
         cardLastFour: paymentMethod === 'Card' ? cardLastFour : undefined,
         cardType: paymentMethod === 'Card' ? cardType : undefined,
@@ -244,10 +300,10 @@ export default function POSPage() {
       }, 800);
     } catch (e: any) {
       showToast("Checkout failed: " + e.message, "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
-
-  const [mobilePosTab, setMobilePosTab] = useState<'catalog' | 'ticket'>('catalog');
 
   return (
     <div className="space-y-6 pb-10">
@@ -689,13 +745,13 @@ export default function POSPage() {
             <div className="space-y-2 pt-2">
               <Button
                 onClick={handleCheckout}
-                disabled={posCart.length === 0}
+                disabled={posCart.length === 0 || isSubmitting}
                 variant="primary"
                 size="lg"
                 className="w-full"
                 icon={<CheckCircle2 className="w-5 h-5" />}
               >
-                {isPaidSuccess ? 'Payment Processed!' : `Complete Payment (${formatPKR(grandTotal)})`}
+                {isSubmitting ? 'Processing Payment...' : isPaidSuccess ? 'Payment Processed!' : `Complete Payment (${formatPKR(grandTotal)})`}
               </Button>
             </div>
           </div>
@@ -745,11 +801,11 @@ export default function POSPage() {
             />
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsAddClientModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsAddClientModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              Register & Select Client
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Registering...' : 'Register & Select Client'}
             </Button>
           </div>
         </form>
@@ -934,5 +990,17 @@ export default function POSPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function POSPage() {
+  return (
+    <Suspense fallback={
+      <div className="p-8 text-center text-slate-500 font-bold">
+        Loading billing system...
+      </div>
+    }>
+      <POSContent />
+    </Suspense>
   );
 }

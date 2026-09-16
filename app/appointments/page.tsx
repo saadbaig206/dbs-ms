@@ -1,13 +1,15 @@
 'use client';
 
 import React, { useMemo, useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   Plus,
   Search,
   Trash2,
   CalendarDays,
-  Clock3
+  Clock3,
+  CreditCard
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { formatPKR } from '../../lib/utils/currency';
@@ -20,6 +22,7 @@ import { Breadcrumb } from '../../components/ui/Breadcrumb';
 import { getLocalDateString } from '../../lib/utils/date';
 
 export default function AppointmentsPage() {
+  const router = useRouter();
   const { appointments, addAppointment, updateAppointmentStatus, deleteAppointment, staff, services, setPrintData, branches, selectedBranchId, userBranchId } = useClinic();
 
   const [filterBranchId, setFilterBranchId] = useState<string>('');
@@ -39,6 +42,7 @@ export default function AppointmentsPage() {
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newClientName, setNewClientName] = useState('');
   const [newPhone, setNewPhone] = useState('+92 ');
   const [selectedServiceId, setSelectedServiceId] = useState(services[0]?.id || '');
@@ -125,6 +129,8 @@ export default function AppointmentsPage() {
 
   const handleCreateAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     const serviceObj = services.find(s => s.id === selectedServiceId);
     const staffObj = staff.find(st => st.id === selectedStaffId);
 
@@ -142,6 +148,8 @@ export default function AppointmentsPage() {
       alert("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)");
       return;
     }
+
+    setIsSubmitting(true);
 
     try {
       if (numberOfSessions === 1) {
@@ -192,6 +200,8 @@ export default function AppointmentsPage() {
       setSessionsList([{ sessionNumber: 1, date: getLocalDateString(), time: '11:00 AM' }]);
     } catch (err: any) {
       alert("Failed to create appointment: " + (err.message || err));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -356,13 +366,28 @@ export default function AppointmentsPage() {
                       />
                     </td>
                     <td className="py-3.5 px-4 text-right">
-                      <button
-                        onClick={() => deleteAppointment(apt.id)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors"
-                        title="Delete Booking"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => {
+                            const clientParam = encodeURIComponent(apt.clientName || '');
+                            const serviceIdParam = encodeURIComponent(apt.serviceId || '');
+                            const serviceNameParam = encodeURIComponent(apt.serviceName || '');
+                            router.push(`/pos?client=${clientParam}&serviceId=${serviceIdParam}&serviceName=${serviceNameParam}`);
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-all flex items-center gap-1.5"
+                          title="Go to Billing & Checkout"
+                        >
+                          <CreditCard className="w-3.5 h-3.5" />
+                          <span>Go to Bill</span>
+                        </button>
+                        <button
+                          onClick={() => deleteAppointment(apt.id)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors"
+                          title="Delete Booking"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -569,11 +594,11 @@ export default function AppointmentsPage() {
           )}
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              Confirm & Save Booking
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving Booking...' : 'Confirm & Save Booking'}
             </Button>
           </div>
         </form>

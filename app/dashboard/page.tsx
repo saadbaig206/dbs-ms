@@ -2,6 +2,7 @@
 
 import React, { useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   DollarSign,
@@ -22,6 +23,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 
 export default function DashboardPage() {
+  const router = useRouter();
   const {
     appointments: allAppointments,
     inventory: allInventory,
@@ -490,11 +492,17 @@ export default function DashboardPage() {
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <button
-                        onClick={() => setPrintData({ title: `Slip ${apt.id}`, type: 'slip', data: apt })}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors"
-                        title="Print Booking Slip"
+                        onClick={() => {
+                          const clientParam = encodeURIComponent(apt.clientName || '');
+                          const serviceIdParam = encodeURIComponent(apt.serviceId || '');
+                          const serviceNameParam = encodeURIComponent(apt.serviceName || '');
+                          router.push(`/pos?client=${clientParam}&serviceId=${serviceIdParam}&serviceName=${serviceNameParam}`);
+                        }}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 shadow-md hover:shadow-blue-500/20 active:scale-95 transition-all flex items-center gap-1.5 ml-auto"
+                        title="Go to Billing & Checkout"
                       >
-                        <Printer className="w-4 h-4" />
+                        <CreditCard className="w-3.5 h-3.5" />
+                        <span>Go to Bill</span>
                       </button>
                     </td>
                   </tr>

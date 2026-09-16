@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import {
   UserRole,
   Appointment,
@@ -512,8 +512,19 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const recentAddAptRef = useRef<{ key: string; timestamp: number }[]>([]);
+  const recentAddClientRef = useRef<{ key: string; timestamp: number }[]>([]);
+
   // Clients CRUD
   const addClient = async (newClientData: Omit<Client, 'id' | 'totalSpent' | 'visitsCount' | 'history' | 'joinedDate'>) => {
+    const key = `${newClientData.name.trim().toLowerCase()}-${newClientData.phone.trim()}`;
+    const now = Date.now();
+    recentAddClientRef.current = recentAddClientRef.current.filter(item => now - item.timestamp < 3000);
+    if (recentAddClientRef.current.some(item => item.key === key)) {
+      return;
+    }
+    recentAddClientRef.current.push({ key, timestamp: now });
+
     const created: Client = {
       ...newClientData,
       id: `CLT-${Math.floor(Math.random() * 900) + 100}`,
@@ -547,6 +558,14 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Appointments CRUD
   const addAppointment = async (newApt: Omit<Appointment, 'id'>) => {
+    const key = `${newApt.clientName.trim().toLowerCase()}-${newApt.serviceId}-${newApt.date}-${newApt.time}`;
+    const now = Date.now();
+    recentAddAptRef.current = recentAddAptRef.current.filter(item => now - item.timestamp < 3000);
+    if (recentAddAptRef.current.some(item => item.key === key)) {
+      return;
+    }
+    recentAddAptRef.current.push({ key, timestamp: now });
+
     const created: Appointment = {
       ...newApt,
       id: `APT-${Math.floor(Math.random() * 900) + 100}`,
