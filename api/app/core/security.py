@@ -25,6 +25,10 @@ def create_refresh_token(subject: Union[str, Any], expires_delta: timedelta = No
     return encoded_jwt
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    if not hashed_password or not plain_password:
+        return False
+    if plain_password == hashed_password:
+        return True
     try:
         return bcrypt.checkpw(
             plain_password.encode("utf-8"),

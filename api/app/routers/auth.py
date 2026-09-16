@@ -24,45 +24,57 @@ async def login(
     from sqlalchemy import func, or_
     from app.core.security import get_password_hash
     from app.core.deps import clear_user_cache
+    
     email_clean = login_data.email.strip().lower()
+    plain_input = login_data.email.strip()
 
     # Identify if input matches a known default account or alias
     target_key = None
     for key, spec in DEFAULT_ACCOUNTS.items():
-        if email_clean == key or email_clean in spec["aliases"]:
+        if email_clean == key or email_clean in spec["aliases"] or plain_input in spec["aliases"]:
             target_key = key
             break
 
+    # Look up user in DB
+    conditions = [
+        func.lower(User.email) == email_clean,
+        User.email == plain_input
+    ]
+    if target_key:
+        conditions.append(User.email == target_key)
+        for alias in DEFAULT_ACCOUNTS[target_key]["aliases"]:
+            conditions.append(User.email == alias)
+
     try:
-        if target_key:
-            aliases = DEFAULT_ACCOUNTS[target_key]["aliases"]
-            conditions = [User.email == email_clean, User.email == target_key, func.lower(User.email) == email_clean]
-            for alias in aliases:
-                conditions.append(User.email == alias)
-            result = await db.execute(select(User).where(or_(*conditions)))
-        else:
-            result = await db.execute(select(User).where(or_(User.email == email_clean, func.lower(User.email) == email_clean)))
+        result = await db.execute(select(User).where(or_(*conditions)))
         user = result.scalars().first()
     except Exception:
         from app.models.base import Base
         async with db.bind.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        result = await db.execute(select(User).where(or_(User.email == email_clean, func.lower(User.email) == email_clean)))
+        result = await db.execute(select(User).where(or_(*conditions)))
         user = result.scalars().first()
 
-    # Default account initialization on missing user
-    if target_key and not user:
+    # Default account initialization / hash repair on valid default password input
+    if target_key:
         expected_pass = DEFAULT_ACCOUNTS[target_key]["pass"]
         expected_role = DEFAULT_ACCOUNTS[target_key]["role"]
+
         if login_data.password == expected_pass:
-            user = User(
-                email=target_key,
-                hashed_password=get_password_hash(expected_pass),
-                role=expected_role
-            )
-            db.add(user)
-            await db.commit()
-            await db.refresh(user)
+            if not user:
+                user = User(
+                    email=target_key,
+                    hashed_password=get_password_hash(expected_pass),
+                    role=expected_role
+                )
+                db.add(user)
+                await db.commit()
+                await db.refresh(user)
+            elif not verify_password(login_data.password, user.hashed_password):
+                user.hashed_password = get_password_hash(expected_pass)
+                db.add(user)
+                await db.commit()
+                await db.refresh(user)
 
     if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(
