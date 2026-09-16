@@ -63,36 +63,21 @@ async def lifespan(app: FastAPI):
                     engine, class_=AsyncSession, expire_on_commit=False
                 )
                 async with async_session() as session:
-                    result = await session.execute(select(User))
-                    if not result.scalars().first():
-                        admin_user = User(
-                            email="admin@gmail.com",
-                            hashed_password=get_password_hash("admin"),
-                            role="admin"
-                        )
-                        staff_user = User(
-                            email="staff@gmail.com",
-                            hashed_password=get_password_hash("staff"),
-                            role="staff"
-                        )
-                        drzaini_user = User(
-                            email="drzaini",
-                            hashed_password=get_password_hash("drzaini109"),
-                            role="admin"
-                        )
-                        session.add_all([admin_user, staff_user, drzaini_user])
-                        await session.commit()
-                    else:
-                        from sqlalchemy import func
-                        dr_res = await session.execute(select(User).where(func.lower(User.email) == "drzaini"))
-                        if not dr_res.scalars().first():
-                            drzaini_user = User(
-                                email="drzaini",
-                                hashed_password=get_password_hash("drzaini109"),
-                                role="admin"
-                            )
-                            session.add(drzaini_user)
-                            await session.commit()
+                    from sqlalchemy import func
+                    default_users = [
+                        ("admin@gmail.com", "admin", "admin"),
+                        ("staff@gmail.com", "staff", "staff"),
+                        ("drzaini", "drzaini109", "admin")
+                    ]
+                    for email_str, pass_str, role_str in default_users:
+                        u_res = await session.execute(select(User).where(func.lower(User.email) == email_str))
+                        if not u_res.scalars().first():
+                            session.add(User(
+                                email=email_str,
+                                hashed_password=get_password_hash(pass_str),
+                                role=role_str
+                            ))
+                    await session.commit()
 
                     from app.models.branch import Branch
                     from app.models.staff import Staff

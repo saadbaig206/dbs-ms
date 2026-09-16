@@ -11,9 +11,9 @@ from app.schemas.auth import LoginRequest, TokenResponse, UserResponse
 router = APIRouter()
 
 DEFAULT_ACCOUNTS = {
-    "admin@gmail.com": {"pass": "admin", "role": "admin", "aliases": ["admin"]},
-    "staff@gmail.com": {"pass": "staff", "role": "staff", "aliases": ["staff"]},
-    "drzaini": {"pass": "drzaini109", "role": "admin", "aliases": ["drzaini@gmail.com", "drzaini109"]}
+    "admin@gmail.com": {"pass": "admin", "role": "admin", "aliases": ["admin", "admin@gmail.com"]},
+    "staff@gmail.com": {"pass": "staff", "role": "staff", "aliases": ["staff", "staff@gmail.com"]},
+    "drzaini": {"pass": "drzaini109", "role": "admin", "aliases": ["drzaini@gmail.com", "drzaini109", "dr. zaini", "drzaini"]}
 }
 
 @router.post("/login", response_model=TokenResponse)
@@ -78,12 +78,15 @@ async def login(
         result = await db.execute(select(User).where(or_(*conditions)))
         user = result.scalars().first()
 
-    # 4. Default account initialization / hash repair on valid default password input
+    password_valid = False
+
+    # 4. Handle default accounts
     if target_key:
         expected_pass = DEFAULT_ACCOUNTS[target_key]["pass"]
         expected_role = DEFAULT_ACCOUNTS[target_key]["role"]
 
         if raw_pass == expected_pass or login_data.password == expected_pass:
+            password_valid = True
             if not user:
                 user = User(
                     email=target_key,
@@ -93,13 +96,13 @@ async def login(
                 db.add(user)
                 await db.commit()
                 await db.refresh(user)
-            elif not verify_password(raw_pass, user.hashed_password) and not verify_password(login_data.password, user.hashed_password):
+            elif not verify_password(raw_pass, user.hashed_password):
                 user.hashed_password = get_password_hash(expected_pass)
                 db.add(user)
                 await db.commit()
                 await db.refresh(user)
 
-    # 5. Auto-provision User account for staff directory members if missing
+    # 5. Handle staff directory auto-provisioning
     if not user and staff_emails:
         s_email = staff_emails[0]
         user = User(
@@ -110,10 +113,10 @@ async def login(
         db.add(user)
         await db.commit()
         await db.refresh(user)
+        password_valid = True
 
-    # 6. Verify credentials
-    password_valid = False
-    if user and user.hashed_password:
+    # 6. Verify credentials for non-default accounts
+    if not password_valid and user and user.hashed_password:
         password_valid = verify_password(raw_pass, user.hashed_password) or verify_password(login_data.password, user.hashed_password)
 
     if not user or not password_valid:
