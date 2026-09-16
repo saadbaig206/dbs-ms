@@ -27,6 +27,8 @@ from app.schemas.notification import NotificationResponse
 from app.schemas.expense import ExpenseResponse
 from app.schemas.transaction import FinancialTransactionResponse
 
+router = APIRouter()
+
 def safe_dump(obj, schema_cls):
     try:
         return schema_cls.model_validate(obj).model_dump(by_alias=True)

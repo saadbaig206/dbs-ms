@@ -104,7 +104,17 @@ export const authClient = {
       }
 
       const errorData = await res.json().catch(() => ({}));
-      throw new Error(errorData.detail || errorData.error || 'Invalid email or password');
+      let msg = '';
+      if (typeof errorData.detail === 'string') {
+        msg = errorData.detail;
+      } else if (typeof errorData.error === 'string') {
+        msg = errorData.error;
+      } else if (res.status === 401) {
+        msg = 'Incorrect username or password. Please try again.';
+      } else {
+        msg = `Server returned status ${res.status}. Please check backend service.`;
+      }
+      throw new Error(msg);
     } catch (err: any) {
       if (err.message) {
         throw err;
