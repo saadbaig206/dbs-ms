@@ -22,28 +22,51 @@ async def login(
     db: AsyncSession = Depends(get_db)
 ):
     from sqlalchemy import func, or_
-    from app.core.security import get_password_hash
+    from app.core.security import get_password_hash, verify_password
     from app.core.deps import clear_user_cache
+    from app.models.staff import Staff
     
-    email_clean = login_data.email.strip().lower()
-    plain_input = login_data.email.strip()
+    raw_email = login_data.email.strip()
+    email_clean = raw_email.lower()
+    raw_pass = login_data.password.strip()
 
-    # Identify if input matches a known default account or alias
+    # 1. Identify if input matches a known default account or alias
     target_key = None
     for key, spec in DEFAULT_ACCOUNTS.items():
-        if email_clean == key or email_clean in spec["aliases"] or plain_input in spec["aliases"]:
+        if email_clean == key or email_clean in spec["aliases"] or raw_email in spec["aliases"]:
             target_key = key
             break
 
-    # Look up user in DB
+    # 2. Check if login matches a Staff member's email or name
+    staff_emails = []
+    try:
+        staff_res = await db.execute(
+            select(Staff).where(
+                or_(
+                    func.lower(Staff.email) == email_clean,
+                    func.lower(Staff.name) == email_clean,
+                    Staff.email == raw_email
+                )
+            )
+        )
+        for s_member in staff_res.scalars().all():
+            if s_member.email:
+                staff_emails.append(s_member.email.strip().lower())
+    except Exception:
+        pass
+
+    # 3. Look up user in User table
     conditions = [
         func.lower(User.email) == email_clean,
-        User.email == plain_input
+        User.email == raw_email
     ]
+    for se in staff_emails:
+        conditions.append(func.lower(User.email) == se)
+
     if target_key:
         conditions.append(User.email == target_key)
         for alias in DEFAULT_ACCOUNTS[target_key]["aliases"]:
-            conditions.append(User.email == alias)
+            conditions.append(func.lower(User.email) == alias)
 
     try:
         result = await db.execute(select(User).where(or_(*conditions)))
@@ -55,12 +78,12 @@ async def login(
         result = await db.execute(select(User).where(or_(*conditions)))
         user = result.scalars().first()
 
-    # Default account initialization / hash repair on valid default password input
+    # 4. Default account initialization / hash repair on valid default password input
     if target_key:
         expected_pass = DEFAULT_ACCOUNTS[target_key]["pass"]
         expected_role = DEFAULT_ACCOUNTS[target_key]["role"]
 
-        if login_data.password == expected_pass:
+        if raw_pass == expected_pass or login_data.password == expected_pass:
             if not user:
                 user = User(
                     email=target_key,
@@ -70,13 +93,30 @@ async def login(
                 db.add(user)
                 await db.commit()
                 await db.refresh(user)
-            elif not verify_password(login_data.password, user.hashed_password):
+            elif not verify_password(raw_pass, user.hashed_password) and not verify_password(login_data.password, user.hashed_password):
                 user.hashed_password = get_password_hash(expected_pass)
                 db.add(user)
                 await db.commit()
                 await db.refresh(user)
 
-    if not user or not verify_password(login_data.password, user.hashed_password):
+    # 5. Auto-provision User account for staff directory members if missing
+    if not user and staff_emails:
+        s_email = staff_emails[0]
+        user = User(
+            email=s_email,
+            hashed_password=get_password_hash(raw_pass),
+            role="staff"
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+    # 6. Verify credentials
+    password_valid = False
+    if user and user.hashed_password:
+        password_valid = verify_password(raw_pass, user.hashed_password) or verify_password(login_data.password, user.hashed_password)
+
+    if not user or not password_valid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",

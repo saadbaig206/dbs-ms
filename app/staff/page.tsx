@@ -219,6 +219,7 @@ export default function StaffPage() {
         salary: Number(salary) || 0,
         phone,
         email,
+        password: password || undefined,
         joiningDate: new Date().toISOString().split('T')[0],
         status: 'Active',
         performanceRating: 5.0,

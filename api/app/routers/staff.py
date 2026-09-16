@@ -64,14 +64,23 @@ async def create_staff_member(
     )
     db.add(db_staff)
 
-    # Create corresponding User account if password was explicitly provided
-    if staff_in.password:
-        db_user = User(
-            email=staff_in.email,
-            hashed_password=get_password_hash(staff_in.password),
-            role="staff"
-        )
-        db.add(db_user)
+    # Create or update corresponding User account for login
+    staff_pass = staff_in.password.strip() if staff_in.password else "staff123"
+    if staff_in.email:
+        s_email_clean = staff_in.email.strip().lower()
+        u_res = await db.execute(select(User).where(func.lower(User.email) == s_email_clean))
+        existing_u = u_res.scalars().first()
+        if existing_u:
+            existing_u.hashed_password = get_password_hash(staff_pass)
+            existing_u.role = "staff"
+            db.add(existing_u)
+        else:
+            db_user = User(
+                email=staff_in.email.strip(),
+                hashed_password=get_password_hash(staff_pass),
+                role="staff"
+            )
+            db.add(db_user)
 
     await db.commit()
     await db.refresh(db_staff)
