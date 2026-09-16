@@ -154,7 +154,7 @@ function PrintDocument({ type, data }: { type: string; data: any }) {
       {/* Header */}
       <div className="text-center space-y-2 pb-4">
         <div className="flex justify-center">
-          <img src="/logo.png" alt="DBS Logo" className="h-22 w-auto object-contain" />
+          <img src="/logo.png" alt="DBS Logo" className="h-24 w-auto object-contain" />
         </div>
         <h1 className="text-lg font-black tracking-tight text-slate-950 uppercase leading-tight">
           {displayClinicName}
