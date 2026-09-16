@@ -55,14 +55,14 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     return <>{children}</>;
   }
 
-  if (isLoading || !isAuthorized) {
+  if (!isAuthorized && !isLoading) {
     return (
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen bg-[#0B0F17]">
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <Navbar />
           <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto min-w-0 flex items-center justify-center min-h-[400px]">
-            <div className="text-slate-500 animate-pulse font-bold">Loading...</div>
+            <div className="text-slate-500 animate-pulse font-bold">Redirecting...</div>
           </main>
         </div>
       </div>
@@ -72,6 +72,9 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   return (
     <>
       <OfflineBanner />
+      {isLoading && (
+        <div className="fixed top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-500 z-50 animate-pulse pointer-events-none" />
+      )}
       <div className="flex min-h-screen">
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0">

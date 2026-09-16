@@ -27,7 +27,19 @@ from app.schemas.notification import NotificationResponse
 from app.schemas.expense import ExpenseResponse
 from app.schemas.transaction import FinancialTransactionResponse
 
+import time
+from typing import Dict, Any, Optional
+
 router = APIRouter()
+
+# In-memory bootstrap cache (TTL 15 seconds)
+_BOOTSTRAP_CACHE: Dict[str, Any] = {}
+_BOOTSTRAP_CACHE_EXPIRY: Dict[str, float] = {}
+
+def invalidate_bootstrap_cache():
+    global _BOOTSTRAP_CACHE, _BOOTSTRAP_CACHE_EXPIRY
+    _BOOTSTRAP_CACHE.clear()
+    _BOOTSTRAP_CACHE_EXPIRY.clear()
 
 def safe_dump(obj, schema_cls):
     try:
@@ -48,8 +60,13 @@ async def get_bootstrap_data(
     user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
     role = current_user.role
-    
-    # 1. Active User Info
+    cache_key = f"{current_user.id}:{role}:{user_branch_id or 'all'}"
+    now = time.time()
+
+    # Serve from in-memory cache if fresh (< 15s)
+    if cache_key in _BOOTSTRAP_CACHE and now < _BOOTSTRAP_CACHE_EXPIRY.get(cache_key, 0):
+        return _BOOTSTRAP_CACHE[cache_key]
+
     user_info = {
         "id": current_user.id,
         "email": current_user.email,
@@ -57,67 +74,93 @@ async def get_bootstrap_data(
         "branch_id": getattr(current_user, "_cached_branch_id", None)
     }
 
-    import asyncio
+    # Execute all queries sequentially on single session to prevent InvalidRequestError
+    try:
+        b_res = await db.execute(select(Branch))
+        branches = [safe_dump(b, BranchResponse) for b in b_res.scalars().all()]
+    except Exception:
+        branches = []
 
-    # Prepare queries
-    c_query = select(Client)
-    if user_branch_id:
-        c_query = c_query.where(or_(Client.branch_id == user_branch_id, Client.branch_id == None))
+    try:
+        s_res = await db.execute(select(Staff))
+        staff = [safe_dump(s, StaffResponse) for s in s_res.scalars().all()]
+    except Exception:
+        staff = []
 
-    a_query = select(Appointment)
-    if user_branch_id:
-        a_query = a_query.where(or_(Appointment.branch_id == user_branch_id, Appointment.branch_id == None))
+    try:
+        srv_res = await db.execute(select(ServiceItem))
+        services = [safe_dump(s, ServiceResponse) for s in srv_res.scalars().all()]
+    except Exception:
+        services = []
 
-    i_query = select(InventoryItem)
-    if user_branch_id:
-        i_query = i_query.where(or_(InventoryItem.branch_id == user_branch_id, InventoryItem.branch_id == None))
+    try:
+        c_query = select(Client)
+        if user_branch_id:
+            c_query = c_query.where(or_(Client.branch_id == user_branch_id, Client.branch_id == None))
+        c_res = await db.execute(c_query.order_by(Client.id.desc()))
+        clients = [safe_dump(c, ClientResponse) for c in c_res.scalars().all()]
+    except Exception:
+        clients = []
 
-    e_query = select(ExpenseItem)
-    if user_branch_id:
-        e_query = e_query.where(ExpenseItem.branch_id == user_branch_id)
+    try:
+        a_query = select(Appointment)
+        if user_branch_id:
+            a_query = a_query.where(or_(Appointment.branch_id == user_branch_id, Appointment.branch_id == None))
+        a_res = await db.execute(a_query.order_by(Appointment.id.desc()))
+        appointments = [safe_dump(a, AppointmentResponse) for a in a_res.scalars().all()]
+    except Exception:
+        appointments = []
 
-    t_query = select(FinancialTransaction)
-    if user_branch_id:
-        t_query = t_query.where(FinancialTransaction.branch_id == user_branch_id)
+    try:
+        i_query = select(InventoryItem)
+        if user_branch_id:
+            i_query = i_query.where(or_(InventoryItem.branch_id == user_branch_id, InventoryItem.branch_id == None))
+        i_res = await db.execute(i_query)
+        inventory = [safe_dump(i, InventoryResponse) for i in i_res.scalars().all()]
+    except Exception:
+        inventory = []
 
-    # Execute all 11 collection queries concurrently
-    tasks = [
-        db.execute(select(Branch)),
-        db.execute(select(Staff)),
-        db.execute(select(ServiceItem)),
-        db.execute(c_query.order_by(Client.id.desc())),
-        db.execute(a_query.order_by(Appointment.id.desc())),
-        db.execute(i_query),
-        db.execute(select(AttendanceRecord).order_by(AttendanceRecord.date.desc(), AttendanceRecord.id.desc())),
-        db.execute(select(NotificationItem).order_by(NotificationItem.id.desc())),
-        db.execute(e_query.order_by(ExpenseItem.id.desc())),
-        db.execute(t_query.order_by(FinancialTransaction.id.desc())) if role in ("admin", "partner") else asyncio.sleep(0),
-        db.execute(select(User).where(User.role == "partner")) if role == "admin" else asyncio.sleep(0),
-    ]
+    try:
+        att_res = await db.execute(select(AttendanceRecord).order_by(AttendanceRecord.date.desc(), AttendanceRecord.id.desc()))
+        attendance = [safe_dump(att, AttendanceResponse) for att in att_res.scalars().all()]
+    except Exception:
+        attendance = []
 
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    try:
+        notif_res = await db.execute(select(NotificationItem).order_by(NotificationItem.id.desc()))
+        notifications = [safe_dump(n, NotificationResponse) for n in notif_res.scalars().all()]
+    except Exception:
+        notifications = []
 
-    def extract_items(res):
-        if isinstance(res, Exception) or res is None or not hasattr(res, 'scalars'):
-            return []
+    try:
+        e_query = select(ExpenseItem)
+        if user_branch_id:
+            e_query = e_query.where(ExpenseItem.branch_id == user_branch_id)
+        e_res = await db.execute(e_query.order_by(ExpenseItem.id.desc()))
+        expenses = [safe_dump(e, ExpenseResponse) for e in e_res.scalars().all()]
+    except Exception:
+        expenses = []
+
+    transactions = []
+    if role in ("admin", "partner"):
         try:
-            return res.scalars().all()
+            t_query = select(FinancialTransaction)
+            if user_branch_id:
+                t_query = t_query.where(FinancialTransaction.branch_id == user_branch_id)
+            t_res = await db.execute(t_query.order_by(FinancialTransaction.id.desc()))
+            transactions = [safe_dump(t, FinancialTransactionResponse) for t in t_res.scalars().all()]
         except Exception:
-            return []
+            transactions = []
 
-    branches = [safe_dump(b, BranchResponse) for b in extract_items(results[0])]
-    staff = [safe_dump(s, StaffResponse) for s in extract_items(results[1])]
-    services = [safe_dump(s, ServiceResponse) for s in extract_items(results[2])]
-    clients = [safe_dump(c, ClientResponse) for c in extract_items(results[3])]
-    appointments = [safe_dump(a, AppointmentResponse) for a in extract_items(results[4])]
-    inventory = [safe_dump(i, InventoryResponse) for i in extract_items(results[5])]
-    attendance = [safe_dump(att, AttendanceResponse) for att in extract_items(results[6])]
-    notifications = [safe_dump(n, NotificationResponse) for n in extract_items(results[7])]
-    expenses = [safe_dump(e, ExpenseResponse) for e in extract_items(results[8])]
-    transactions = [safe_dump(t, FinancialTransactionResponse) for t in extract_items(results[9])] if role in ("admin", "partner") else []
-    partners = [{"id": u.id, "username": u.email} for u in extract_items(results[10])] if role == "admin" else []
+    partners = []
+    if role == "admin":
+        try:
+            p_res = await db.execute(select(User).where(User.role == "partner"))
+            partners = [{"id": u.id, "username": u.email} for u in p_res.scalars().all()]
+        except Exception:
+            partners = []
 
-    return {
+    payload = {
         "user": user_info,
         "branches": branches,
         "staff": staff,
@@ -131,3 +174,8 @@ async def get_bootstrap_data(
         "transactions": transactions,
         "partners": partners
     }
+
+    _BOOTSTRAP_CACHE[cache_key] = payload
+    _BOOTSTRAP_CACHE_EXPIRY[cache_key] = now + 15.0
+
+    return payload
