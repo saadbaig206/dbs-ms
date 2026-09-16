@@ -42,6 +42,15 @@ export default function AppointmentsPage() {
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  // 30-minute interval time slots from 11:00 AM to 08:00 PM
+  const ALL_30_MIN_SLOTS = useMemo(() => [
+    '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM',
+    '01:00 PM', '01:30 PM', '02:00 PM', '02:30 PM',
+    '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM',
+    '05:00 PM', '05:30 PM', '06:00 PM', '06:30 PM',
+    '07:00 PM', '07:30 PM', '08:00 PM'
+  ], []);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newClientName, setNewClientName] = useState('');
   const [newPhone, setNewPhone] = useState('+92 ');
@@ -51,6 +60,42 @@ export default function AppointmentsPage() {
   const [aptDate, setAptDate] = useState(getLocalDateString());
   const [aptTime, setAptTime] = useState('11:00 AM');
   const [aptNotes, setAptNotes] = useState('');
+
+  // Get unbooked 30-min slots for a given date & specialist
+  const getAvailableTimeSlots = (targetDate: string, staffId: string, currentSlotTime?: string) => {
+    if (!targetDate) return ALL_30_MIN_SLOTS;
+
+    const bookedTimes = appointments
+      .filter(a => a.date === targetDate && a.status !== 'Cancelled' && (!staffId || a.staffId === staffId))
+      .map(a => a.time);
+
+    return ALL_30_MIN_SLOTS.filter(slot => {
+      if (currentSlotTime && slot === currentSlotTime) return true;
+      return !bookedTimes.includes(slot);
+    });
+  };
+
+  // Available slots for single session
+  const availableSingleSlots = useMemo(() => {
+    return getAvailableTimeSlots(aptDate, selectedStaffId, aptTime);
+  }, [appointments, aptDate, selectedStaffId, aptTime]);
+
+  const singleSlotOptions = useMemo(() => {
+    if (availableSingleSlots.length === 0) {
+      return [{ label: 'Fully Booked (No Slots Available)', value: '' }];
+    }
+    return availableSingleSlots.map(slot => ({ label: slot, value: slot }));
+  }, [availableSingleSlots]);
+
+  // Auto-sync single slot time if current selection is booked
+  useEffect(() => {
+    if (numberOfSessions === 1) {
+      const freeSlots = getAvailableTimeSlots(aptDate, selectedStaffId);
+      if (freeSlots.length > 0 && !freeSlots.includes(aptTime)) {
+        setAptTime(freeSlots[0]);
+      }
+    }
+  }, [aptDate, selectedStaffId, appointments]);
 
   // Multi-session State
   const [numberOfSessions, setNumberOfSessions] = useState<number>(1);
@@ -67,16 +112,23 @@ export default function AppointmentsPage() {
       const baseDate = new Date(aptDate || getLocalDateString());
 
       for (let i = 0; i < validCount; i++) {
+        const sessDate = new Date(baseDate);
+        sessDate.setDate(sessDate.getDate() + (i * 7));
+        const dateStr = getLocalDateString(sessDate);
+        const freeSlots = getAvailableTimeSlots(dateStr, selectedStaffId);
+        const defaultTime = freeSlots[0] || '11:00 AM';
+
         if (prev[i]) {
-          nextList.push({ ...prev[i], sessionNumber: i + 1 });
+          nextList.push({
+            ...prev[i],
+            sessionNumber: i + 1,
+            time: freeSlots.includes(prev[i].time) ? prev[i].time : defaultTime
+          });
         } else {
-          const sessDate = new Date(baseDate);
-          sessDate.setDate(sessDate.getDate() + (i * 7));
-          const dateStr = getLocalDateString(sessDate);
           nextList.push({
             sessionNumber: i + 1,
             date: dateStr,
-            time: aptTime || '11:00 AM'
+            time: defaultTime
           });
         }
       }
@@ -98,7 +150,7 @@ export default function AppointmentsPage() {
   const hasCollision = useMemo(() => {
     if (!selectedStaffId || !aptDate || !aptTime) return false;
     return appointments.some(
-      (a) => a.staffId === selectedStaffId && a.date === aptDate && a.time === aptTime
+      (a) => a.staffId === selectedStaffId && a.date === aptDate && a.time === aptTime && a.status !== 'Cancelled'
     );
   }, [appointments, selectedStaffId, aptDate, aptTime]);
 
@@ -488,17 +540,7 @@ export default function AppointmentsPage() {
                   <Clock3 className="absolute left-3.5 z-10 w-4 h-4 text-blue-500 pointer-events-none" />
                   <Select
                     aria-label="Time Slot"
-                    options={[
-                      { label: '11:00 AM', value: '11:00 AM' },
-                      { label: '12:15 PM', value: '12:15 PM' },
-                      { label: '01:30 PM', value: '01:30 PM' },
-                      { label: '02:45 PM', value: '02:45 PM' },
-                      { label: '04:00 PM', value: '04:00 PM' },
-                      { label: '05:15 PM', value: '05:15 PM' },
-                      { label: '06:30 PM', value: '06:30 PM' },
-                      { label: '07:30 PM', value: '07:30 PM' },
-                      { label: '08:00 PM', value: '08:00 PM' }
-                    ]}
+                    options={singleSlotOptions}
                     value={aptTime}
                     onChange={(e) => {
                       setAptTime(e.target.value);
@@ -522,6 +564,11 @@ export default function AppointmentsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-72 overflow-y-auto p-1 bg-slate-50/80 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800">
                 {sessionsList.map((sess, idx) => {
                   const currentService = services.find(s => s.id === selectedServiceId);
+                  const sessSlots = getAvailableTimeSlots(sess.date, selectedStaffId, sess.time);
+                  const sessOptions = sessSlots.length > 0
+                    ? sessSlots.map(slot => ({ label: slot, value: slot }))
+                    : [{ label: 'Fully Booked (No Slots Available)', value: '' }];
+
                   return (
                     <div
                       key={idx}
@@ -555,17 +602,7 @@ export default function AppointmentsPage() {
                           </label>
                           <Select
                             aria-label={`Session ${sess.sessionNumber} Time Slot`}
-                            options={[
-                              { label: '11:00 AM', value: '11:00 AM' },
-                              { label: '12:15 PM', value: '12:15 PM' },
-                              { label: '01:30 PM', value: '01:30 PM' },
-                              { label: '02:45 PM', value: '02:45 PM' },
-                              { label: '04:00 PM', value: '04:00 PM' },
-                              { label: '05:15 PM', value: '05:15 PM' },
-                              { label: '06:30 PM', value: '06:30 PM' },
-                              { label: '07:30 PM', value: '07:30 PM' },
-                              { label: '08:00 PM', value: '08:00 PM' }
-                            ]}
+                            options={sessOptions}
                             value={sess.time}
                             onChange={(e) => handleUpdateSession(idx, 'time', e.target.value)}
                             className="text-xs py-1.5 font-medium"

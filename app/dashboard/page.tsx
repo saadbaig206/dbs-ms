@@ -51,25 +51,25 @@ export default function DashboardPage() {
   // Filter collections if a specific branch is selected
   const appointments = useMemo(() => {
     return selectedBranchId
-      ? allAppointments.filter(a => a.branchId === selectedBranchId)
+      ? allAppointments.filter(a => !a.branchId || a.branchId === selectedBranchId)
       : allAppointments;
   }, [allAppointments, selectedBranchId]);
 
   const inventory = useMemo(() => {
     return selectedBranchId
-      ? allInventory.filter(i => i.branchId === selectedBranchId)
+      ? allInventory.filter(i => !i.branchId || i.branchId === selectedBranchId)
       : allInventory;
   }, [allInventory, selectedBranchId]);
 
   const transactions = useMemo(() => {
     return selectedBranchId
-      ? allTransactions.filter(t => t.branchId === selectedBranchId)
+      ? allTransactions.filter(t => !t.branchId || t.branchId === selectedBranchId)
       : allTransactions;
   }, [allTransactions, selectedBranchId]);
 
   const expenses = useMemo(() => {
     return selectedBranchId
-      ? allExpenses.filter(e => e.branchId === selectedBranchId)
+      ? allExpenses.filter(e => !e.branchId || e.branchId === selectedBranchId)
       : allExpenses;
   }, [allExpenses, selectedBranchId]);
 

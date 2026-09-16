@@ -1,3 +1,4 @@
+import time
 from typing import Generator, Optional
 from fastapi import Depends, HTTPException, status, Request
 from jose import jwt, JWTError
@@ -8,6 +9,14 @@ from app.core.config import settings
 from app.core.security import ALGORITHM
 from app.db.session import get_db
 from app.models.user import User
+
+# In-memory user authentication cache to avoid redundant DB queries on parallel API requests
+_USER_CACHE = {}
+CACHE_TTL = 30  # seconds
+
+def clear_user_cache():
+    global _USER_CACHE
+    _USER_CACHE.clear()
 
 async def get_current_user(
     request: Request,
@@ -38,17 +47,25 @@ async def get_current_user(
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-        
+
+    now = time.time()
+    cached = _USER_CACHE.get(token)
+    if cached and (now - cached["time"] < CACHE_TTL):
+        user = cached["user"]
+        setattr(user, "_cached_branch_id", cached.get("branch_id"))
+        return user
+
+    email_clean = email.strip().lower()
     from sqlalchemy import func
-    result = await db.execute(select(User).where(func.lower(User.email) == func.lower(email.strip())))
+    result = await db.execute(select(User).where(func.lower(User.email) == email_clean))
     user = result.scalars().first()
     if user is None:
         raise credentials_exception
 
+    staff_branch_id = None
     if user.role == "staff":
         from app.models.staff import Staff
-        from sqlalchemy import func
-        s_res = await db.execute(select(Staff).where(func.lower(Staff.email) == func.lower(user.email)))
+        s_res = await db.execute(select(Staff).where(func.lower(Staff.email) == email_clean))
         staff_member = s_res.scalars().first()
         if staff_member and staff_member.status == "Inactive":
             raise HTTPException(
@@ -56,6 +73,15 @@ async def get_current_user(
                 detail="Staff account is inactive or disabled.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        if staff_member:
+            staff_branch_id = staff_member.branch_id
+
+    setattr(user, "_cached_branch_id", staff_branch_id)
+    _USER_CACHE[token] = {
+        "user": user,
+        "branch_id": staff_branch_id,
+        "time": now
+    }
 
     return user
 
@@ -81,13 +107,11 @@ async def get_user_branch_id(
 ) -> Optional[str]:
     branch_id = request.query_params.get("branch_id") or request.headers.get("X-Branch-ID")
     if current_user.role == "staff":
-        from app.models.staff import Staff
-        from sqlalchemy import func
-        staff_result = await db.execute(select(Staff).where(func.lower(Staff.email) == func.lower(current_user.email)))
-        staff_member = staff_result.scalars().first()
-        if staff_member and staff_member.branch_id:
-            return staff_member.branch_id
+        cached_b_id = getattr(current_user, "_cached_branch_id", None)
+        if cached_b_id:
+            return cached_b_id
         return branch_id
     elif current_user.role in ("admin", "partner"):
         return branch_id
     return None
+

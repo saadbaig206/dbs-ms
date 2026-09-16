@@ -268,62 +268,28 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // Main fetch function to load all backend data
-  // Main fetch function to load all backend data
   const refreshData = async (showSpinner = false) => {
     if (showSpinner) setIsLoading(true);
     setError(null);
     try {
-      // 1. Resolve active user and role first
-      let activeUser = await authClient.me().catch(() => null);
-      if (!activeUser && typeof window !== 'undefined') {
-        const localToken = localStorage.getItem('access_token') || (document.cookie.match(/(?:^|; )access_token=([^;]*)/)?.[1]);
-        const localRole = (localStorage.getItem('user_role') || (document.cookie.match(/(?:^|; )user_role=([^;]*)/)?.[1])) as UserRole | null;
-        const localEmail = localStorage.getItem('user_email');
-        if (localToken && localRole) {
-          activeUser = {
-            id: 'local-user',
-            email: localEmail || (localRole === 'staff' ? 'staff@gmail.com' : 'admin@gmail.com'),
-            role: localRole,
-            branch_id: null
-          };
-        }
-      }
+      // Determine initial active role from local storage/cookies to fire entity queries immediately
+      const localRole = (typeof window !== 'undefined'
+        ? (localStorage.getItem('user_role') || (document.cookie.match(/(?:^|; )user_role=([^;]*)/)?.[1]))
+        : null) as UserRole | null;
+      const initialRole = localRole || role || 'staff';
 
-      if (!activeUser) {
-        // Not logged in or session expired
-        setIsLoading(false);
-        if (typeof window !== 'undefined' && window.location.pathname !== '/login' && window.location.pathname !== '/') {
-          await authClient.logout();
-          window.location.href = '/login';
-        }
-        return;
-      }
-
-      const activeRole = (activeUser.role || 'staff') as UserRole;
-      setRoleState(activeRole);
-      document.cookie = `user_role=${activeRole}; path=/; max-age=${60 * 60 * 24 * 8}; SameSite=Lax`;
-      setUserId(activeUser.id || null);
-      setUserEmail(activeUser.email || null);
-      const bId = (activeUser as any).branch_id || (activeUser as any).branchId || null;
-      setUserBranchId(bId);
-      if (activeRole === 'staff' && bId) {
-        setSelectedBranchId(prev => prev || bId);
-      }
-
-      // 2. Execute entity queries concurrently, skipping unauthorized endpoints for staff/partner
-      const expensesPromise = (activeRole === 'admin' || activeRole === 'partner')
-        ? fetchSafe<ExpenseItem[]>('/expenses', [])
-        : Promise.resolve([]);
-
-      const transactionsPromise = (activeRole === 'admin' || activeRole === 'partner')
+      // 1. Fire activeUser verification and entity queries concurrently
+      const mePromise = authClient.me().catch(() => null);
+      const expensesPromise = fetchSafe<ExpenseItem[]>('/expenses', []);
+      const transactionsPromise = (initialRole === 'admin' || initialRole === 'partner')
         ? fetchSafe<FinancialTransaction[]>('/transactions', [])
         : Promise.resolve([]);
-
-      const partnersPromise = (activeRole === 'admin')
+      const partnersPromise = (initialRole === 'admin')
         ? fetchSafe<{ id: number; username: string }[]>('/auth/partners', [])
         : Promise.resolve([]);
 
       const [
+        fetchedUser,
         branchesData,
         staffData,
         servicesData,
@@ -336,6 +302,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         transactionsData,
         partnersData
       ] = await Promise.all([
+        mePromise,
         fetchSafe<Branch[]>('/branches', []),
         fetchSafe<Staff[]>('/staff', []),
         fetchSafe<ServiceItem[]>('/services', []),
@@ -348,6 +315,40 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         transactionsPromise,
         partnersPromise
       ]);
+
+      let activeUser = fetchedUser;
+      if (!activeUser && typeof window !== 'undefined') {
+        const localToken = localStorage.getItem('access_token') || (document.cookie.match(/(?:^|; )access_token=([^;]*)/)?.[1]);
+        const localEmail = localStorage.getItem('user_email');
+        if (localToken && initialRole) {
+          activeUser = {
+            id: 'local-user',
+            email: localEmail || (initialRole === 'staff' ? 'staff@gmail.com' : 'admin@gmail.com'),
+            role: initialRole,
+            branch_id: null
+          };
+        }
+      }
+
+      if (!activeUser) {
+        setIsLoading(false);
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login' && window.location.pathname !== '/') {
+          await authClient.logout();
+          window.location.href = '/login';
+        }
+        return;
+      }
+
+      const activeRole = (activeUser.role || initialRole || 'staff') as UserRole;
+      setRoleState(activeRole);
+      document.cookie = `user_role=${activeRole}; path=/; max-age=${60 * 60 * 24 * 8}; SameSite=Lax`;
+      setUserId(activeUser.id || null);
+      setUserEmail(activeUser.email || null);
+      const bId = (activeUser as any).branch_id || (activeUser as any).branchId || null;
+      setUserBranchId(bId);
+      if (activeRole === 'staff' && bId) {
+        setSelectedBranchId(prev => prev || bId);
+      }
 
       setBranches(branchesData); saveCachedData('branches', branchesData);
       setStaff(staffData); saveCachedData('staff', staffData);
@@ -378,11 +379,9 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const refreshAttendance = async () => { const data = await fetchSafe('/attendance', []); setAttendance(data); saveCachedData('attendance', data); };
   const refreshNotifications = async () => { const data = await fetchSafe('/notifications', []); setNotifications(data); saveCachedData('notifications', data); };
   const refreshExpenses = async () => {
-    if (role === 'admin' || role === 'partner') {
-      const data = await fetchSafe('/expenses', []);
-      setExpenses(data);
-      saveCachedData('expenses', data);
-    }
+    const data = await fetchSafe('/expenses', []);
+    setExpenses(data);
+    saveCachedData('expenses', data);
   };
   const refreshTransactions = async () => {
     if (role === 'admin' || role === 'partner') {

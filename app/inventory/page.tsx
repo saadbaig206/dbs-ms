@@ -42,7 +42,7 @@ export default function InventoryPage() {
   }, [userBranchId, selectedBranchId]);
 
   const inventory = filterBranchId 
-    ? allInventory.filter(i => i.branchId === filterBranchId)
+    ? allInventory.filter(i => !i.branchId || i.branchId === filterBranchId)
     : allInventory;
 
   const [search, setSearch] = useState('');
@@ -179,17 +179,26 @@ export default function InventoryPage() {
     showToast(`Vendor '${vName}' added successfully!`);
 
     try {
-      // Save or update inventory product
-      await addInventoryItem({
-        itemName: pName,
-        category: pCat,
-        quantity: qtyNum,
-        minStock: 10,
-        supplier: vName,
-        price: unitPrice,
-        lastRestocked: todayStr,
-        branchId: targetBranchId
-      });
+      // Check if item with same product name and vendor supplier already exists
+      const existingItem = allInventory.find(i => 
+        i.itemName.toLowerCase().trim() === pName.toLowerCase().trim() &&
+        i.supplier.toLowerCase().trim() === vName.toLowerCase().trim()
+      );
+
+      if (existingItem) {
+        await updateInventoryQuantity(existingItem.id, qtyNum);
+      } else {
+        await addInventoryItem({
+          itemName: pName,
+          category: pCat,
+          quantity: qtyNum,
+          minStock: 10,
+          supplier: vName,
+          price: unitPrice,
+          lastRestocked: todayStr,
+          branchId: targetBranchId
+        });
+      }
 
       // Log vendor purchase into Expenses / Vendor Dues
       await addExpense({

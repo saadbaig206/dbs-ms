@@ -161,11 +161,11 @@ export default function FinanceReportsPage() {
   }, [role, isLoading, router]);
 
   const transactions = selectedBranchId
-    ? allTransactions.filter(t => t.branchId === selectedBranchId)
+    ? allTransactions.filter(t => !t.branchId || t.branchId === selectedBranchId)
     : allTransactions;
 
   const expenses = selectedBranchId
-    ? allExpenses.filter(e => e.branchId === selectedBranchId)
+    ? allExpenses.filter(e => !e.branchId || e.branchId === selectedBranchId)
     : allExpenses;
 
   const [activeTab, setActiveTab] = useState<'transactions' | 'expenses' | 'reports'>('transactions');
