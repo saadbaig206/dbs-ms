@@ -57,101 +57,65 @@ async def get_bootstrap_data(
         "branch_id": getattr(current_user, "_cached_branch_id", None)
     }
 
-    # 2. Branches
-    try:
-        branches_res = await db.execute(select(Branch))
-        branches = [safe_dump(b, BranchResponse) for b in branches_res.scalars().all()]
-    except Exception:
-        branches = []
+    import asyncio
 
-    # 3. Staff
-    try:
-        staff_res = await db.execute(select(Staff))
-        staff = [safe_dump(s, StaffResponse) for s in staff_res.scalars().all()]
-    except Exception:
-        staff = []
+    # Prepare queries
+    c_query = select(Client)
+    if user_branch_id:
+        c_query = c_query.where(or_(Client.branch_id == user_branch_id, Client.branch_id == None))
 
-    # 4. Services
-    try:
-        services_res = await db.execute(select(ServiceItem))
-        services = [safe_dump(s, ServiceResponse) for s in services_res.scalars().all()]
-    except Exception:
-        services = []
+    a_query = select(Appointment)
+    if user_branch_id:
+        a_query = a_query.where(or_(Appointment.branch_id == user_branch_id, Appointment.branch_id == None))
 
-    # 5. Clients
-    try:
-        c_query = select(Client)
-        if user_branch_id:
-            c_query = c_query.where(or_(Client.branch_id == user_branch_id, Client.branch_id == None))
-        clients_res = await db.execute(c_query.order_by(Client.id.desc()))
-        clients = [safe_dump(c, ClientResponse) for c in clients_res.scalars().all()]
-    except Exception:
-        clients = []
+    i_query = select(InventoryItem)
+    if user_branch_id:
+        i_query = i_query.where(or_(InventoryItem.branch_id == user_branch_id, InventoryItem.branch_id == None))
 
-    # 6. Appointments
-    try:
-        a_query = select(Appointment)
-        if user_branch_id:
-            a_query = a_query.where(or_(Appointment.branch_id == user_branch_id, Appointment.branch_id == None))
-        appointments_res = await db.execute(a_query.order_by(Appointment.id.desc()))
-        appointments = [safe_dump(a, AppointmentResponse) for a in appointments_res.scalars().all()]
-    except Exception:
-        appointments = []
+    e_query = select(ExpenseItem)
+    if user_branch_id:
+        e_query = e_query.where(ExpenseItem.branch_id == user_branch_id)
 
-    # 7. Inventory
-    try:
-        i_query = select(InventoryItem)
-        if user_branch_id:
-            i_query = i_query.where(or_(InventoryItem.branch_id == user_branch_id, InventoryItem.branch_id == None))
-        inventory_res = await db.execute(i_query)
-        inventory = [safe_dump(i, InventoryResponse) for i in inventory_res.scalars().all()]
-    except Exception:
-        inventory = []
+    t_query = select(FinancialTransaction)
+    if user_branch_id:
+        t_query = t_query.where(FinancialTransaction.branch_id == user_branch_id)
 
-    # 8. Attendance
-    try:
-        att_res = await db.execute(select(AttendanceRecord).order_by(AttendanceRecord.date.desc(), AttendanceRecord.id.desc()))
-        attendance = [safe_dump(att, AttendanceResponse) for att in att_res.scalars().all()]
-    except Exception:
-        attendance = []
+    # Execute all 11 collection queries concurrently
+    tasks = [
+        db.execute(select(Branch)),
+        db.execute(select(Staff)),
+        db.execute(select(ServiceItem)),
+        db.execute(c_query.order_by(Client.id.desc())),
+        db.execute(a_query.order_by(Appointment.id.desc())),
+        db.execute(i_query),
+        db.execute(select(AttendanceRecord).order_by(AttendanceRecord.date.desc(), AttendanceRecord.id.desc())),
+        db.execute(select(NotificationItem).order_by(NotificationItem.id.desc())),
+        db.execute(e_query.order_by(ExpenseItem.id.desc())),
+        db.execute(t_query.order_by(FinancialTransaction.id.desc())) if role in ("admin", "partner") else asyncio.sleep(0),
+        db.execute(select(User).where(User.role == "partner")) if role == "admin" else asyncio.sleep(0),
+    ]
 
-    # 9. Notifications
-    try:
-        notif_res = await db.execute(select(NotificationItem).order_by(NotificationItem.id.desc()))
-        notifications = [safe_dump(n, NotificationResponse) for n in notif_res.scalars().all()]
-    except Exception:
-        notifications = []
+    results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    # 10. Expenses
-    try:
-        e_query = select(ExpenseItem)
-        if user_branch_id:
-            e_query = e_query.where(ExpenseItem.branch_id == user_branch_id)
-        expenses_res = await db.execute(e_query.order_by(ExpenseItem.id.desc()))
-        expenses = [safe_dump(e, ExpenseResponse) for e in expenses_res.scalars().all()]
-    except Exception:
-        expenses = []
-
-    # 11. Transactions (admin/partner only)
-    transactions = []
-    if role in ("admin", "partner"):
+    def extract_items(res):
+        if isinstance(res, Exception) or res is None or not hasattr(res, 'scalars'):
+            return []
         try:
-            t_query = select(FinancialTransaction)
-            if user_branch_id:
-                t_query = t_query.where(FinancialTransaction.branch_id == user_branch_id)
-            transactions_res = await db.execute(t_query.order_by(FinancialTransaction.id.desc()))
-            transactions = [safe_dump(t, FinancialTransactionResponse) for t in transactions_res.scalars().all()]
+            return res.scalars().all()
         except Exception:
-            transactions = []
+            return []
 
-    # 12. Partners (admin only)
-    partners = []
-    if role == "admin":
-        try:
-            p_res = await db.execute(select(User).where(User.role == "partner"))
-            partners = [{"id": u.id, "username": u.email} for u in p_res.scalars().all()]
-        except Exception:
-            partners = []
+    branches = [safe_dump(b, BranchResponse) for b in extract_items(results[0])]
+    staff = [safe_dump(s, StaffResponse) for s in extract_items(results[1])]
+    services = [safe_dump(s, ServiceResponse) for s in extract_items(results[2])]
+    clients = [safe_dump(c, ClientResponse) for c in extract_items(results[3])]
+    appointments = [safe_dump(a, AppointmentResponse) for a in extract_items(results[4])]
+    inventory = [safe_dump(i, InventoryResponse) for i in extract_items(results[5])]
+    attendance = [safe_dump(att, AttendanceResponse) for att in extract_items(results[6])]
+    notifications = [safe_dump(n, NotificationResponse) for n in extract_items(results[7])]
+    expenses = [safe_dump(e, ExpenseResponse) for e in extract_items(results[8])]
+    transactions = [safe_dump(t, FinancialTransactionResponse) for t in extract_items(results[9])] if role in ("admin", "partner") else []
+    partners = [{"id": u.id, "username": u.email} for u in extract_items(results[10])] if role == "admin" else []
 
     return {
         "user": user_info,

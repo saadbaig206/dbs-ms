@@ -286,17 +286,31 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setSelectedBranchId(prev => prev || bId);
         }
 
-        if (bootstrapRes.branches) { setBranches(bootstrapRes.branches); saveCachedData('branches', bootstrapRes.branches); }
-        if (bootstrapRes.staff) { setStaff(bootstrapRes.staff); saveCachedData('staff', bootstrapRes.staff); }
-        if (bootstrapRes.services) { setServices(bootstrapRes.services); saveCachedData('services', bootstrapRes.services); }
-        if (bootstrapRes.clients) { setClients(bootstrapRes.clients); saveCachedData('clients', bootstrapRes.clients); }
-        if (bootstrapRes.appointments) { setAppointments(bootstrapRes.appointments); saveCachedData('appointments', bootstrapRes.appointments); }
-        if (bootstrapRes.inventory) { setInventory(bootstrapRes.inventory); saveCachedData('inventory', bootstrapRes.inventory); }
-        if (bootstrapRes.attendance) { setAttendance(bootstrapRes.attendance); saveCachedData('attendance', bootstrapRes.attendance); }
-        if (bootstrapRes.notifications) { setNotifications(bootstrapRes.notifications); saveCachedData('notifications', bootstrapRes.notifications); }
-        if (bootstrapRes.expenses) { setExpenses(bootstrapRes.expenses); saveCachedData('expenses', bootstrapRes.expenses); }
-        if (bootstrapRes.transactions) { setTransactions(bootstrapRes.transactions); saveCachedData('transactions', bootstrapRes.transactions); }
-        if (bootstrapRes.partners) { setPartners(bootstrapRes.partners); saveCachedData('partners', bootstrapRes.partners); }
+        const safeSet = (setter: any, key: string, data: any[]) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setter(data);
+            saveCachedData(key, data);
+          } else {
+            const cached = loadCachedData(key, []);
+            if (cached.length > 0) {
+              setter(cached);
+            } else if (Array.isArray(data)) {
+              setter(data);
+            }
+          }
+        };
+
+        if (bootstrapRes.branches) safeSet(setBranches, 'branches', bootstrapRes.branches);
+        if (bootstrapRes.staff) safeSet(setStaff, 'staff', bootstrapRes.staff);
+        if (bootstrapRes.services) safeSet(setServices, 'services', bootstrapRes.services);
+        if (bootstrapRes.clients) safeSet(setClients, 'clients', bootstrapRes.clients);
+        if (bootstrapRes.appointments) safeSet(setAppointments, 'appointments', bootstrapRes.appointments);
+        if (bootstrapRes.inventory) safeSet(setInventory, 'inventory', bootstrapRes.inventory);
+        if (bootstrapRes.attendance) safeSet(setAttendance, 'attendance', bootstrapRes.attendance);
+        if (bootstrapRes.notifications) safeSet(setNotifications, 'notifications', bootstrapRes.notifications);
+        if (bootstrapRes.expenses) safeSet(setExpenses, 'expenses', bootstrapRes.expenses);
+        if (bootstrapRes.transactions) safeSet(setTransactions, 'transactions', bootstrapRes.transactions);
+        if (bootstrapRes.partners) safeSet(setPartners, 'partners', bootstrapRes.partners);
         return;
       }
 
@@ -349,10 +363,9 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const localEmail = localStorage.getItem('user_email');
         if (localToken && initialRole) {
           activeUser = {
-            id: 'local-user',
-            email: localEmail || (initialRole === 'staff' ? 'staff@gmail.com' : 'admin@gmail.com'),
-            role: initialRole,
-            branch_id: null
+            id: localEmail || 'user',
+            email: localEmail || initialRole,
+            role: initialRole
           };
         }
       }
@@ -377,17 +390,31 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setSelectedBranchId(prev => prev || bId);
       }
 
-      setBranches(branchesData); saveCachedData('branches', branchesData);
-      setStaff(staffData); saveCachedData('staff', staffData);
-      setServices(servicesData); saveCachedData('services', servicesData);
-      setClients(clientsData); saveCachedData('clients', clientsData);
-      setAppointments(appointmentsData); saveCachedData('appointments', appointmentsData);
-      setInventory(inventoryData); saveCachedData('inventory', inventoryData);
-      setAttendance(attendanceData); saveCachedData('attendance', attendanceData);
-      setNotifications(notificationsData); saveCachedData('notifications', notificationsData);
-      setExpenses(expensesData); saveCachedData('expenses', expensesData);
-      setTransactions(transactionsData); saveCachedData('transactions', transactionsData);
-      setPartners(partnersData); saveCachedData('partners', partnersData);
+      const safeSetFallback = (setter: any, key: string, data: any[]) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setter(data);
+          saveCachedData(key, data);
+        } else {
+          const cached = loadCachedData(key, []);
+          if (cached.length > 0) {
+            setter(cached);
+          } else if (Array.isArray(data)) {
+            setter(data);
+          }
+        }
+      };
+
+      safeSetFallback(setBranches, 'branches', branchesData);
+      safeSetFallback(setStaff, 'staff', staffData);
+      safeSetFallback(setServices, 'services', servicesData);
+      safeSetFallback(setClients, 'clients', clientsData);
+      safeSetFallback(setAppointments, 'appointments', appointmentsData);
+      safeSetFallback(setInventory, 'inventory', inventoryData);
+      safeSetFallback(setAttendance, 'attendance', attendanceData);
+      safeSetFallback(setNotifications, 'notifications', notificationsData);
+      safeSetFallback(setExpenses, 'expenses', expensesData);
+      safeSetFallback(setTransactions, 'transactions', transactionsData);
+      safeSetFallback(setPartners, 'partners', partnersData);
     } catch (err: any) {
       console.error('Failed to load clinic data:', err);
       setError(err.message || 'Failed to fetch data');

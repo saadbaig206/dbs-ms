@@ -33,7 +33,7 @@ export async function apiFetch<T>(
   const token = getToken();
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 6000);
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
 
   const defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
