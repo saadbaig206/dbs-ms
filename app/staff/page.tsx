@@ -109,9 +109,20 @@ export default function StaffPage() {
     const matchesBranch = branchFilter === 'All' || s.branchId === branchFilter;
     const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) ||
       s.role.toLowerCase().includes(search.toLowerCase()) ||
-      s.email.toLowerCase().includes(search.toLowerCase());
+      (s.email ? s.email.toLowerCase().includes(search.toLowerCase()) : false);
     return matchesBranch && matchesSearch;
   });
+
+  const handleOpenAddModal = () => {
+    setName('');
+    setPhone('+92');
+    setEmail('');
+    setSalary('12000');
+    setStaffRole('Aesthetic Physician');
+    setStaffBranchId('');
+    setPassword('');
+    setIsAddModalOpen(true);
+  };
 
   const handleOpenEditModal = (member: Staff) => {
     setEditingStaffId(member.id);
@@ -127,7 +138,7 @@ export default function StaffPage() {
     }
     setPhone(memberPhone);
 
-    setEmail(member.email);
+    setEmail(member.email || '');
     setStaffBranchId(member.branchId || '');
     setPhoto(member.photo);
     setIsEditModalOpen(true);
@@ -151,7 +162,7 @@ export default function StaffPage() {
       showToast("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)", "error");
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (email && email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       showToast("Please enter a valid email address", "error");
       return;
     }
@@ -168,7 +179,7 @@ export default function StaffPage() {
         role: staffRole,
         salary: Number(salary) || 0,
         phone,
-        email,
+        email: email.trim() || undefined,
         branchId: staffBranchId || undefined
       });
       setIsEditModalOpen(false);
@@ -202,10 +213,6 @@ export default function StaffPage() {
       showToast("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)", "error");
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      showToast("Please enter a valid email address", "error");
-      return;
-    }
     if (Number(salary) <= 0) {
       showToast("Salary must be a positive number", "error");
       return;
@@ -218,7 +225,7 @@ export default function StaffPage() {
         role: staffRole,
         salary: Number(salary) || 0,
         phone,
-        email,
+        email: email.trim() || undefined,
         password: password || undefined,
         joiningDate: new Date().toISOString().split('T')[0],
         status: 'Active',
@@ -234,6 +241,7 @@ export default function StaffPage() {
       setEmail('');
       setPassword('');
       setStaffBranchId('');
+      showToast('Staff member added successfully');
     } catch (err: any) {
       showToast("Failed to add staff member: " + (err.message || err), "error");
     } finally {
@@ -382,7 +390,7 @@ export default function StaffPage() {
           </div>
 
           {activeTab === 'directory' && role === 'admin' && (
-            <Button onClick={() => setIsAddModalOpen(true)} variant="primary" icon={<Plus className="w-4 h-4" />}>
+            <Button onClick={handleOpenAddModal} variant="primary" icon={<Plus className="w-4 h-4" />}>
               Add Practitioner
             </Button>
           )}
@@ -466,10 +474,12 @@ export default function StaffPage() {
                       <Phone className="w-4 h-4 text-slate-400" />
                       <span>{member.phone}</span>
                     </div>
-                    <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300">
-                      <Mail className="w-4 h-4 text-slate-400" />
-                      <span className="truncate">{member.email}</span>
-                    </div>
+                    {member.email && (
+                      <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300">
+                        <Mail className="w-4 h-4 text-slate-400" />
+                        <span className="truncate">{member.email}</span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300">
                       <Calendar className="w-4 h-4 text-slate-400" />
                       <span>Joined {member.joiningDate}</span>
@@ -733,15 +743,6 @@ export default function StaffPage() {
               required
             />
           </div>
-          <Input
-            label="Email Address"
-            type="email"
-            placeholder="staff@dbsaesthetic.pk"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
             <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)} disabled={isSubmitting}>
@@ -820,12 +821,11 @@ export default function StaffPage() {
             />
           </div>
           <Input
-            label="Email Address"
+            label="Email Address (Optional)"
             type="email"
             placeholder="staff@dbsaesthetic.pk"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            required
           />
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">

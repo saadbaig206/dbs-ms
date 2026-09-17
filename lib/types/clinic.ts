@@ -66,7 +66,7 @@ export interface Staff {
   role: StaffRole;
   salary: number;
   phone: string;
-  email: string;
+  email?: string;
   joiningDate: string;
   status: 'Active' | 'On Leave' | 'Inactive';
   performanceRating: number; // 1 to 5

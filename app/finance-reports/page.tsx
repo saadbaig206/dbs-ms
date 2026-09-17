@@ -1292,28 +1292,30 @@ export default function FinanceReportsPage() {
                                         Deletion Pending ({approvals.length}/{totalApprovers})
                                       </Badge>
                                     )}
-                                    <button
-                                      onClick={() => handleDeleteExpenseClick(exp)}
-                                      disabled={hasCurrentUserApproved}
-                                      className={`px-2.5 py-1 text-[10px] font-extrabold uppercase rounded-lg transition-all flex items-center gap-1 ${hasCurrentUserApproved
-                                        ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
-                                        : 'bg-rose-600 text-white hover:bg-rose-700 shadow-sm cursor-pointer'
-                                        }`}
-                                      title={
-                                        hasCurrentUserApproved
-                                          ? `You have approved deletion (${approvals.length}/${totalApprovers})`
-                                          : `Approve deletion of vendor expense (Requires all Admin & Partner approvals)`
-                                      }
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                      {hasCurrentUserApproved
-                                        ? `Approved (${approvals.length}/${totalApprovers})`
-                                        : approvals.length > 0
-                                          ? `Approve Delete (${approvals.length}/${totalApprovers})`
-                                          : `Delete Vendor Expense`}
-                                    </button>
+                                    {role !== 'partner' && (
+                                      <button
+                                        onClick={() => handleDeleteExpenseClick(exp)}
+                                        disabled={hasCurrentUserApproved}
+                                        className={`px-2.5 py-1 text-[10px] font-extrabold uppercase rounded-lg transition-all flex items-center gap-1 ${hasCurrentUserApproved
+                                          ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                                          : 'bg-rose-600 text-white hover:bg-rose-700 shadow-sm cursor-pointer'
+                                          }`}
+                                        title={
+                                          hasCurrentUserApproved
+                                            ? `You have approved deletion (${approvals.length}/${totalApprovers})`
+                                            : `Approve deletion of vendor expense (Requires all Admin & Partner approvals)`
+                                        }
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                        {hasCurrentUserApproved
+                                          ? `Approved (${approvals.length}/${totalApprovers})`
+                                          : approvals.length > 0
+                                            ? `Approve Delete (${approvals.length}/${totalApprovers})`
+                                            : `Delete Vendor Expense`}
+                                      </button>
+                                    )}
                                   </>
-                                ) : (
+                                ) : role !== 'partner' ? (
                                   <>
                                     <button
                                       onClick={() => {
@@ -1340,7 +1342,7 @@ export default function FinanceReportsPage() {
                                       <Trash2 className="w-4 h-4" />
                                     </button>
                                   </>
-                                )}
+                                ) : null}
                               </div>
                             </td>
                           </tr>

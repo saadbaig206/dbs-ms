@@ -498,33 +498,40 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Staff CRUD
   const addStaff = async (newStaff: Omit<Staff, 'id'> & { password?: string }) => {
-    const created: Staff = {
-      ...newStaff,
-      id: `ST-${Math.floor(Math.random() * 900) + 100}`,
-      status: newStaff.status || 'Active',
-      assignedServices: newStaff.assignedServices || ['Signature Treatments'],
-      joiningDate: newStaff.joiningDate || new Date().toISOString().split('T')[0]
-    };
     try {
-      await apiFetch('/staff', {
+      const savedStaff = await apiFetch<Staff>('/staff', {
         method: 'POST',
         body: JSON.stringify(newStaff),
       });
+      if (savedStaff && savedStaff.id) {
+        setStaff(prev => {
+          const next = [savedStaff, ...prev.filter(s => s.id !== savedStaff.id)];
+          saveCachedData('staff', next);
+          return next;
+        });
+      }
       await refreshStaff();
-    } catch (e) {
-      setStaff(prev => { const next = [created, ...prev]; saveCachedData('staff', next); return next; });
+    } catch (e: any) {
+      console.error('Failed to add staff member on backend:', e);
+      throw e;
     }
   };
 
   const updateStaff = async (id: string, updated: Partial<Staff>) => {
     try {
-      await apiFetch(`/staff/${id}`, {
+      const saved = await apiFetch<Staff>(`/staff/${id}`, {
         method: 'PUT',
         body: JSON.stringify(updated),
       });
+      setStaff(prev => {
+        const next = prev.map(s => s.id === id ? { ...s, ...(saved || updated) } : s);
+        saveCachedData('staff', next);
+        return next;
+      });
       await refreshStaff();
     } catch (e) {
-      setStaff(prev => { const next = prev.map(s => s.id === id ? { ...s, ...updated } : s); saveCachedData('staff', next); return next; });
+      console.error('Failed to update staff member on backend:', e);
+      throw e;
     }
   };
 
@@ -533,9 +540,15 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       await apiFetch(`/staff/${id}`, {
         method: 'DELETE',
       });
+      setStaff(prev => {
+        const next = prev.filter(s => s.id !== id);
+        saveCachedData('staff', next);
+        return next;
+      });
       await refreshStaff();
     } catch (e) {
-      setStaff(prev => { const next = prev.filter(s => s.id !== id); saveCachedData('staff', next); return next; });
+      console.error('Failed to delete staff member on backend:', e);
+      throw e;
     }
   };
 

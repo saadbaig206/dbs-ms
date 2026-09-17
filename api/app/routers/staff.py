@@ -9,10 +9,11 @@ from app.models.user import User
 from app.schemas.staff import StaffCreate, StaffUpdate, StaffResponse
 from app.services.salary import sync_staff_salary_expense, remove_expenses_by_staff_id
 from app.core.security import get_password_hash
+from app.routers.bootstrap import invalidate_bootstrap_cache
 
 router = APIRouter()
 
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 
 @router.get("", response_model=List[StaffResponse])
 async def list_staff(
@@ -36,13 +37,16 @@ async def create_staff_member(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_admin_user)
 ):
+    clean_email = staff_in.email.strip() if staff_in.email and staff_in.email.strip() else None
+
     # Check if user already exists
-    user_check = await db.execute(select(User).where(User.email == staff_in.email))
-    if user_check.scalars().first():
-        raise HTTPException(
-            status_code=400,
-            detail="A user/staff member with this email already exists"
-        )
+    if clean_email:
+        user_check = await db.execute(select(User).where(func.lower(User.email) == clean_email.lower()))
+        if user_check.scalars().first():
+            raise HTTPException(
+                status_code=400,
+                detail="A user/staff member with this email already exists"
+            )
 
     import secrets
     staff_id = f"STF-{secrets.token_hex(3).upper()}"
@@ -54,7 +58,7 @@ async def create_staff_member(
         role=staff_in.role,
         salary=staff_in.salary,
         phone=staff_in.phone,
-        email=staff_in.email,
+        email=clean_email,
         joining_date=staff_in.joining_date,
         status=staff_in.status,
         performance_rating=staff_in.performance_rating,
@@ -66,8 +70,8 @@ async def create_staff_member(
 
     # Create or update corresponding User account for login
     staff_pass = staff_in.password.strip() if staff_in.password else "staff123"
-    if staff_in.email:
-        s_email_clean = staff_in.email.strip().lower()
+    if clean_email:
+        s_email_clean = clean_email.lower()
         u_res = await db.execute(select(User).where(func.lower(User.email) == s_email_clean))
         existing_u = u_res.scalars().first()
         if existing_u:
@@ -76,7 +80,7 @@ async def create_staff_member(
             db.add(existing_u)
         else:
             db_user = User(
-                email=staff_in.email.strip(),
+                email=clean_email,
                 hashed_password=get_password_hash(staff_pass),
                 role="staff"
             )
@@ -84,6 +88,7 @@ async def create_staff_member(
 
     await db.commit()
     await db.refresh(db_staff)
+    invalidate_bootstrap_cache()
     
     # Sync salary expense if Active
     if db_staff.status == "Active":
@@ -110,6 +115,7 @@ async def update_staff_member(
     db.add(db_staff)
     await db.commit()
     await db.refresh(db_staff)
+    invalidate_bootstrap_cache()
     
     # Sync salary expense based on status
     if db_staff.status == "Active":
@@ -134,4 +140,5 @@ async def delete_staff_member(
     db.add(db_staff)
     await remove_expenses_by_staff_id(db, staff_id)
     await db.commit()
+    invalidate_bootstrap_cache()
     return {"message": "Staff member marked as Inactive successfully"}

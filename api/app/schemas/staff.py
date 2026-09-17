@@ -8,7 +8,7 @@ class StaffBase(CamelModel):
     role: str
     salary: float = Field(ge=0)
     phone: str
-    email: EmailStr
+    email: Optional[str] = None
     joining_date: str
     status: str = "Active"
     performance_rating: float = Field(default=5.0, ge=1, le=5)
@@ -25,7 +25,7 @@ class StaffUpdate(CamelModel):
     role: Optional[str] = None
     salary: Optional[float] = Field(None, ge=0)
     phone: Optional[str] = None
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None
     joining_date: Optional[str] = None
     status: Optional[str] = None
     performance_rating: Optional[float] = Field(None, ge=1, le=5)

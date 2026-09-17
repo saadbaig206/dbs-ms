@@ -29,6 +29,8 @@ async def list_inventory(
     result = await db.execute(query.order_by(InventoryItem.id.desc()))
     return result.scalars().all()
 
+from app.routers.bootstrap import invalidate_bootstrap_cache
+
 @router.post("", response_model=InventoryResponse)
 async def create_inventory_item(
     item_in: InventoryCreate,
@@ -53,6 +55,7 @@ async def create_inventory_item(
     db.add(db_item)
     await db.commit()
     await db.refresh(db_item)
+    invalidate_bootstrap_cache()
     return db_item
 
 @router.put("/{item_id}", response_model=InventoryResponse)
@@ -62,6 +65,9 @@ async def update_inventory_item(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_staff_user)
 ):
+    if current_user.role == "partner":
+        raise HTTPException(status_code=403, detail="Partners cannot create or edit vendor stock")
+
     result = await db.execute(select(InventoryItem).where(InventoryItem.id == item_id))
     db_item = result.scalars().first()
     if not db_item:
@@ -74,6 +80,7 @@ async def update_inventory_item(
     db.add(db_item)
     await db.commit()
     await db.refresh(db_item)
+    invalidate_bootstrap_cache()
     return db_item
 
 @router.patch("/{item_id}/quantity", response_model=InventoryResponse)
@@ -83,6 +90,9 @@ async def adjust_quantity(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_staff_user)
 ):
+    if current_user.role == "partner" and delta < 0:
+        raise HTTPException(status_code=403, detail="Partners cannot reduce inventory stock")
+
     result = await db.execute(select(InventoryItem).where(InventoryItem.id == item_id))
     db_item = result.scalars().first()
     if not db_item:
@@ -110,5 +120,6 @@ async def adjust_quantity(
         
     await db.commit()
     await db.refresh(db_item)
+    invalidate_bootstrap_cache()
     return db_item
 

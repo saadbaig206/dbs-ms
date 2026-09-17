@@ -419,8 +419,10 @@ export default function InventoryPage() {
                 <th className="py-3.5 px-4">Stock Level</th>
                 <th className="py-3.5 px-4">Vendor Supplier</th>
                 <th className="py-3.5 px-4">Unit Cost</th>
-                <th className="py-3.5 px-4">Status</th>
-                <th className="py-3.5 px-4 text-right rounded-r-xl">Stock Actions</th>
+                <th className={`py-3.5 px-4 ${role === 'partner' ? 'text-right rounded-r-xl' : ''}`}>Status</th>
+                {role !== 'partner' && (
+                  <th className="py-3.5 px-4 text-right rounded-r-xl">Stock Actions</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
@@ -461,7 +463,7 @@ export default function InventoryPage() {
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-slate-100">
                       {formatPKR(item.price, { decimals: false })}
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className={`py-3.5 px-4 ${role === 'partner' ? 'text-right' : ''}`}>
                       <Badge
                         variant={
                           item.status === 'In Stock'
@@ -474,23 +476,25 @@ export default function InventoryPage() {
                         {item.status}
                       </Badge>
                     </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                        <button
-                          onClick={() => handleOpenRenewModal(item.id)}
-                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 hover:bg-emerald-100 transition-colors flex items-center gap-1"
-                        >
-                          <RotateCw className="w-3 h-3" />
-                          Renew Vendor
-                        </button>
-                        <button
-                          onClick={() => { setReduceModalItemId(item.id); setReduceAmount('1'); }}
-                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 hover:bg-rose-100 transition-colors"
-                        >
-                          − Reduce Stock
-                        </button>
-                      </div>
-                    </td>
+                    {role !== 'partner' && (
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          <button
+                            onClick={() => handleOpenRenewModal(item.id)}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 hover:bg-emerald-100 transition-colors flex items-center gap-1"
+                          >
+                            <RotateCw className="w-3 h-3" />
+                            Renew Vendor
+                          </button>
+                          <button
+                            onClick={() => { setReduceModalItemId(item.id); setReduceAmount('1'); }}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 hover:bg-rose-100 transition-colors"
+                          >
+                            − Reduce Stock
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 );
               })}

@@ -86,7 +86,7 @@ from app.models.user import User
 async def delete_expense(
     expense_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_admin_or_partner_user)
+    current_user = Depends(get_admin_user)
 ):
     result = await db.execute(select(ExpenseItem).where(ExpenseItem.id == expense_id))
     db_expense = result.scalars().first()
@@ -115,6 +115,7 @@ async def delete_expense(
     if all_approved:
         await db.delete(db_expense)
         await db.commit()
+        invalidate_bootstrap_cache()
         return {
             "message": "Expense permanently deleted after receiving all admin & partner approvals.",
             "deleted": True,
@@ -146,6 +147,8 @@ async def delete_expense(
         }
 
 
+from app.routers.bootstrap import invalidate_bootstrap_cache
+
 @router.put("/{expense_id}", response_model=ExpenseResponse)
 async def update_expense(
     expense_id: str,
@@ -153,6 +156,9 @@ async def update_expense(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_staff_user)
 ):
+    if current_user.role == "partner":
+        raise HTTPException(status_code=403, detail="Partners cannot edit expenses")
+
     result = await db.execute(select(ExpenseItem).where(ExpenseItem.id == expense_id))
     db_expense = result.scalars().first()
     if not db_expense:
@@ -165,5 +171,6 @@ async def update_expense(
     db.add(db_expense)
     await db.commit()
     await db.refresh(db_expense)
+    invalidate_bootstrap_cache()
     return db_expense
 
