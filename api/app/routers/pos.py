@@ -48,8 +48,12 @@ async def pos_checkout(
             client_phone=payload.client_phone,
             client_id=payload.client_id,
             client_time=payload.client_time,
-            client_date=payload.client_date
         )
+        try:
+            from app.routers.bootstrap import invalidate_bootstrap_cache
+            invalidate_bootstrap_cache()
+        except Exception:
+            pass
         return transaction
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

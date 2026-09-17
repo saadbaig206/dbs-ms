@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app.core.deps import get_db, get_current_user
+from app.core.deps import get_db, get_current_user, set_cached_user
 from app.core.security import verify_password, create_access_token, create_refresh_token
 from app.models.user import User
 from app.schemas.auth import LoginRequest, TokenResponse, UserResponse
@@ -56,31 +56,51 @@ async def login(
                 not raw_pass or
                 raw_pass in spec["passwords"] or
                 login_data.password in spec["passwords"] or
-                raw_pass.lower() in spec["passwords"] or
-                len(raw_pass) > 0  # Any non-empty password for default account aliases succeeds
+                raw_pass.lower() in spec["passwords"]
             )
-            if pass_matched:
-                access_token = create_access_token(subject=key)
-                refresh_token = create_refresh_token(subject=key)
-                clear_user_cache()
+            if not pass_matched:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Incorrect email or password",
+                )
 
-                # Non-blocking best-effort database user sync
-                try:
-                    res = await db.execute(select(User).where(or_(User.email == key, func.lower(User.email) == key)))
-                    db_user = res.scalars().first()
-                    if not db_user:
-                        new_u = User(email=key, hashed_password=get_password_hash(spec["passwords"][0]), role=spec["role"])
-                        db.add(new_u)
-                        await db.commit()
-                except Exception:
-                    pass
+            access_token = create_access_token(subject=key)
+            refresh_token = create_refresh_token(subject=key)
 
-                return {
-                    "access_token": access_token,
-                    "refresh_token": refresh_token,
-                    "token_type": "bearer",
-                    "role": spec["role"]
-                }
+            # Non-blocking best-effort database user sync
+            user_obj = None
+            branch_id = None
+            try:
+                res = await db.execute(select(User).where(or_(User.email == key, func.lower(User.email) == key)))
+                db_user = res.scalars().first()
+                if not db_user:
+                    new_u = User(email=key, hashed_password=get_password_hash(spec["passwords"][0]), role=spec["role"])
+                    db.add(new_u)
+                    await db.commit()
+                    user_obj = new_u
+                else:
+                    user_obj = db_user
+
+                if spec["role"] == "staff":
+                    from app.models.staff import Staff
+                    s_res = await db.execute(select(Staff).where(func.lower(Staff.email) == key))
+                    sm = s_res.scalars().first()
+                    if sm:
+                        branch_id = sm.branch_id
+            except Exception:
+                pass
+
+            if not user_obj:
+                user_obj = User(email=key, role=spec["role"])
+
+            set_cached_user(access_token, user_obj, branch_id)
+
+            return {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_type": "bearer",
+                "role": spec["role"]
+            }
 
     # 2. Check Database Users (Custom Staff / Partner / Admin Accounts)
     user = None
@@ -157,7 +177,18 @@ async def login(
         if password_valid:
             access_token = create_access_token(subject=user.email)
             refresh_token = create_refresh_token(subject=user.email)
-            clear_user_cache()
+            
+            branch_id = None
+            if user.role == "staff":
+                try:
+                    s_res = await db.execute(select(Staff).where(func.lower(Staff.email) == func.lower(user.email)))
+                    sm = s_res.scalars().first()
+                    if sm:
+                        branch_id = sm.branch_id
+                except Exception:
+                    pass
+
+            set_cached_user(access_token, user, branch_id)
             
             return {
                 "access_token": access_token,
@@ -180,7 +211,7 @@ async def login(
             await db.commit()
             access_token = create_access_token(subject=raw_email)
             refresh_token = create_refresh_token(subject=raw_email)
-            clear_user_cache()
+            set_cached_user(access_token, new_u)
             return {
                 "access_token": access_token,
                 "refresh_token": refresh_token,

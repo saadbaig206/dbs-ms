@@ -122,6 +122,11 @@ async def create_appointment(
     
     await db.commit()
     await db.refresh(db_apt)
+    try:
+        from app.routers.bootstrap import invalidate_bootstrap_cache
+        invalidate_bootstrap_cache()
+    except Exception:
+        pass
     return db_apt
 
 @router.put("/{apt_id}", response_model=AppointmentResponse)
@@ -152,6 +157,11 @@ async def update_appointment(
     db.add(db_apt)
     await db.commit()
     await db.refresh(db_apt)
+    try:
+        from app.routers.bootstrap import invalidate_bootstrap_cache
+        invalidate_bootstrap_cache()
+    except Exception:
+        pass
     return db_apt
 
 @router.delete("/{apt_id}")
@@ -167,6 +177,11 @@ async def delete_appointment(
         
     await db.delete(db_apt)
     await db.commit()
+    try:
+        from app.routers.bootstrap import invalidate_bootstrap_cache
+        invalidate_bootstrap_cache()
+    except Exception:
+        pass
     return {"message": "Appointment deleted successfully"}
 
 from app.services.whatsapp_service import WhatsAppService

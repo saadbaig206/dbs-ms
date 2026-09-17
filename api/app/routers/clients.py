@@ -60,6 +60,11 @@ async def create_client(
     db.add(db_client)
     await db.commit()
     await db.refresh(db_client)
+    try:
+        from app.routers.bootstrap import invalidate_bootstrap_cache
+        invalidate_bootstrap_cache()
+    except Exception:
+        pass
     return db_client
 
 @router.put("/{client_id}", response_model=ClientResponse)
@@ -89,4 +94,9 @@ async def update_client(
     db.add(db_client)
     await db.commit()
     await db.refresh(db_client)
+    try:
+        from app.routers.bootstrap import invalidate_bootstrap_cache
+        invalidate_bootstrap_cache()
+    except Exception:
+        pass
     return db_client

@@ -149,7 +149,15 @@ interface ClinicContextType {
 const ClinicContext = createContext<ClinicContextType | undefined>(undefined);
 
 export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [role, setRoleState] = useState<UserRole>('admin');
+  const [role, setRoleState] = useState<UserRole>(() => {
+    if (typeof window !== 'undefined') {
+      const storedRole = localStorage.getItem('user_role') || (document.cookie.match(/(?:^|; )user_role=([^;]*)/)?.[1]);
+      if (storedRole === 'admin' || storedRole === 'staff' || storedRole === 'partner') {
+        return storedRole as UserRole;
+      }
+    }
+    return 'staff';
+  });
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [userBranchId, setUserBranchId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -221,12 +229,11 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // POS
   const [posCart, setPosCart] = useState<POSCartItem[]>([]);
 
-  // Loading state starts false IF cached data or access token exists for instant render
+  // Loading state starts false IF access token exists so UI renders immediately without blocking spinner
   const [isLoading, setIsLoading] = useState(() => {
     if (typeof window === 'undefined') return true;
     const hasToken = !!localStorage.getItem('access_token') || document.cookie.includes('access_token=');
-    const hasCachedData = (localStorage.getItem('clinic_cache_staff') || '[]') !== '[]' || (localStorage.getItem('clinic_cache_services') || '[]') !== '[]';
-    if (hasToken && hasCachedData) {
+    if (hasToken) {
       return false;
     }
     return true;
@@ -246,8 +253,11 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const setRole = (newRole: UserRole) => {
     setRoleState(newRole);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('user_role', newRole);
+    }
     // Write cookie
-    document.cookie = `user_role=${newRole}; path=/; max-age=${60 * 60 * 24 * 8}`;
+    document.cookie = `user_role=${newRole}; path=/; max-age=${60 * 60 * 24 * 8}; SameSite=Lax`;
   };
 
   const toggleRole = () => {
@@ -277,6 +287,9 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const activeUser = bootstrapRes.user;
         const activeRole = (activeUser.role || 'staff') as UserRole;
         setRoleState(activeRole);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('user_role', activeRole);
+        }
         document.cookie = `user_role=${activeRole}; path=/; max-age=${60 * 60 * 24 * 8}; SameSite=Lax`;
         setUserId(activeUser.id || null);
         setUserEmail(activeUser.email || null);
@@ -381,6 +394,9 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       const activeRole = (activeUser.role || initialRole || 'staff') as UserRole;
       setRoleState(activeRole);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('user_role', activeRole);
+      }
       document.cookie = `user_role=${activeRole}; path=/; max-age=${60 * 60 * 24 * 8}; SameSite=Lax`;
       setUserId(activeUser.id || null);
       setUserEmail(activeUser.email || null);
@@ -452,11 +468,9 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  // Fetch data on load
+  // Fetch data on load in background without blocking screen
   useEffect(() => {
-    const hasCachedData = typeof window !== 'undefined' && 
-      ((localStorage.getItem('clinic_cache_staff') || '[]') !== '[]' || (localStorage.getItem('clinic_cache_services') || '[]') !== '[]');
-    refreshData(!hasCachedData);
+    refreshData(false);
   }, []);
 
   // Branches CRUD

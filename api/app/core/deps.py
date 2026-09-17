@@ -12,11 +12,19 @@ from app.models.user import User
 
 # In-memory user authentication cache to avoid redundant DB queries on parallel API requests
 _USER_CACHE = {}
-CACHE_TTL = 30  # seconds
+CACHE_TTL = 300  # 5 minutes
 
 def clear_user_cache():
     global _USER_CACHE
     _USER_CACHE.clear()
+
+def set_cached_user(token: str, user: User, branch_id: Optional[str] = None):
+    global _USER_CACHE
+    _USER_CACHE[token] = {
+        "user": user,
+        "branch_id": branch_id,
+        "time": time.time()
+    }
 
 async def get_current_user(
     request: Request,
