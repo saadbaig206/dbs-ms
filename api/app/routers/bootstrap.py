@@ -106,9 +106,7 @@ async def get_bootstrap_data(
             a_query = a_query.where(or_(Appointment.branch_id == user_branch_id, Appointment.branch_id == None))
         appointments_task = fetch_item(a_query.order_by(Appointment.id.desc()), AppointmentResponse)
 
-        i_query = select(InventoryItem)
-        if user_branch_id:
-            i_query = i_query.where(or_(InventoryItem.branch_id == user_branch_id, InventoryItem.branch_id == None))
+        i_query = select(InventoryItem).order_by(InventoryItem.id.desc())
         inventory_task = fetch_item(i_query, InventoryResponse)
 
         # Cap attendance to 100 recent entries for rapid serialization

@@ -87,6 +87,7 @@ interface ClinicContextType {
   markAppointmentReminderSent: (id: string) => Promise<void>;
 
   inventory: InventoryItem[];
+  refreshInventory: () => Promise<void>;
   addInventoryItem: (item: Omit<InventoryItem, 'id' | 'status'>) => Promise<void>;
   updateInventoryQuantity: (id: string, delta: number) => Promise<void>;
 
@@ -334,7 +335,9 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const initialRole = localRole || role || 'staff';
 
       const mePromise = authClient.me().catch(() => null);
-      const expensesPromise = fetchSafe<ExpenseItem[]>('/expenses', []);
+      const expensesPromise = (initialRole === 'admin' || initialRole === 'partner')
+        ? fetchSafe<ExpenseItem[]>('/expenses', [])
+        : Promise.resolve([]);
       const transactionsPromise = (initialRole === 'admin' || initialRole === 'partner')
         ? fetchSafe<FinancialTransaction[]>('/transactions', [])
         : Promise.resolve([]);
@@ -1130,6 +1133,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         markAppointmentReminderSent,
 
         inventory,
+        refreshInventory,
         addInventoryItem,
         updateInventoryQuantity,
 

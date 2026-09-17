@@ -25,11 +25,25 @@ export default function InventoryPage() {
     userBranchId,
     role,
     userEmail,
-    isLoading
+    isLoading,
+    refreshInventory
   } = useClinic();
 
   const router = useRouter();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
+  useEffect(() => {
+    refreshInventory?.().catch(() => {});
+  }, []);
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshInventory?.();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const [filterBranchId, setFilterBranchId] = useState<string>('');
 
@@ -374,6 +388,14 @@ export default function InventoryPage() {
               ))}
             </select>
           )}
+          <Button 
+            onClick={handleManualRefresh} 
+            variant="outline" 
+            disabled={isRefreshing}
+            icon={<RotateCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />}
+          >
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+          </Button>
           <Button onClick={() => handleOpenRenewModal()} variant="outline" icon={<RotateCw className="w-4 h-4" />}>
             Renew Vendor
           </Button>
@@ -426,7 +448,32 @@ export default function InventoryPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-              {filteredInventory.map((item) => {
+              {filteredInventory.length === 0 ? (
+                <tr>
+                  <td colSpan={role === 'partner' ? 6 : 7} className="py-12 text-center text-slate-400">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Package className="w-10 h-10 text-slate-300 dark:text-slate-600 stroke-[1.5]" />
+                      <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                        {search || statusFilter !== 'All'
+                          ? 'No inventory items match your search or filter.'
+                          : filterBranchId && allInventory.length > 0
+                          ? 'No items found for this branch.'
+                          : 'No inventory items recorded yet.'}
+                      </p>
+                      {filterBranchId && allInventory.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setFilterBranchId('')}
+                          className="text-xs text-blue-500 hover:text-blue-600 font-semibold underline mt-1"
+                        >
+                          Show all {allInventory.length} items across all branches
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filteredInventory.map((item) => {
                 const percent = Math.min(100, Math.round((item.quantity / (item.minStock * 2)) * 100));
 
                 return (
@@ -497,7 +544,7 @@ export default function InventoryPage() {
                     )}
                   </tr>
                 );
-              })}
+              }))}
             </tbody>
           </table>
         </div>
