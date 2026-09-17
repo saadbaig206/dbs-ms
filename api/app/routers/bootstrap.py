@@ -127,7 +127,10 @@ async def get_bootstrap_data(
         attendance = []
 
     try:
-        notif_res = await db.execute(select(NotificationItem).order_by(NotificationItem.id.desc()))
+        notif_query = select(NotificationItem)
+        if role == "partner":
+            notif_query = notif_query.where(NotificationItem.type != "inventory")
+        notif_res = await db.execute(notif_query.order_by(NotificationItem.id.desc()))
         notifications = [safe_dump(n, NotificationResponse) for n in notif_res.scalars().all()]
     except Exception:
         notifications = []

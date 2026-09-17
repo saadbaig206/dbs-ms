@@ -23,6 +23,7 @@ import { useClinic } from '../../lib/context/ClinicContext';
 import { ServiceItem, PaymentMethod } from '../../lib/types/clinic';
 import { formatPKR } from '../../lib/utils/currency';
 import { formatPhoneInput } from '../../lib/utils/phone';
+import { getLocalDateString, getLocalTimeString } from '../../lib/utils/date';
 import { Button } from '../../components/ui/Button';
 import { Input, Select } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
@@ -280,7 +281,12 @@ function POSContent() {
       // number never ends up on the transaction — look the client back up
       // by name and attach it before this gets handed to the print modal.
       const matchedClient = clients.find(c => c.name === activeClient);
-      const txnWithPhone = { ...txn, phone: (txn as any).phone || matchedClient?.phone };
+      const txnWithPhone = {
+        ...txn,
+        phone: (txn as any).phone || matchedClient?.phone,
+        time: txn.time || getLocalTimeString(),
+        date: txn.date || getLocalDateString()
+      };
 
       setLocalRecentTransactions(prev => [txnWithPhone, ...prev].slice(0, 5));
       setIsPaidSuccess(true);

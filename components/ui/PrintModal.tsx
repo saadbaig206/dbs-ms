@@ -11,7 +11,7 @@ import { getLocalDateString, getLocalTimeString, formatDateDisplay } from '../..
 import { Button } from './Button';
 import { Modal } from './Modal';
 
-function InvoicePrintContent({ data, clinicInfo }: { data: any; clinicInfo: any }) {
+function InvoicePrintContent({ data, clinicInfo, printTime }: { data: any; clinicInfo: any; printTime?: string }) {
   const items = data.items?.length
     ? data.items
     : [{ name: data.serviceName, price: data.amount, quantity: 1 }];
@@ -26,12 +26,15 @@ function InvoicePrintContent({ data, clinicInfo }: { data: any; clinicInfo: any 
   // Calculate discount percentage if discount amount and subtotal are provided
   const discountPercent = data.discountPercent ?? (subtotal > 0 ? Math.round((discount / subtotal) * 100) : 0);
 
+  // Always use the exact time from the clock system at that time
+  const displayTime = printTime || getLocalTimeString();
+
   return (
     <div className="space-y-0 text-[13px] text-slate-900 font-mono">
       {/* Date / Time */}
       <div className="flex justify-between font-bold pb-3 pt-2">
         <span>Date: <span className="font-normal">{data.date ? formatDateDisplay(data.date) : formatDateDisplay(getLocalDateString())}</span></span>
-        <span>Time: <span className="font-normal">{data.time || getLocalTimeString()}</span></span>
+        <span>Time: <span className="font-normal">{displayTime}</span></span>
       </div>
 
       <div className="border-t border-dashed border-slate-400" />
@@ -136,13 +139,14 @@ function InvoicePrintContent({ data, clinicInfo }: { data: any; clinicInfo: any 
   );
 }
 
-function PrintDocument({ type, data }: { type: string; data: any }) {
+function PrintDocument({ type, data, printTime }: { type: string; data: any; printTime?: string }) {
   const { clinicInfo, branches } = useClinic();
 
   const branch = branches.find((b: any) => b.id === data.branchId);
   const displayClinicName = branch ? `${clinicInfo.name} (${branch.name})` : clinicInfo.name;
   const displayAddress = branch ? branch.location : clinicInfo.address;
   const displayPhone = branch ? branch.phone || clinicInfo.phone : clinicInfo.phone;
+  const displayTime = printTime || getLocalTimeString();
 
   // Single source of truth for the invoice/reference number —
   // used for the printed label, the QR code payload, and the barcode.
@@ -170,10 +174,15 @@ function PrintDocument({ type, data }: { type: string; data: any }) {
 
       <div className="border-t border-dashed border-slate-400" />
 
-      {type === 'invoice' && <InvoicePrintContent data={data} clinicInfo={clinicInfo} />}
+      {type === 'invoice' && <InvoicePrintContent data={data} clinicInfo={clinicInfo} printTime={displayTime} />}
 
       {type === 'slip' && (
         <div className="pt-4 space-y-4 text-[13px] font-mono">
+          <div className="flex justify-between font-bold pb-2">
+            <span>Date: <span className="font-normal">{data.date ? formatDateDisplay(data.date) : formatDateDisplay(getLocalDateString())}</span></span>
+            <span>Time: <span className="font-normal">{displayTime}</span></span>
+          </div>
+          <div className="border-t border-dashed border-slate-400" />
           <div className="space-y-1 font-semibold text-slate-800">
             <p className="font-black uppercase tracking-wide text-slate-900">Appointment Details</p>
             <p>Client Name : <span className="font-bold">{data.clientName}</span></p>
@@ -270,14 +279,28 @@ function PrintDocument({ type, data }: { type: string; data: any }) {
 export const PrintModal: React.FC = () => {
   const { printData, setPrintData } = useClinic();
   const [mounted, setMounted] = React.useState(false);
+  const [currentClockTime, setCurrentClockTime] = React.useState<string>(() => getLocalTimeString());
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (printData) {
+      setCurrentClockTime(getLocalTimeString());
+    }
+
+    const handleBeforePrint = () => {
+      setCurrentClockTime(getLocalTimeString());
+    };
+    window.addEventListener('beforeprint', handleBeforePrint);
+    return () => window.removeEventListener('beforeprint', handleBeforePrint);
+  }, [printData]);
+
   if (!printData) return null;
 
   const handlePrint = () => {
+    setCurrentClockTime(getLocalTimeString());
     window.print();
   };
 
@@ -299,7 +322,7 @@ export const PrintModal: React.FC = () => {
           </div>
 
           <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-            <PrintDocument type={type} data={data} />
+            <PrintDocument type={type} data={data} printTime={currentClockTime} />
           </div>
         </div>
       </Modal>
@@ -307,7 +330,7 @@ export const PrintModal: React.FC = () => {
       {mounted &&
         createPortal(
           <div id="print-portal" aria-hidden="true">
-            <PrintDocument type={type} data={data} />
+            <PrintDocument type={type} data={data} printTime={currentClockTime} />
           </div>,
           document.body
         )}

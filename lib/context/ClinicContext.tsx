@@ -1030,6 +1030,8 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     cardDetails?: { cardLastFour?: string; cardType?: string; bankTxnId?: string }
   ): Promise<FinancialTransaction> => {
     try {
+      const clientTime = getLocalTimeString();
+      const clientDate = getLocalDateString();
       const txn = await apiFetch<FinancialTransaction>('/pos/checkout', {
         method: 'POST',
         body: JSON.stringify({
@@ -1041,7 +1043,9 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           cardLastFour: cardDetails?.cardLastFour,
           cardType: cardDetails?.cardType,
           bankTxnId: cardDetails?.bankTxnId,
-          branchId: selectedBranchId || userBranchId || undefined
+          branchId: selectedBranchId || userBranchId || undefined,
+          clientTime,
+          clientDate
         })
       });
 
@@ -1051,7 +1055,11 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         refreshClients(),
         refreshInventory()
       ]).catch(err => console.error(err));
-      return txn;
+      return {
+        ...txn,
+        time: txn?.time || clientTime,
+        date: txn?.date || clientDate
+      };
     } catch (e: any) {
       console.error('POS Checkout failed:', e);
       throw e;

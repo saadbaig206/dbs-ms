@@ -12,7 +12,7 @@ export function getLocalDateString(d: Date = new Date()): string {
  * Returns hh:mm AM/PM in local browser time zone.
  */
 export function getLocalTimeString(d: Date = new Date()): string {
-  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).replace(/\u202f/g, ' ');
 }
 
 /**

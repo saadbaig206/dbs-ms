@@ -20,6 +20,8 @@ class POSCheckoutPayload(CamelModel):
     branch_id: Optional[str] = None
     client_phone: Optional[str] = None
     client_id: Optional[str] = None
+    client_time: Optional[str] = None
+    client_date: Optional[str] = None
 
 from app.core.deps import get_db, get_staff_user, get_user_branch_id
 
@@ -44,7 +46,9 @@ async def pos_checkout(
             bank_txn_id=payload.bank_txn_id,
             branch_id=active_branch,
             client_phone=payload.client_phone,
-            client_id=payload.client_id
+            client_id=payload.client_id,
+            client_time=payload.client_time,
+            client_date=payload.client_date
         )
         return transaction
     except Exception as e:

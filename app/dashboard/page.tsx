@@ -170,7 +170,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Low Stock Warning Banner */}
-      {lowStockCount > 0 && (
+      {role !== 'partner' && lowStockCount > 0 && (
         <div className="p-4 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60 rounded-[20px] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-rose-800 dark:text-rose-200">
           <div className="flex items-center gap-3">
             <AlertTriangle className="w-5 h-5 shrink-0 text-rose-600 dark:text-rose-400" />

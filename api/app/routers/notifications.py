@@ -14,7 +14,10 @@ async def list_notifications(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_staff_user)
 ):
-    result = await db.execute(select(NotificationItem).order_by(NotificationItem.id.desc()))
+    query = select(NotificationItem)
+    if getattr(current_user, "role", None) == "partner":
+        query = query.where(NotificationItem.type != "inventory")
+    result = await db.execute(query.order_by(NotificationItem.id.desc()))
     return result.scalars().all()
 
 @router.patch("/{notification_id}/read", response_model=NotificationResponse)

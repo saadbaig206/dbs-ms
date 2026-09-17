@@ -398,7 +398,7 @@ export default function InventoryPage() {
             options={[
               { label: 'All Stock Statuses', value: 'All' },
               { label: 'In Stock', value: 'In Stock' },
-              { label: 'Low Stock Alerts', value: 'Low Stock' },
+              { label: role === 'partner' ? 'Low Stock' : 'Low Stock Alerts', value: 'Low Stock' },
               { label: 'Out of Stock', value: 'Out of Stock' }
             ]}
             value={statusFilter}

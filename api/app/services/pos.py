@@ -24,7 +24,9 @@ async def checkout(
     bank_txn_id: str = None,
     branch_id: str = None,
     client_phone: str = None,
-    client_id: str = None
+    client_id: str = None,
+    client_time: str = None,
+    client_date: str = None
 ) -> FinancialTransaction:
     # Compute totals
     subtotal = sum(item["price"] * item["quantity"] for item in cart_items)
@@ -33,7 +35,7 @@ async def checkout(
     tax = (taxable * tax_percent) / 100.0
     grand_total = round(taxable + tax, 2)
     
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_str = client_date or datetime.now().strftime("%Y-%m-%d")
     
     # Generate collision-resistant unique Transaction and Invoice IDs
     count_stmt = select(func.count()).select_from(FinancialTransaction)
@@ -180,7 +182,7 @@ async def checkout(
                     )
                     db.add(stock_alert)
 
-    current_time_str = datetime.now().strftime("%I:%M %p")
+    current_time_str = client_time or datetime.now().strftime("%I:%M %p")
 
     # 3. Create the FinancialTransaction record
     transaction = FinancialTransaction(

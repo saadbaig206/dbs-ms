@@ -90,9 +90,20 @@ export const Navbar: React.FC = () => {
   const displayNotifications = React.useMemo(() => {
     if (role === 'partner') {
       return notifications.filter(n => {
-        const typeMatch = n.type === 'vendor_approval' || n.type === 'vendor';
+        // Do not show inventory alerts on partner role
+        if (n.type === 'inventory') return false;
         const titleLower = (n.title || '').toLowerCase();
         const msgLower = (n.message || '').toLowerCase();
+        if (
+          titleLower.includes('inventory') ||
+          titleLower.includes('stock') ||
+          msgLower.includes('inventory') ||
+          msgLower.includes('stock')
+        ) {
+          return false;
+        }
+
+        const typeMatch = n.type === 'vendor_approval' || n.type === 'vendor';
         const textMatch = titleLower.includes('vendor') ||
                           titleLower.includes('delete') ||
                           titleLower.includes('approval') ||
