@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app.core.deps import get_db, get_admin_or_partner_user, get_staff_user, get_user_branch_id
+from app.core.deps import get_db, get_admin_or_partner_user, get_staff_user, get_admin_user, get_user_branch_id
 from app.models.expense import ExpenseItem
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate, ExpenseResponse
 
