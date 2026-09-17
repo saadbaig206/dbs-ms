@@ -64,14 +64,14 @@ function POSContent() {
   const [taxPercent, setTaxPercent] = useState<string>('10');
   const [isPaidSuccess, setIsPaidSuccess] = useState(false);
   const [mobilePosTab, setMobilePosTab] = useState<'catalog' | 'ticket'>('catalog');
-  
+
   // Card details states
   const [cardLastFour, setCardLastFour] = useState('');
   const [cardType, setCardType] = useState('Visa');
   const [bankTxnId, setBankTxnId] = useState('');
   const [cvc, setCvc] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
-  
+
   // Local recent transactions list to guarantee reprint works for staff
   const [localRecentTransactions, setLocalRecentTransactions] = useState<any[]>([]);
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
@@ -94,7 +94,7 @@ function POSContent() {
       if (!matchedService && serviceNameParam) {
         const cleanName = serviceNameParam.split('(')[0].trim().toLowerCase();
         matchedService = services.find(s => s.name.toLowerCase() === serviceNameParam.toLowerCase()) ||
-                         services.find(s => s.name.toLowerCase().includes(cleanName) || cleanName.includes(s.name.toLowerCase()));
+          services.find(s => s.name.toLowerCase().includes(cleanName) || cleanName.includes(s.name.toLowerCase()));
       }
 
       if (matchedService) {
@@ -292,7 +292,7 @@ function POSContent() {
 
       setLocalRecentTransactions(prev => [txnWithPhone, ...prev].slice(0, 5));
       setIsPaidSuccess(true);
-      
+
       // Clear inputs
       setClientName('');
       setClientSearch('');
@@ -342,21 +342,19 @@ function POSContent() {
       <div className="flex lg:hidden items-center p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700">
         <button
           onClick={() => setMobilePosTab('catalog')}
-          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
-            mobilePosTab === 'catalog'
+          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${mobilePosTab === 'catalog'
               ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm'
               : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-100'
-          }`}
+            }`}
         >
           Treatment Catalog
         </button>
         <button
           onClick={() => setMobilePosTab('ticket')}
-          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-            mobilePosTab === 'ticket'
+          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${mobilePosTab === 'ticket'
               ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm'
               : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-100'
-          }`}
+            }`}
         >
           <span>Invoice Ticket</span>
           {posCart.length > 0 && (
@@ -385,11 +383,10 @@ function POSContent() {
                 <button
                   key={cat}
                   onClick={() => setSelectedCategory(cat)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                    selectedCategory === cat
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${selectedCategory === cat
                       ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                  }`}
+                    }`}
                 >
                   {cat}
                 </button>
@@ -414,11 +411,10 @@ function POSContent() {
                     <tr
                       key={srv.id}
                       onClick={() => srv.status !== 'Out of Stock' && addToPosCart(srv)}
-                      className={`transition-colors ${
-                        srv.status === 'Out of Stock'
+                      className={`transition-colors ${srv.status === 'Out of Stock'
                           ? 'opacity-60 bg-slate-100/50 dark:bg-slate-900/40 cursor-not-allowed'
                           : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40 cursor-pointer'
-                      }`}
+                        }`}
                     >
                       <td className="py-2.5 px-3">
                         <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
@@ -491,23 +487,23 @@ function POSContent() {
                   />
                   {isClientDropdownOpen && (
                     <>
-                      <div 
-                        className="fixed inset-0 z-10" 
+                      <div
+                        className="fixed inset-0 z-10"
                         onClick={() => {
                           setIsClientDropdownOpen(false);
-                        }} 
+                        }}
                       />
                       <div className="absolute left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-20 divide-y divide-slate-100 dark:divide-slate-800/60">
-                        {clients.filter(c => 
-                          c.name.toLowerCase().includes(clientSearch.toLowerCase()) || 
+                        {clients.filter(c =>
+                          c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
                           c.phone.includes(clientSearch)
                         ).length === 0 ? (
                           <div className="p-3 text-xs text-slate-400 text-center">
                             No clients found. Click '+' to add.
                           </div>
                         ) : (
-                          clients.filter(c => 
-                            c.name.toLowerCase().includes(clientSearch.toLowerCase()) || 
+                          clients.filter(c =>
+                            c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
                             c.phone.includes(clientSearch)
                           ).map((c) => (
                             <button
@@ -605,11 +601,10 @@ function POSContent() {
                       key={pct}
                       type="button"
                       onClick={() => setDiscountPercent(String(pct))}
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${
-                        Number(discountPercent) === pct
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${Number(discountPercent) === pct
                           ? 'bg-blue-600 text-white border-blue-600'
                           : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100'
-                      }`}
+                        }`}
                     >
                       {pct === 0 ? 'None' : `${pct}%`}
                     </button>
@@ -643,11 +638,10 @@ function POSContent() {
                   <button
                     key={pm}
                     onClick={() => setPaymentMethod(pm)}
-                    className={`py-2 rounded-xl text-xs font-bold transition-all border ${
-                      paymentMethod === pm
+                    className={`py-2 rounded-xl text-xs font-bold transition-all border ${paymentMethod === pm
                         ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20'
                         : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
-                    }`}
+                      }`}
                   >
                     {pm}
                   </button>
@@ -657,7 +651,7 @@ function POSContent() {
 
             {/* Card details sub-form */}
             {paymentMethod === 'Card' && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3"
@@ -741,7 +735,7 @@ function POSContent() {
 
             {/* Online details sub-form */}
             {paymentMethod === 'Online' && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3"
@@ -835,7 +829,7 @@ function POSContent() {
           <Printer className="w-4 h-4 text-blue-600" />
           Recent Sales & Invoice Reprinting
         </h3>
-        
+
         {(() => {
           const displayTxns = role === 'admin'
             ? [...localRecentTransactions, ...(transactions || [])].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).slice(0, 5)
@@ -882,7 +876,7 @@ function POSContent() {
                           >
                             Reprint
                           </Button>
-                           {role === 'admin' && (
+                          {role === 'admin' && (
                             <Button
                               onClick={() => handleOpenEditTxnModal(txn)}
                               variant="secondary"
@@ -919,7 +913,7 @@ function POSContent() {
             onChange={(e) => setEditClientName(e.target.value)}
             required
           />
-          
+
           <Select
             label="Payment Method"
             options={[
@@ -973,11 +967,10 @@ function POSContent() {
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className={`fixed top-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl border shadow-xl ${
-              toastMessage.type === 'success'
+            className={`fixed top-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl border shadow-xl ${toastMessage.type === 'success'
                 ? 'bg-emerald-50 dark:bg-emerald-950/90 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800'
                 : 'bg-rose-50 dark:bg-rose-950/90 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-800'
-            }`}
+              }`}
           >
             {toastMessage.type === 'success' ? (
               <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 animate-pulse" />

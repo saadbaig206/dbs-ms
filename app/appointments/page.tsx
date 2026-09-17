@@ -301,8 +301,8 @@ export default function AppointmentsPage() {
               key={tab}
               onClick={() => setDateFilter(tab)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${dateFilter === tab
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
                 }`}
             >
               {tab}
@@ -384,11 +384,10 @@ export default function AppointmentsPage() {
                       <div className="flex flex-col gap-1">
                         <span>{apt.serviceName}</span>
                         {apt.category && (
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase w-max ${
-                            apt.category === 'consultation'
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase w-max ${apt.category === 'consultation'
                               ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-900/40'
                               : 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-900/40'
-                          }`}>
+                            }`}>
                             {apt.category}
                           </span>
                         )}
