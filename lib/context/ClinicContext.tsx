@@ -449,9 +449,11 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const refreshAttendance = async () => { const data = await fetchSafe('/attendance', []); setAttendance(data); saveCachedData('attendance', data); };
   const refreshNotifications = async () => { const data = await fetchSafe('/notifications', []); setNotifications(data); saveCachedData('notifications', data); };
   const refreshExpenses = async () => {
-    const data = await fetchSafe('/expenses', []);
-    setExpenses(data);
-    saveCachedData('expenses', data);
+    if (role === 'admin' || role === 'partner') {
+      const data = await fetchSafe('/expenses', []);
+      setExpenses(data);
+      saveCachedData('expenses', data);
+    }
   };
   const refreshTransactions = async () => {
     if (role === 'admin' || role === 'partner') {
@@ -786,7 +788,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Expenses CRUD
   const addExpense = async (expense: Omit<ExpenseItem, 'id'>) => {
-    const activeUser = userEmail || role || 'Admin/Partner';
+    const activeUser = userEmail || (role === 'staff' ? 'Staff' : 'Admin/Partner');
     const newExp: ExpenseItem = {
       ...expense,
       id: `EXP-${Math.floor(Math.random() * 900) + 100}`,
@@ -803,9 +805,13 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           branchId: expense.branchId || selectedBranchId || userBranchId || undefined
         }),
       });
-      await refreshExpenses();
+      if (role === 'admin' || role === 'partner') {
+        await refreshExpenses();
+      }
     } catch (e) {
-      setExpenses(prev => { const next = [newExp, ...prev]; saveCachedData('expenses', next); return next; });
+      if (role === 'admin' || role === 'partner') {
+        setExpenses(prev => { const next = [newExp, ...prev]; saveCachedData('expenses', next); return next; });
+      }
     }
   };
 

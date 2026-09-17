@@ -21,6 +21,7 @@ import { StatCard } from '../../components/cards/StatCard';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
+import { AddExpenseModal } from '../../components/ui/AddExpenseModal';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -43,6 +44,7 @@ export default function DashboardPage() {
 
   const [mounted, setMounted] = React.useState(false);
   const [attendanceMsg, setAttendanceMsg] = React.useState<string | null>(null);
+  const [isAddExpenseOpen, setIsAddExpenseOpen] = React.useState(false);
 
   React.useEffect(() => {
     setMounted(true);
@@ -164,6 +166,14 @@ export default function DashboardPage() {
                   New Appointment
                 </Button>
               </Link>
+              <Button
+                variant="outline"
+                icon={<DollarSign className="w-4 h-4" />}
+                onClick={() => setIsAddExpenseOpen(true)}
+                className="w-full sm:w-auto justify-center"
+              >
+                Record Expense
+              </Button>
             </div>
           )}
         </div>
@@ -512,6 +522,12 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      <AddExpenseModal
+        isOpen={isAddExpenseOpen}
+        onClose={() => setIsAddExpenseOpen(false)}
+        defaultBranchId={selectedBranchId}
+      />
     </div>
   );
 }

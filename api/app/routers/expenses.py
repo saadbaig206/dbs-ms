@@ -16,7 +16,7 @@ async def list_expenses(
     skip: Optional[int] = None,
     limit: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_staff_user),
+    current_user = Depends(get_admin_or_partner_user),
     user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
     query = select(ExpenseItem)
@@ -78,6 +78,11 @@ async def create_expense(
     db.add(db_expense)
     await db.commit()
     await db.refresh(db_expense)
+    try:
+        from app.routers.bootstrap import invalidate_bootstrap_cache
+        invalidate_bootstrap_cache()
+    except Exception:
+        pass
     return db_expense
 
 from app.models.user import User

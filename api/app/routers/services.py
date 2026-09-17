@@ -50,7 +50,7 @@ async def list_services(
 async def create_service(
     service_in: ServiceCreate,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_admin_user)
+    current_user = Depends(get_staff_user)
 ):
     count_result = await db.execute(select(ServiceItem))
     count = len(count_result.scalars().all())
@@ -71,6 +71,11 @@ async def create_service(
     db.add(db_service)
     await db.commit()
     await db.refresh(db_service)
+    try:
+        from app.routers.bootstrap import invalidate_bootstrap_cache
+        invalidate_bootstrap_cache()
+    except Exception:
+        pass
     return db_service
 
 @router.put("/{service_id}", response_model=ServiceResponse)
@@ -78,7 +83,7 @@ async def update_service(
     service_id: str,
     service_in: ServiceUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_admin_user)
+    current_user = Depends(get_staff_user)
 ):
     result = await db.execute(select(ServiceItem).where(ServiceItem.id == service_id))
     db_service = result.scalars().first()
@@ -92,4 +97,9 @@ async def update_service(
     db.add(db_service)
     await db.commit()
     await db.refresh(db_service)
+    try:
+        from app.routers.bootstrap import invalidate_bootstrap_cache
+        invalidate_bootstrap_cache()
+    except Exception:
+        pass
     return db_service

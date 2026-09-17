@@ -29,6 +29,7 @@ import { Input, Select } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 import { Modal } from '../../components/ui/Modal';
+import { AddExpenseModal } from '../../components/ui/AddExpenseModal';
 
 function POSContent() {
   const searchParams = useSearchParams();
@@ -73,6 +74,7 @@ function POSContent() {
   
   // Local recent transactions list to guarantee reprint works for staff
   const [localRecentTransactions, setLocalRecentTransactions] = useState<any[]>([]);
+  const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
 
   // Auto-populate client and service from appointment parameters
   const autoBillProcessedRef = useRef<string | null>(null);
@@ -323,6 +325,16 @@ function POSContent() {
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             Create and print client receipts.
           </p>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <Button
+            variant="outline"
+            icon={<DollarSign className="w-4 h-4" />}
+            onClick={() => setIsAddExpenseOpen(true)}
+          >
+            Record Expense
+          </Button>
         </div>
       </div>
 
@@ -995,6 +1007,10 @@ function POSContent() {
           </button>
         </div>
       )}
+      <AddExpenseModal
+        isOpen={isAddExpenseOpen}
+        onClose={() => setIsAddExpenseOpen(false)}
+      />
     </div>
   );
 }

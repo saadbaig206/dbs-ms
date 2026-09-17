@@ -96,7 +96,7 @@ export default function ServicesPage() {
           </p>
         </div>
 
-        {role === 'admin' && (
+        {role !== 'partner' && (
           <Button onClick={() => setIsAddModalOpen(true)} variant="primary" icon={<Plus className="w-4 h-4" />}>
             Add New Service
           </Button>
@@ -190,7 +190,7 @@ export default function ServicesPage() {
                       </Badge>
                     </td>
                     <td className="py-3.5 px-4 text-right">
-                      {role === 'admin' && (
+                      {role !== 'partner' && (
                         <div className="inline-flex items-center gap-3">
                           <button
                             onClick={() => handleEditPrice(srv)}
