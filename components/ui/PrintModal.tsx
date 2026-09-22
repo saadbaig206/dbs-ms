@@ -19,9 +19,17 @@ function InvoicePrintContent({ data, clinicInfo, printTime }: { data: any; clini
   const subtotal = data.subtotal ?? data.amount ?? 0;
   const tax = data.tax ?? 0;
   const discount = data.discount ?? 0;
-  const netAmount = data.grandTotal ?? subtotal + tax - discount;
-  const cashReceived = data.cashReceived ?? netAmount;
-  const cashReturned = data.cashReturned ?? Math.max(cashReceived - netAmount, 0);
+  const netAmount = data.grandTotal ?? Math.max(0, subtotal + tax - discount);
+
+  const amountPaid = data.amountPaid !== undefined && data.amountPaid !== null ? data.amountPaid : netAmount;
+  const remainingDue = data.remainingDue !== undefined && data.remainingDue !== null ? data.remainingDue : Math.max(0, netAmount - amountPaid);
+  const isPartial = remainingDue > 0;
+  const isRefunded = (data.status || '').toLowerCase() === 'refunded' || (data.paymentStatus || '').toLowerCase() === 'refunded';
+
+  const paymentMethod = data.paymentMethod || 'Cash';
+  const isCash = paymentMethod.toLowerCase() === 'cash';
+  const cashReceived = data.cashReceived ?? (isCash ? amountPaid : 0);
+  const cashReturned = data.cashReturned ?? Math.max(cashReceived - amountPaid, 0);
 
   // Calculate discount percentage if discount amount and subtotal are provided
   const discountPercent = data.discountPercent ?? (subtotal > 0 ? Math.round((discount / subtotal) * 100) : 0);
@@ -31,6 +39,18 @@ function InvoicePrintContent({ data, clinicInfo, printTime }: { data: any; clini
 
   return (
     <div className="space-y-0 text-[13px] text-slate-900 font-mono">
+      {/* Refunded or Duplicate Watermark */}
+      {isRefunded && (
+        <div className="my-2 py-2 px-2 border-2 border-dashed border-rose-600 bg-rose-50 text-rose-700 text-center font-black text-xs tracking-wider uppercase rounded">
+          *** TRANSACTION VOIDED / REFUNDED ***
+        </div>
+      )}
+      {Boolean(data.reprintCount && data.reprintCount > 0) && !isRefunded && (
+        <div className="my-2 py-1.5 px-2 border-2 border-dashed border-red-600 bg-red-50 text-red-700 text-center font-black text-xs tracking-wider uppercase rounded">
+          *** DUPLICATE REPRINT (Copy #{data.reprintCount}) ***
+        </div>
+      )}
+
       {/* Date / Time */}
       <div className="flex justify-between font-bold pb-3 pt-2">
         <span>Date: <span className="font-normal">{data.date ? formatDateDisplay(data.date) : formatDateDisplay(getLocalDateString())}</span></span>
@@ -43,6 +63,7 @@ function InvoicePrintContent({ data, clinicInfo, printTime }: { data: any; clini
       <div className="pt-3 pb-3 space-y-1">
         <p className="font-black font-bold uppercase tracking-wide">Customer Info</p>
         <p>Name : <span className="font-bold">{data.clientName || 'Valued Client'}</span></p>
+        {data.phone && <p>Phone : <span className="font-bold">{data.phone}</span></p>}
       </div>
 
       <div className="border-t border-dashed border-slate-400" />
@@ -51,6 +72,10 @@ function InvoicePrintContent({ data, clinicInfo, printTime }: { data: any; clini
       <div className="pt-3 pb-3 space-y-1">
         <p className="font-black uppercase tracking-wide">Invoice Details</p>
         <p>Invoice No : <span className="font-bold">{data.invoiceId || data.id || `INV-${Date.now().toString().slice(-6)}`}</span></p>
+        <p>Payment Tender : <span className="font-bold uppercase">{paymentMethod}</span></p>
+        {data.bankTxnId && (
+          <p className="text-[11px] text-slate-700">Ref / Slip # : <span className="font-bold">{data.bankTxnId}</span></p>
+        )}
       </div>
 
       <div className="border-t border-dashed border-slate-400" />
@@ -58,15 +83,15 @@ function InvoicePrintContent({ data, clinicInfo, printTime }: { data: any; clini
       {/* Service Table */}
       <div className="pt-3">
         <div className="bg-slate-950 text-white flex justify-between px-3 py-2 rounded-md font-bold uppercase text-[11px] tracking-wide">
-          <span className="w-1/3">Service</span>
-          <span className="w-1/3 text-center">Quantity</span>
+          <span className="w-1/3">Service / Item</span>
+          <span className="w-1/3 text-center">Qty</span>
           <span className="w-1/3 text-right">Amount</span>
         </div>
         {items.map((item: any, idx: number) => (
           <div key={idx} className="flex justify-between px-3 py-2 text-slate-800">
-            <span className="w-1/3">{item.name}</span>
+            <span className="w-1/3 truncate">{item.name}</span>
             <span className="w-1/3 text-center">{item.quantity}</span>
-            <span className="w-1/3 text-right">{formatPKR(item.price)}</span>
+            <span className="w-1/3 text-right">{formatPKR(item.price * (item.quantity || 1))}</span>
           </div>
         ))}
       </div>
@@ -76,16 +101,16 @@ function InvoicePrintContent({ data, clinicInfo, printTime }: { data: any; clini
       {/* Totals */}
       <div className="pt-2 space-y-1.5">
         <div className="flex justify-end px-3 gap-10">
-          <span className="font-bold w-32">Total</span>
+          <span className="font-bold w-32">Subtotal</span>
           <span className="w-24 text-right">{formatPKR(subtotal)}</span>
         </div>
         <div className="flex justify-end px-3 gap-10">
-          <span className="w-32">GST({data.taxPercent ?? 5}%)</span>
+          <span className="w-32">GST ({data.taxPercent ?? 0}%)</span>
           <span className="w-24 text-right">{formatPKR(tax)}</span>
         </div>
         <div className="flex justify-end px-3 gap-10">
-          <span className="w-32">Discount({discountPercent}%)</span>
-          <span className="w-24 text-right">{formatPKR(discount)}</span>
+          <span className="w-32">Discount ({discountPercent}%)</span>
+          <span className="w-24 text-right">-{formatPKR(discount)}</span>
         </div>
       </div>
 
@@ -93,19 +118,64 @@ function InvoicePrintContent({ data, clinicInfo, printTime }: { data: any; clini
         <div className="w-70 border-t border-dashed border-slate-400" />
       </div>
 
+      {/* Net Amount & Payment Allocation */}
       <div className="pt-2 space-y-1.5">
         <div className="bg-slate-950 text-white flex justify-between px-3 py-2 rounded-md mt-1">
           <span className="font-black w-32">Net Amount</span>
           <span className="w-24 text-right font-black">{formatPKR(netAmount)}</span>
         </div>
-        <div className="flex justify-end px-3 gap-10">
-          <span className="w-32">Cash received</span>
-          <span className="w-24 text-right">{formatPKR(cashReceived)}</span>
-        </div>
-        <div className="flex justify-end px-3 gap-10">
-          <span className="w-32">Cash returned</span>
-          <span className="w-24 text-right">{formatPKR(cashReturned)}</span>
-        </div>
+
+        {/* Split Payment Tender Details if applicable */}
+        {data.paymentSplits && data.paymentSplits.length > 0 ? (
+          <div className="pt-1 pb-1 space-y-1 border-t border-dashed border-slate-300">
+            <p className="font-bold text-[11px] uppercase text-slate-700">Split Tender Breakdown:</p>
+            {data.paymentSplits.map((split: any, idx: number) => (
+              <div key={idx} className="flex justify-between px-3 text-xs">
+                <span>{split.method} Tender:</span>
+                <span className="font-bold font-mono">{formatPKR(split.amount)}</span>
+              </div>
+            ))}
+          </div>
+        ) : isCash ? (
+          <>
+            <div className="flex justify-end px-3 gap-10">
+              <span className="w-32">Cash Tendered</span>
+              <span className="w-24 text-right font-bold">{formatPKR(cashReceived)}</span>
+            </div>
+            {cashReturned > 0 && (
+              <div className="flex justify-end px-3 gap-10">
+                <span className="w-32">Change Returned</span>
+                <span className="w-24 text-right font-bold text-emerald-700">{formatPKR(cashReturned)}</span>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="flex justify-end px-3 gap-10">
+            <span className="w-32">{paymentMethod} Paid</span>
+            <span className="w-24 text-right font-bold">{formatPKR(amountPaid)}</span>
+          </div>
+        )}
+
+        {/* Partial Payment Warning & Outstanding Due Notice */}
+        {isPartial ? (
+          <div className="mt-3 p-2.5 bg-amber-50 border-2 border-dashed border-amber-600 rounded-lg text-amber-900 space-y-1">
+            <div className="flex justify-between font-bold text-xs">
+              <span>Amount Paid Now:</span>
+              <span className="font-mono">{formatPKR(amountPaid)}</span>
+            </div>
+            <div className="flex justify-between font-black text-sm text-amber-800 border-t border-amber-300 pt-1">
+              <span>REMAINING BALANCE DUE:</span>
+              <span className="font-mono">{formatPKR(remainingDue)}</span>
+            </div>
+            <p className="text-[10px] text-amber-700 italic pt-0.5">
+              * Please settle outstanding balance on or before next clinical appointment.
+            </p>
+          </div>
+        ) : (
+          <div className="text-right px-3 pt-1 text-xs font-black text-emerald-700 uppercase">
+            ✓ Status: Paid in Full
+          </div>
+        )}
       </div>
 
       <div className="border-t border-dashed border-slate-400 mt-4" />
@@ -134,6 +204,92 @@ function InvoicePrintContent({ data, clinicInfo, printTime }: { data: any; clini
       <div className="pt-4 text-center space-y-0.5">
         <p className="font-black">Thank you for choosing</p>
         <p className="font-black">{clinicInfo?.name || 'DBS Aesthetic Clinic & Salon'}</p>
+      </div>
+    </div>
+  );
+}
+
+function DailyZReportContent({ data, clinicInfo, displayTime }: { data: any; clinicInfo: any; displayTime: string }) {
+  const variance = Number(data.variance) || 0;
+  const varianceStatus = data.varianceStatus || (variance === 0 ? 'Balanced' : variance > 0 ? 'Over' : 'Short');
+
+  return (
+    <div className="space-y-0 text-[13px] text-slate-900 font-mono">
+      {/* Title */}
+      <div className="text-center py-2 border-b-2 border-slate-950 space-y-0.5">
+        <h2 className="font-black text-sm tracking-wider uppercase">DAILY CASH DRAWER Z-REPORT</h2>
+        <p className="text-[10px] text-slate-600 uppercase font-semibold">End-of-Shift Reconciliation</p>
+      </div>
+
+      {/* Date / Time */}
+      <div className="flex justify-between font-bold py-2.5 text-xs">
+        <span>Date: <span className="font-normal">{data.date}</span></span>
+        <span>Time: <span className="font-normal">{data.time || displayTime}</span></span>
+      </div>
+
+      <div className="border-t border-dashed border-slate-400" />
+
+      {/* Cash Reconciliation Figures */}
+      <div className="py-3 space-y-2 text-xs">
+        {data.openingFloat !== undefined && (
+          <div className="flex justify-between items-center text-slate-600">
+            <span>Morning Opening Float:</span>
+            <span className="font-mono font-bold">{formatPKR(data.openingFloat)}</span>
+          </div>
+        )}
+        {data.shiftNetInflow !== undefined && (
+          <div className="flex justify-between items-center text-slate-600">
+            <span>Shift Net Cash Inflow:</span>
+            <span className="font-mono font-bold">{formatPKR(data.shiftNetInflow)}</span>
+          </div>
+        )}
+        <div className="flex justify-between items-center">
+          <span className="font-bold text-slate-700">Total System Expected:</span>
+          <span className="font-mono font-bold">{formatPKR(data.systemExpectedCash ?? 0)}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="font-bold text-slate-700">Physical Counted Cash:</span>
+          <span className="font-mono font-bold">{formatPKR(data.actualCountedCash ?? 0)}</span>
+        </div>
+
+        <div className="border-t border-slate-300 pt-2 flex justify-between items-center text-sm">
+          <span className="font-black uppercase">Drawer Variance:</span>
+          <span className={`font-mono font-black ${
+            variance === 0 ? 'text-emerald-700' : variance > 0 ? 'text-blue-700' : 'text-rose-700'
+          }`}>
+            {variance >= 0 ? '+' : ''}{formatPKR(variance)} ({varianceStatus})
+          </span>
+        </div>
+      </div>
+
+      <div className="border-t border-dashed border-slate-400" />
+
+      {/* Cashier Notes */}
+      <div className="py-3 text-xs space-y-1">
+        <p className="font-bold uppercase text-[10px] text-slate-600">Verification Notes:</p>
+        <p className="text-slate-800 italic bg-slate-50 p-2 rounded border border-slate-200">
+          {data.notes || 'Shift cash counted and verified by cashier.'}
+        </p>
+      </div>
+
+      <div className="border-t border-dashed border-slate-400" />
+
+      {/* Signature Lines */}
+      <div className="pt-6 pb-2 grid grid-cols-2 gap-4 text-center text-[10px]">
+        <div>
+          <div className="border-b border-slate-400 mb-1" />
+          <p className="font-bold uppercase">Cashier Signature</p>
+        </div>
+        <div>
+          <div className="border-b border-slate-400 mb-1" />
+          <p className="font-bold uppercase">Manager Approval</p>
+        </div>
+      </div>
+
+      <div className="border-t border-dashed border-slate-400 mt-4" />
+      <div className="pt-3 text-center space-y-0.5 text-[11px]">
+        <p className="font-black">{clinicInfo?.name || 'DBS Aesthetic Clinic & Salon'}</p>
+        <p className="text-[10px] text-slate-500">Audit-Certified Shift Closeout</p>
       </div>
     </div>
   );
@@ -176,7 +332,11 @@ function PrintDocument({ type, data, printTime }: { type: string; data: any; pri
 
       {type === 'invoice' && <InvoicePrintContent data={data} clinicInfo={clinicInfo} printTime={displayTime} />}
 
-      {type === 'slip' && (
+      {(type === 'z-report' || (type === 'slip' && (data.systemExpectedCash !== undefined || data.title?.includes('Z-REPORT') || data.variance !== undefined))) && (
+        <DailyZReportContent data={data} clinicInfo={clinicInfo} displayTime={displayTime} />
+      )}
+
+      {type === 'slip' && !(data.systemExpectedCash !== undefined || data.title?.includes('Z-REPORT') || data.variance !== undefined) && (
         <div className="pt-4 space-y-4 text-[13px] font-mono">
           <div className="flex justify-between font-bold pb-2">
             <span>Date: <span className="font-normal">{data.date ? formatDateDisplay(data.date) : formatDateDisplay(getLocalDateString())}</span></span>

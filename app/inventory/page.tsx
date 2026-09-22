@@ -18,6 +18,7 @@ export default function InventoryPage() {
     inventory: allInventory,
     addInventoryItem,
     updateInventoryQuantity,
+    updateInventoryItem,
     addExpense,
     branches,
     selectedBranchId,
@@ -65,16 +66,46 @@ export default function InventoryPage() {
   const [reduceModalItemId, setReduceModalItemId] = useState<string | null>(null);
   const [reduceAmount, setReduceAmount] = useState<string>('1');
 
+  // Edit Selling Price Modal State
+  const [editPriceModalItem, setEditPriceModalItem] = useState<any>(null);
+  const [newSellingPrice, setNewSellingPrice] = useState('');
+
+  const handleOpenEditPriceModal = (item: any) => {
+    setEditPriceModalItem(item);
+    setNewSellingPrice(String(item.price || 0));
+  };
+
+  const handleSavePrice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editPriceModalItem) return;
+    const priceNum = Number(newSellingPrice);
+    if (isNaN(priceNum) || priceNum < 0) {
+      showToast("Selling price cannot be negative", "error");
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      await updateInventoryItem(editPriceModalItem.id, { price: priceNum });
+      showToast(`Updated retail selling price for '${editPriceModalItem.itemName}' to Rs. ${priceNum}`);
+      setEditPriceModalItem(null);
+    } catch (err: any) {
+      showToast("Failed to update price: " + (err.message || err), "error");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // Vendor Form State
   const [vendorName, setVendorName] = useState('');
   const [productName, setProductName] = useState('');
   const [category, setCategory] = useState<InventoryCategory | 'custom'>('Injectables & Toxins');
   const [customCategory, setCustomCategory] = useState('');
   const [vendorBranchId, setVendorBranchId] = useState<string>('');
-  const [quantity, setQuantity] = useState<string>('10');
+  const [quantity, setQuantity] = useState<string>('');
+  const [sellingPrice, setSellingPrice] = useState<string>('');
   const [paymentType, setPaymentType] = useState<'Debit' | 'Credit'>('Debit');
-  const [actualAmount, setActualAmount] = useState<string>('5000');
-  const [amountPaid, setAmountPaid] = useState<string>('5000');
+  const [actualAmount, setActualAmount] = useState<string>('');
+  const [amountPaid, setAmountPaid] = useState<string>('');
 
   // Auto-sync vendor branch default
   useEffect(() => {
@@ -97,10 +128,11 @@ export default function InventoryPage() {
   // Renew Vendor Form State
   const [isRenewVendorModalOpen, setIsRenewVendorModalOpen] = useState(false);
   const [renewItemId, setRenewItemId] = useState<string>('');
-  const [renewQty, setRenewQty] = useState<string>('10');
-  const [renewActualAmount, setRenewActualAmount] = useState<string>('5000');
+  const [renewQty, setRenewQty] = useState<string>('');
+  const [renewActualAmount, setRenewActualAmount] = useState<string>('');
+  const [renewSellingPrice, setRenewSellingPrice] = useState<string>('');
   const [renewPaymentType, setRenewPaymentType] = useState<'Debit' | 'Credit'>('Debit');
-  const [renewAmountPaid, setRenewAmountPaid] = useState<string>('5000');
+  const [renewAmountPaid, setRenewAmountPaid] = useState<string>('');
 
   const selectedRenewItem = inventory.find(i => i.id === renewItemId) || inventory[0];
 
@@ -118,9 +150,9 @@ export default function InventoryPage() {
     const item = itemId ? inventory.find(i => i.id === itemId) : (inventory[0] || null);
     if (item) {
       setRenewItemId(item.id);
-      setRenewQty('10');
-      setRenewActualAmount(String(item.price * 10 || 5000));
-      setRenewAmountPaid(String(item.price * 10 || 5000));
+      setRenewQty('');
+      setRenewActualAmount('');
+      setRenewAmountPaid('');
       setRenewPaymentType('Debit');
     }
     setIsRenewVendorModalOpen(true);
@@ -169,6 +201,8 @@ export default function InventoryPage() {
 
     const activeUser = userEmail || role || 'Admin/Partner';
     const unitPrice = actAmtNum > 0 ? Math.round(actAmtNum / qtyNum) : 0;
+    const sellPriceNum = Number(sellingPrice);
+    const finalSellingPrice = (!isNaN(sellPriceNum) && sellPriceNum > 0) ? sellPriceNum : unitPrice;
     const todayStr = new Date().toISOString().split('T')[0];
     const nowFormatStr = new Date().toLocaleString('en-US', {
       dateStyle: 'medium',
@@ -185,9 +219,10 @@ export default function InventoryPage() {
     setVendorName('');
     setProductName('');
     setCustomCategory('');
-    setQuantity('10');
-    setActualAmount('5000');
-    setAmountPaid('5000');
+    setQuantity('');
+    setSellingPrice('');
+    setActualAmount('');
+    setAmountPaid('');
     setPaymentType('Debit');
 
     showToast(`Vendor '${vName}' added successfully!`);
@@ -201,6 +236,9 @@ export default function InventoryPage() {
 
       if (existingItem) {
         await updateInventoryQuantity(existingItem.id, qtyNum);
+        if (!isNaN(sellPriceNum) && sellPriceNum > 0) {
+          await updateInventoryItem(existingItem.id, { price: sellPriceNum });
+        }
       } else {
         await addInventoryItem({
           itemName: pName,
@@ -208,7 +246,7 @@ export default function InventoryPage() {
           quantity: qtyNum,
           minStock: 10,
           supplier: vName,
-          price: unitPrice,
+          price: finalSellingPrice,
           lastRestocked: todayStr,
           branchId: targetBranchId
         });
@@ -285,6 +323,11 @@ export default function InventoryPage() {
 
     try {
       await updateInventoryQuantity(targetItem.id, qtyNum);
+      const renewSellNum = Number(renewSellingPrice);
+      if (!isNaN(renewSellNum) && renewSellNum > 0) {
+        await updateInventoryItem(targetItem.id, { price: renewSellNum });
+      }
+      setRenewSellingPrice('');
 
       await addExpense({
         title: `Vendor Renewal: ${pName} (${vName})`,
@@ -314,6 +357,12 @@ export default function InventoryPage() {
           }
         ] : []
       });
+
+      setRenewItemId('');
+      setRenewQty('');
+      setRenewActualAmount('');
+      setRenewAmountPaid('');
+      setRenewPaymentType('Debit');
 
       showToast(`Vendor order for '${vName}' (${pName}) renewed successfully with +${qtyNum} units!`);
     } catch (err: any) {
@@ -527,6 +576,14 @@ export default function InventoryPage() {
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5 flex-wrap">
                           <button
+                            onClick={() => handleOpenEditPriceModal(item)}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 hover:bg-blue-100 transition-colors flex items-center gap-1"
+                            title="Set or Edit Retail Selling Price"
+                          >
+                            <DollarSign className="w-3 h-3" />
+                            Set Price
+                          </button>
+                          <button
                             onClick={() => handleOpenRenewModal(item.id)}
                             className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 hover:bg-emerald-100 transition-colors flex items-center gap-1"
                           >
@@ -586,7 +643,7 @@ export default function InventoryPage() {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Select
               label="Category"
               options={[
@@ -609,6 +666,14 @@ export default function InventoryPage() {
               value={quantity}
               onChange={(e) => setQuantity(e.target.value.replace(/\D/g, ''))}
               required
+            />
+            <Input
+              label="Retail Selling Price (PKR)"
+              type="number"
+              min="0"
+              placeholder="e.g. 8500 (POS Price)"
+              value={sellingPrice}
+              onChange={(e) => setSellingPrice(e.target.value)}
             />
           </div>
 
@@ -658,16 +723,22 @@ export default function InventoryPage() {
               label="Actual Amount (Rs)"
               type="text"
               value={actualAmount}
-              onChange={(e) => setActualAmount(e.target.value.replace(/\D/g, ''))}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, '');
+                setActualAmount(val);
+                if (paymentType === 'Debit') {
+                  setAmountPaid(val);
+                }
+              }}
               required
             />
             <Input
-              label={paymentType === 'Debit' ? "Amount Paid (Same as Actual)" : "Initial Amount Paid (Rs)"}
+              label={paymentType === 'Debit' ? "Amount Paid (Full Payment)" : "Initial Amount Paid (Rs)"}
               type="text"
-              value={amountPaid}
+              value={paymentType === 'Debit' ? actualAmount : amountPaid}
               disabled={paymentType === 'Debit'}
               onChange={(e) => setAmountPaid(e.target.value.replace(/\D/g, ''))}
-              required
+              required={paymentType === 'Credit'}
             />
           </div>
 
@@ -770,7 +841,7 @@ export default function InventoryPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Input
               label="Restock Quantity (+Units)"
               type="text"
@@ -791,6 +862,15 @@ export default function InventoryPage() {
               value={renewActualAmount}
               onChange={(e) => setRenewActualAmount(e.target.value.replace(/\D/g, ''))}
               required
+            />
+
+            <Input
+              label="Retail Price (Optional Update)"
+              type="number"
+              min="0"
+              placeholder={selectedRenewItem ? `Current: ${selectedRenewItem.price}` : 'e.g. 5000'}
+              value={renewSellingPrice}
+              onChange={(e) => setRenewSellingPrice(e.target.value)}
             />
           </div>
 
@@ -862,6 +942,48 @@ export default function InventoryPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Edit Selling Price Modal */}
+      <Modal
+        isOpen={!!editPriceModalItem}
+        onClose={() => setEditPriceModalItem(null)}
+        title="Set Product Selling Price"
+        description={`Configure standard retail selling price for client checkout`}
+        maxWidth="md"
+      >
+        {editPriceModalItem && (
+          <form onSubmit={handleSavePrice} className="space-y-4 pt-2">
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl space-y-1">
+              <div className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                {editPriceModalItem.itemName}
+              </div>
+              <div className="text-xs text-slate-500 flex items-center gap-2">
+                <span>Category: <strong>{editPriceModalItem.category}</strong></span>
+                <span>•</span>
+                <span>Stock: <strong>{editPriceModalItem.quantity} units</strong></span>
+              </div>
+            </div>
+
+            <Input
+              label="Retail Selling Price (PKR)"
+              type="number"
+              value={newSellingPrice}
+              onChange={(e) => setNewSellingPrice(e.target.value)}
+              placeholder="e.g. 4500"
+              required
+            />
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <Button type="button" variant="outline" onClick={() => setEditPriceModalItem(null)} disabled={isSubmitting}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" disabled={isSubmitting}>
+                {isSubmitting ? 'Saving...' : 'Save Selling Price'}
+              </Button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   );

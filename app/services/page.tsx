@@ -19,16 +19,29 @@ export default function ServicesPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingService, setEditingService] = useState<ServiceItem | null>(null);
+
+  // Edit Service Form State
+  const [editName, setEditName] = useState('');
+  const [editCategory, setEditCategory] = useState<ServiceCategory>('Facial & Skin Care');
   const [editPrice, setEditPrice] = useState<string>('0');
+  const [editDuration, setEditDuration] = useState<string>('60');
+  const [editDescription, setEditDescription] = useState('');
   const [editStatus, setEditStatus] = useState<'Active' | 'Inactive' | 'Out of Stock'>('Active');
+  const [editRequiredInventory, setEditRequiredInventory] = useState<{ inventoryItemId: string; itemName: string; quantityUsed: number }[]>([]);
+  const [editProductToAdd, setEditProductToAdd] = useState('');
+  const [editQtyToAdd, setEditQtyToAdd] = useState('1');
+
+  // Error state
+  const [serviceError, setServiceError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
 
   // Form State
   const [name, setName] = useState('');
   const [category, setCategory] = useState<ServiceCategory>('Facial & Skin Care');
-  const [price, setPrice] = useState<string>('350');
-  const [durationMinutes, setDurationMinutes] = useState<string>('60');
+  const [price, setPrice] = useState<string>('');
+  const [durationMinutes, setDurationMinutes] = useState<string>('');
   const [description, setDescription] = useState('');
-  const [image, setImage] = useState('https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&q=80&w=500');
+  const [image, setImage] = useState('');
 
   // Mapping state
   const [requiredInventory, setRequiredInventory] = useState<{ inventoryItemId: string; itemName: string; quantityUsed: number }[]>([]);
@@ -52,34 +65,72 @@ export default function ServicesPage() {
     const activeStaff = staff && staff.length > 0 ? staff : [];
     try {
       setIsSubmitting(true);
+      setServiceError(null);
       await addService({
-        name,
+        name: name.trim(),
         category,
         price: Number(price) || 0,
         durationMinutes: Number(durationMinutes) || 0,
         assignedStaffIds: activeStaff.map(s => s.id),
         assignedStaffNames: activeStaff.map(s => s.name),
         status: 'Active',
-        image,
-        description,
+        image: image.trim() || '',
+        description: description.trim(),
         requiredInventory
       });
 
       setIsAddModalOpen(false);
       setName('');
+      setPrice('');
+      setDurationMinutes('');
+      setImage('');
       setDescription('');
       setRequiredInventory([]);
     } catch (err: any) {
-      alert("Failed to save service: " + (err.message || err));
+      setServiceError(err.message || "Failed to save service");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleEditPrice = (srv: ServiceItem) => {
+  const handleOpenEditModal = (srv: ServiceItem) => {
     setEditingService(srv);
+    setEditName(srv.name);
+    setEditCategory(srv.category as ServiceCategory);
     setEditPrice(String(srv.price));
+    setEditDuration(String(srv.durationMinutes || 60));
+    setEditDescription(srv.description || '');
     setEditStatus(srv.status);
+    setEditRequiredInventory(srv.requiredInventory || []);
+    setEditProductToAdd('');
+    setEditQtyToAdd('1');
+    setEditError(null);
+  };
+
+  const handleUpdateServiceSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSubmitting || !editingService) return;
+
+    try {
+      setIsSubmitting(true);
+      setEditError(null);
+      const numPrice = Number(editPrice);
+      const numDuration = Number(editDuration);
+      await updateService(editingService.id, {
+        name: editName.trim(),
+        category: editCategory,
+        price: isNaN(numPrice) ? 0 : numPrice,
+        durationMinutes: isNaN(numDuration) ? 0 : numDuration,
+        description: editDescription.trim(),
+        status: editStatus,
+        requiredInventory: editRequiredInventory
+      });
+      setEditingService(null);
+    } catch (err: any) {
+      setEditError(err.message || "Failed to update service");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -193,10 +244,11 @@ export default function ServicesPage() {
                       {role !== 'partner' && (
                         <div className="inline-flex items-center gap-3">
                           <button
-                            onClick={() => handleEditPrice(srv)}
-                            className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
+                            onClick={() => handleOpenEditModal(srv)}
+                            className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
                           >
-                            Edit Price
+                            <Edit className="w-3.5 h-3.5" />
+                            Edit Service
                           </button>
                           <button
                             onClick={() => updateService(srv.id, { status: srv.status === 'Active' ? 'Inactive' : 'Active' })}
@@ -218,12 +270,22 @@ export default function ServicesPage() {
       {/* Add Service Modal */}
       <Modal
         isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setServiceError(null);
+        }}
         title="Add New Treatment Service"
         description="Expand clinic service catalog with high-end aesthetic therapies"
         maxWidth="lg"
       >
         <form onSubmit={handleCreateService} className="space-y-4">
+          {serviceError && (
+            <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+              {serviceError}
+            </div>
+          )}
+
           <Input
             label="Service Title"
             placeholder="e.g. Diamond Microdermabrasion Glow"
@@ -302,7 +364,7 @@ export default function ServicesPage() {
                   label="Map Product / Consumable"
                   options={[
                     { label: '-- Select Inventory Product --', value: '' },
-                    ...inventory.map(item => ({ label: `${item.itemName} (Stock: ${item.quantity})`, value: item.id }))
+                    ...(inventory || []).map(item => ({ label: `${item.itemName} (Stock: ${item.quantity})`, value: item.id }))
                   ]}
                   value={selectedProductToAdd}
                   onChange={(e) => setSelectedProductToAdd(e.target.value)}
@@ -353,42 +415,150 @@ export default function ServicesPage() {
       {/* Edit Service Modal */}
       <Modal
         isOpen={editingService !== null}
-        onClose={() => setEditingService(null)}
+        onClose={() => {
+          setEditingService(null);
+          setEditError(null);
+        }}
         title={`Edit Service: ${editingService?.name}`}
-        description="Update service pricing and active status"
-        maxWidth="md"
+        description="Update service details, pricing, duration, and consumable linkages"
+        maxWidth="lg"
       >
-        <form onSubmit={async (e) => {
-          e.preventDefault();
-          if (isSubmitting || !editingService) return;
-          try {
-            setIsSubmitting(true);
-            const numericPrice = Number(editPrice);
-            await updateService(editingService.id, { price: isNaN(numericPrice) ? 0 : numericPrice, status: editStatus });
-            setEditingService(null);
-          } catch (err: any) {
-            alert("Failed to update service: " + (err.message || err));
-          } finally {
-            setIsSubmitting(false);
-          }
-        }} className="space-y-4">
+        <form onSubmit={handleUpdateServiceSubmit} className="space-y-4">
+          {editError && (
+            <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+              {editError}
+            </div>
+          )}
+
           <Input
-            label="Service Price (Rs)"
-            type="text"
-            value={editPrice}
-            onChange={(e) => setEditPrice(e.target.value.replace(/\D/g, ''))}
+            label="Service Title"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
             required
           />
 
-          <Select
-            label="Service Status"
-            options={[
-              { label: 'Active', value: 'Active' },
-              { label: 'Inactive', value: 'Inactive' }
-            ]}
-            value={editStatus}
-            onChange={(e) => setEditStatus(e.target.value as any)}
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="sm:col-span-2">
+              <Select
+                label="Category"
+                options={[
+                  { label: 'Facial & Skin Care', value: 'Facial & Skin Care' },
+                  { label: 'Laser Treatments', value: 'Laser Treatments' },
+                  { label: 'Injectables & Anti-Aging', value: 'Injectables & Anti-Aging' },
+                  { label: 'Body Contouring', value: 'Body Contouring' },
+                  { label: 'IV Therapy', value: 'IV Therapy' },
+                  { label: 'Rejuvenation', value: 'Rejuvenation' },
+                  { label: 'Packages', value: 'Packages' }
+                ]}
+                value={editCategory}
+                onChange={(e) => setEditCategory(e.target.value as any)}
+              />
+            </div>
+            <Input
+              label="Price (Rs)"
+              type="text"
+              value={editPrice}
+              onChange={(e) => setEditPrice(e.target.value.replace(/\D/g, ''))}
+              required
+            />
+            <Input
+              label="Duration (mins)"
+              type="text"
+              value={editDuration}
+              onChange={(e) => setEditDuration(e.target.value.replace(/\D/g, ''))}
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="sm:col-span-2">
+              <Input
+                label="Description"
+                placeholder="Detailed clinical procedure summary..."
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+              />
+            </div>
+            <Select
+              label="Service Status"
+              options={[
+                { label: 'Active', value: 'Active' },
+                { label: 'Inactive', value: 'Inactive' },
+                { label: 'Out of Stock', value: 'Out of Stock' }
+              ]}
+              value={editStatus}
+              onChange={(e) => setEditStatus(e.target.value as any)}
+            />
+          </div>
+
+          {/* Edit Inventory Mapping Section */}
+          <div className="space-y-3 border-t border-slate-100 dark:border-slate-800 pt-4">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Linked Consumable Inventory</label>
+            <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
+              {editRequiredInventory.length === 0 ? (
+                <div className="text-[11px] text-slate-400 italic">No inventory consumption mapped for this service.</div>
+              ) : (
+                editRequiredInventory.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                    <span className="font-bold text-slate-700 dark:text-slate-200">{item.itemName}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-slate-500 font-semibold">Qty: {item.quantityUsed}</span>
+                      <button
+                        type="button"
+                        onClick={() => setEditRequiredInventory(prev => prev.filter((_, i) => i !== idx))}
+                        className="text-[11px] text-rose-500 font-bold hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="flex items-end gap-2 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-2xl border border-slate-100 dark:border-slate-800">
+              <div className="flex-1">
+                <Select
+                  label="Map Product / Consumable"
+                  options={[
+                    { label: '-- Select Inventory Product --', value: '' },
+                    ...(inventory || []).map(item => ({ label: `${item.itemName} (Stock: ${item.quantity})`, value: item.id }))
+                  ]}
+                  value={editProductToAdd}
+                  onChange={(e) => setEditProductToAdd(e.target.value)}
+                />
+              </div>
+              <div className="w-24">
+                <Input
+                  label="Qty Consumed"
+                  type="number"
+                  min="1"
+                  value={editQtyToAdd}
+                  onChange={(e) => setEditQtyToAdd(e.target.value)}
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  if (!editProductToAdd) return;
+                  const item = inventory.find(i => i.id === editProductToAdd);
+                  if (item) {
+                    if (editRequiredInventory.some(r => r.inventoryItemId === item.id)) return;
+                    setEditRequiredInventory(prev => [
+                      ...prev,
+                      { inventoryItemId: item.id, itemName: item.itemName, quantityUsed: Number(editQtyToAdd) || 1 }
+                    ]);
+                    setEditProductToAdd('');
+                    setEditQtyToAdd('1');
+                  }
+                }}
+              >
+                Add Link
+              </Button>
+            </div>
+          </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
             <Button type="button" variant="outline" onClick={() => setEditingService(null)} disabled={isSubmitting}>

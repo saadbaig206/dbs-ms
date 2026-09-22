@@ -8,7 +8,7 @@ from sqlalchemy.future import select
 from sqlalchemy import desc
 
 from app.db.session import get_db
-from app.core.deps import get_user_branch_id
+from app.core.deps import get_user_branch_id, get_staff_user
 from app.models.whatsapp import WhatsAppConversation, WhatsAppMessage, WhatsAppSettings
 from app.models.client import Client
 from app.services.groq_service import GroqService
@@ -214,29 +214,36 @@ async def receive_webhook(
     except Exception as e:
         print(f"Webhook error: {e}")
         return {"status": "error", "message": str(e)}
-                    
-        return {"status": "event_received"}
-    except Exception as e:
-        print(f"Webhook error: {e}")
-        return {"status": "error", "message": str(e)}
 
 # --- List Conversations (GET) ---
 @router.get("/conversations", response_model=List[ConversationResponse])
-async def list_conversations(db: AsyncSession = Depends(get_db)):
+async def list_conversations(
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_staff_user)
+):
     stmt = select(WhatsAppConversation).order_by(desc(WhatsAppConversation.updated_at))
     result = await db.execute(stmt)
     return result.scalars().all()
 
 # --- Get Messages for Conversation (GET) ---
 @router.get("/conversations/{id}/messages", response_model=List[MessageResponse])
-async def get_messages(id: str, db: AsyncSession = Depends(get_db)):
+async def get_messages(
+    id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_staff_user)
+):
     stmt = select(WhatsAppMessage).where(WhatsAppMessage.conversation_id == id).order_by(WhatsAppMessage.created_at)
     result = await db.execute(stmt)
     return result.scalars().all()
 
 # --- Toggle Chatbot Mode (PATCH) ---
 @router.patch("/conversations/{id}", response_model=ConversationResponse)
-async def update_mode(id: str, body: ConversationUpdate, db: AsyncSession = Depends(get_db)):
+async def update_mode(
+    id: str,
+    body: ConversationUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_staff_user)
+):
     stmt = select(WhatsAppConversation).where(WhatsAppConversation.id == id)
     result = await db.execute(stmt)
     conversation = result.scalars().first()
@@ -256,7 +263,8 @@ async def send_manual_message(
     id: str,
     body: MessageSend,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_staff_user)
 ):
     stmt = select(WhatsAppConversation).where(WhatsAppConversation.id == id)
     result = await db.execute(stmt)
@@ -290,6 +298,7 @@ async def send_manual_message(
 @router.get("/settings")
 async def get_whatsapp_settings(
     db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_staff_user),
     user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
     whatsapp_settings = None
@@ -304,25 +313,50 @@ async def get_whatsapp_settings(
         whatsapp_settings = result.scalars().first()
     
     if not whatsapp_settings:
+        # Dynamically load active branches & services to build authentic knowledge base
+        from app.models.branch import Branch
+        from app.models.service import ServiceItem
+
+        branch_stmt = select(Branch)
+        branch_res = await db.execute(branch_stmt)
+        branches_list = branch_res.scalars().all()
+
+        services_stmt = select(ServiceItem).where(ServiceItem.status == "Active").limit(10)
+        services_res = await db.execute(services_stmt)
+        services_list = services_res.scalars().all()
+
+        kb_sections = [
+            "DBS Aesthetics Clinic & Salon is a premium luxury wellness destination.",
+            ""
+        ]
+
+        if branches_list:
+            kb_sections.append("1. CLINIC LOCATIONS:")
+            for b in branches_list:
+                line = f"• {b.name}: {b.location}"
+                if b.phone:
+                    line += f" (Phone: {b.phone})"
+                kb_sections.append(line)
+            kb_sections.append("")
+
+        if services_list:
+            kb_sections.append("2. FEATURED TREATMENTS & SERVICES:")
+            for s in services_list:
+                kb_sections.append(f"• {s.name} ({s.category}): PKR {s.price:,.0f} ({s.duration_minutes} mins)")
+            kb_sections.append("")
+
+        kb_sections.extend([
+            "3. APPOINTMENT & VISIT POLICIES:",
+            "• Appointments are recommended for all consultations and services.",
+            "• Please notify the clinic at least 24 hours in advance to reschedule or cancel."
+        ])
+
+        default_kb = "\n".join(kb_sections)
+
         whatsapp_settings = WhatsAppSettings(
-            branch_id=None,
+            branch_id=user_branch_id,
             system_prompt="You are a helpful customer service assistant for DBS Aesthetics Clinic. Be professional, polite, and direct.",
-            knowledge_base=(
-                "DBS Aesthetics Clinic & Salon is a premium luxury wellness destination.\n\n"
-                "1. BRANCH LOCATION:\n"
-                "• Address: Block CCA, DHA Phase 5, Lahore, Pakistan.\n"
-                "• Phone: +92 (300) 123-4567\n"
-                "• Hours: Monday to Saturday, 11:00 AM - 8:00 PM. Closed on Sunday.\n\n"
-                "2. POPULAR TREATMENTS & PRICING:\n"
-                "• HydraFacial (Deep Cleansing): PKR 12,000\n"
-                "• Laser Hair Removal (Full Face): PKR 8,000\n"
-                "• Botox Injection (Per Unit): PKR 1,500\n"
-                "• FUE Hair Transplant: Starting from PKR 150,000\n"
-                "• Premium Gold Facial: PKR 15,000\n\n"
-                "3. POLICIES:\n"
-                "• Pre-booking is mandatory for all doctor consultations and salon services.\n"
-                "• Please cancel or reschedule at least 24 hours in advance."
-            )
+            knowledge_base=default_kb
         )
         db.add(whatsapp_settings)
         await db.commit()
@@ -335,6 +369,7 @@ async def get_whatsapp_settings(
 async def update_whatsapp_settings(
     body: SettingsUpdate,
     db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_staff_user),
     user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
     stmt = select(WhatsAppSettings)

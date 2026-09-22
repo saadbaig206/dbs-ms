@@ -56,6 +56,6 @@ docker-compose up --build
 - Backend Swagger documentation will be available at: `http://localhost:8000/docs`
 
 ### Manual Setup
-For detailed setup instructions, including database creation, running the test suites, and JWT credentials configuration, please refer to:
-👉 **[SETUP.md](file:///c:/Users/amtul/Desktop/DBS-System/SETUP.md)**
-👉 **[SYSTEM_GUIDE.md](file:///c:/Users/amtul/Desktop/DBS-System/SYSTEM_GUIDE.md)**
+For detailed setup instructions, including database creation, running the test suites, and JWT credentials configuration, please refer to:  
+👉 **[SETUP.md](./SETUP.md)**
+👉 **[SYSTEM_GUIDE.md](./SYSTEM_GUIDE.md)**

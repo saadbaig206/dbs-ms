@@ -105,7 +105,9 @@ async def create_appointment(
         notes=apt_in.notes,
         price=apt_in.price,
         branch_id=apt_in.branch_id,
-        category=apt_in.category
+        category=apt_in.category,
+        transaction_id=apt_in.transaction_id,
+        payment_status=apt_in.payment_status or "Unpaid"
     )
     db.add(db_apt)
     
@@ -142,6 +144,28 @@ async def update_appointment(
         raise HTTPException(status_code=404, detail="Appointment not found")
         
     update_data = apt_in.model_dump(exclude_unset=True)
+
+    user_role = getattr(current_user, "role", "")
+    is_admin = (user_role == "admin")
+    is_billed = bool(db_apt.transaction_id or db_apt.payment_status in ("Paid", "Billed"))
+
+    # Protect billed appointments from unauthorized tampering / detachment
+    if is_billed and not is_admin:
+        if "transaction_id" in update_data and update_data["transaction_id"] != db_apt.transaction_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Non-admin users cannot unlink a financial transaction from a billed appointment."
+            )
+        if "payment_status" in update_data and update_data["payment_status"] != db_apt.payment_status:
+            raise HTTPException(
+                status_code=403,
+                detail="Non-admin users cannot alter the payment status of a billed appointment."
+            )
+        if update_data.get("status") == "Cancelled" and db_apt.status != "Cancelled":
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot cancel a billed or paid appointment without Admin approval or refunding the transaction."
+            )
     
     # If date, time, or staff_id is changing, check double booking
     new_staff_id = update_data.get("staff_id", db_apt.staff_id)
@@ -174,6 +198,12 @@ async def delete_appointment(
     db_apt = result.scalars().first()
     if not db_apt:
         raise HTTPException(status_code=404, detail="Appointment not found")
+
+    if db_apt.transaction_id or db_apt.payment_status in ("Paid", "Billed"):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete an appointment that is billed or linked to a financial transaction. Please refund/void the transaction first."
+        )
         
     await db.delete(db_apt)
     await db.commit()

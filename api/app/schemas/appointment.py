@@ -18,6 +18,8 @@ class AppointmentBase(CamelModel):
     price: float = Field(ge=0)
     branch_id: Optional[str] = None
     category: str = "treatment"
+    transaction_id: Optional[str] = None
+    payment_status: Optional[str] = "Unpaid"
 
 class AppointmentCreate(AppointmentBase):
     pass
@@ -38,6 +40,8 @@ class AppointmentUpdate(CamelModel):
     price: Optional[float] = Field(None, ge=0)
     branch_id: Optional[str] = None
     category: Optional[str] = None
+    transaction_id: Optional[str] = None
+    payment_status: Optional[str] = None
 
 
 class AppointmentResponse(AppointmentBase):

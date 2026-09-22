@@ -23,7 +23,7 @@ import { getLocalDateString } from '../../lib/utils/date';
 
 export default function AppointmentsPage() {
   const router = useRouter();
-  const { appointments, addAppointment, updateAppointmentStatus, deleteAppointment, staff, services, setPrintData, branches, selectedBranchId, userBranchId } = useClinic();
+  const { appointments, addAppointment, updateAppointmentStatus, deleteAppointment, staff, services, clients, addClient, setPrintData, branches, selectedBranchId, userBranchId } = useClinic();
 
   const [filterBranchId, setFilterBranchId] = useState<string>('');
 
@@ -52,6 +52,7 @@ export default function AppointmentsPage() {
   ], []);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
   const [newClientName, setNewClientName] = useState('');
   const [newPhone, setNewPhone] = useState('+92 ');
   const [selectedServiceId, setSelectedServiceId] = useState(services[0]?.id || '');
@@ -60,6 +61,19 @@ export default function AppointmentsPage() {
   const [aptDate, setAptDate] = useState(getLocalDateString());
   const [aptTime, setAptTime] = useState('11:00 AM');
   const [aptNotes, setAptNotes] = useState('');
+
+  // Auto-sync initial service and staff if data loads asynchronously
+  useEffect(() => {
+    if (!selectedServiceId && services.length > 0) {
+      setSelectedServiceId(services[0].id);
+    }
+  }, [services, selectedServiceId]);
+
+  useEffect(() => {
+    if (!selectedStaffId && staff.length > 0) {
+      setSelectedStaffId(staff[0].id);
+    }
+  }, [staff, selectedStaffId]);
 
   // Get unbooked 30-min slots for a given date & specialist
   const getAvailableTimeSlots = (targetDate: string, staffId: string, currentSlotTime?: string) => {
@@ -186,29 +200,62 @@ export default function AppointmentsPage() {
     const serviceObj = services.find(s => s.id === selectedServiceId);
     const staffObj = staff.find(st => st.id === selectedStaffId);
 
-    if (!serviceObj || !staffObj) return;
+    if (!serviceObj) {
+      setBookingError("Please select a treatment service.");
+      return;
+    }
+    if (!staffObj) {
+      setBookingError("Please select an assigned specialist.");
+      return;
+    }
 
     if (newClientName.trim().length < 3) {
-      alert("Client Name must be at least 3 characters long");
+      setBookingError("Client Name must be at least 3 characters long.");
       return;
     }
     if (!/^[A-Za-z\s]+$/.test(newClientName.trim())) {
-      alert("Client Name must contain only letters and spaces");
+      setBookingError("Client Name must contain only letters and spaces.");
       return;
     }
     if (!/^\+92\s?\d{9,10}$/.test(newPhone)) {
-      alert("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)");
+      setBookingError("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits).");
       return;
     }
 
+    setBookingError(null);
     setIsSubmitting(true);
 
     try {
+      const cleanPhone = newPhone.replace(/\s+/g, '');
+      const matchedClient = (clients || []).find(c => 
+        (c.phone && c.phone.replace(/\s+/g, '') === cleanPhone) ||
+        (c.name.trim().toLowerCase() === newClientName.trim().toLowerCase())
+      );
+      
+      let resolvedClientId = matchedClient?.id;
+      if (!resolvedClientId) {
+        try {
+          const newId = `CLT-${Date.now().toString().slice(-4)}`;
+          await addClient({
+            name: newClientName.trim(),
+            phone: cleanPhone,
+            cnic: 'N/A',
+            gender: 'Female',
+            age: 25,
+            address: 'N/A',
+            notes: 'Auto-registered via appointment booking'
+          });
+          resolvedClientId = newId;
+        } catch {
+          resolvedClientId = `CLT-${Date.now().toString().slice(-4)}`;
+        }
+      }
+
       if (numberOfSessions === 1) {
         await addAppointment({
-          clientId: `CLT-${Math.floor(Math.random() * 900) + 100}`,
+          clientId: resolvedClientId,
           clientName: newClientName,
-          phone: newPhone.replace(/\s+/g, ''),
+          phone: cleanPhone,
           serviceId: serviceObj.id,
           serviceName: serviceObj.name,
           staffId: staffObj.id,
@@ -226,9 +273,9 @@ export default function AppointmentsPage() {
           const sess = sessionsList[i];
           const sessionTag = `Session ${i + 1}/${sessionsList.length}`;
           await addAppointment({
-            clientId: `CLT-${Math.floor(Math.random() * 900) + 100}`,
+            clientId: resolvedClientId,
             clientName: newClientName,
-            phone: newPhone.replace(/\s+/g, ''),
+            phone: cleanPhone,
             serviceId: serviceObj.id,
             serviceName: `${serviceObj.name} (${sessionTag})`,
             staffId: staffObj.id,
@@ -359,6 +406,7 @@ export default function AppointmentsPage() {
                 <th className="py-3.5 px-4">Assigned Doctor</th>
                 <th className="py-3.5 px-4">Date & Time</th>
                 <th className="py-3.5 px-4">Fee</th>
+                <th className="py-3.5 px-4">Payment</th>
                 <th className="py-3.5 px-4">Status</th>
                 <th className="py-3.5 px-4 text-right rounded-r-xl">Actions</th>
               </tr>
@@ -366,7 +414,7 @@ export default function AppointmentsPage() {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
               {filteredAppointments.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400 text-sm">
+                  <td colSpan={9} className="py-12 text-center text-slate-400 text-sm">
                     No appointments match your search criteria.
                   </td>
                 </tr>
@@ -404,6 +452,25 @@ export default function AppointmentsPage() {
                       {formatPKR(apt.price, { decimals: false })}
                     </td>
                     <td className="py-3.5 px-4">
+                      {apt.paymentStatus === 'Paid' ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/40">
+                          Paid
+                        </span>
+                      ) : apt.paymentStatus === 'Billed' ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-900/40">
+                          Billed
+                        </span>
+                      ) : apt.paymentStatus === 'Complimentary' ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-900/40">
+                          Waived
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-900/40">
+                          Unpaid
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4">
                       <Select
                         options={[
                           { label: 'Confirmed', value: 'Confirmed' },
@@ -412,7 +479,23 @@ export default function AppointmentsPage() {
                           { label: 'Cancelled', value: 'Cancelled' }
                         ]}
                         value={apt.status}
-                        onChange={(e) => updateAppointmentStatus(apt.id, e.target.value as any)}
+                        onChange={(e) => {
+                          const newStatus = e.target.value;
+                          if (newStatus === 'Completed' && (!apt.paymentStatus || apt.paymentStatus === 'Unpaid')) {
+                            const proceed = confirm(
+                              `Revenue Protection Alert:\n\nAppointment for "${apt.clientName}" (${formatPKR(apt.price, { decimals: false })}) is UNPAID.\n\nClick OK to mark treatment as "Complimentary / Waived", or Cancel to bill at POS first.`
+                            );
+                            if (!proceed) {
+                              const clientParam = encodeURIComponent(apt.clientName || '');
+                              const serviceIdParam = encodeURIComponent(apt.serviceId || '');
+                              const serviceNameParam = encodeURIComponent(apt.serviceName || '');
+                              const priceParam = encodeURIComponent(apt.price?.toString() || '');
+                              router.push(`/pos?client=${clientParam}&serviceId=${serviceIdParam}&serviceName=${serviceNameParam}&price=${priceParam}&appointmentId=${encodeURIComponent(apt.id)}`);
+                              return;
+                            }
+                          }
+                          updateAppointmentStatus(apt.id, newStatus as any);
+                        }}
                         className="py-1 px-2 text-xs w-32"
                       />
                     </td>
@@ -423,7 +506,8 @@ export default function AppointmentsPage() {
                             const clientParam = encodeURIComponent(apt.clientName || '');
                             const serviceIdParam = encodeURIComponent(apt.serviceId || '');
                             const serviceNameParam = encodeURIComponent(apt.serviceName || '');
-                            router.push(`/pos?client=${clientParam}&serviceId=${serviceIdParam}&serviceName=${serviceNameParam}`);
+                            const priceParam = encodeURIComponent(apt.price?.toString() || '');
+                            router.push(`/pos?client=${clientParam}&serviceId=${serviceIdParam}&serviceName=${serviceNameParam}&price=${priceParam}&appointmentId=${encodeURIComponent(apt.id)}`);
                           }}
                           className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-all flex items-center gap-1.5"
                           title="Go to Billing & Checkout"
@@ -451,11 +535,22 @@ export default function AppointmentsPage() {
       {/* New Booking Modal Form */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setIsModalOpen(false);
+          setBookingError(null);
+        }}
         title="Schedule New Treatment Appointment"
+        description="Book aesthetic treatment sessions, assign specialist doctors, and reserve clinic time slots."
         maxWidth="xl"
       >
         <form onSubmit={handleCreateAppointment} className="space-y-4">
+          {bookingError && (
+            <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+              {bookingError}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Full Name"

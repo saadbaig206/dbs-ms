@@ -16,13 +16,18 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const router = useRouter();
   const { role, isLoading } = useClinic();
   const isAuthPage = pathname === '/login' || pathname === '/';
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const isAuthorized = React.useMemo(() => {
-    if (isLoading || isAuthPage) return true;
+    if (isLoading || isAuthPage || !mounted) return true;
     if (role === 'admin') return true;
 
     if (role === 'partner') {
-      const allowedPathsForPartner = ['/dashboard', '/finance-reports', '/finance', '/reports', '/expenses', '/inventory'];
+      const allowedPathsForPartner = ['/dashboard', '/finance-reports', '/finance', '/reports', '/expenses', '/inventory', '/purchases'];
       return allowedPathsForPartner.some(path => pathname === path || pathname.startsWith(path + '/'));
     }
 
@@ -72,7 +77,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   return (
     <>
       <OfflineBanner />
-      {isLoading && (
+      {mounted && isLoading && (
         <div className="fixed top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-500 z-50 animate-pulse pointer-events-none" />
       )}
       <div className="flex min-h-screen">

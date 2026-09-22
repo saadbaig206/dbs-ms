@@ -13,7 +13,14 @@ import {
   AttendanceRecord,
   NotificationItem,
   POSCartItem,
-  Branch
+  Branch,
+  PurchaseItem,
+  PurchaseBill,
+  PartnerEquityOverview,
+  PartnerDrawing,
+  ClientPackage,
+  PackageRedemptionLog,
+  PurchaseReturn
 } from '../types/clinic';
 import { apiFetch, authClient } from '../api/client';
 import { CLINIC_INFO } from '../constants/clinic';
@@ -56,8 +63,8 @@ interface ClinicContextType {
   setIsCommandPaletteOpen: (open: boolean) => void;
 
   // Print System
-  printData: { title: string; type: 'invoice' | 'slip' | 'client'; data: any } | null;
-  setPrintData: (data: { title: string; type: 'invoice' | 'slip' | 'client'; data: any } | null) => void;
+  printData: { title: string; type: 'invoice' | 'slip' | 'client' | 'z-report'; data: any } | null;
+  setPrintData: (data: { title: string; type: 'invoice' | 'slip' | 'client' | 'z-report'; data: any } | null) => void;
 
   // Collections & CRUD
   branches: Branch[];
@@ -90,6 +97,7 @@ interface ClinicContextType {
   refreshInventory: () => Promise<void>;
   addInventoryItem: (item: Omit<InventoryItem, 'id' | 'status'>) => Promise<void>;
   updateInventoryQuantity: (id: string, delta: number) => Promise<void>;
+  updateInventoryItem: (id: string, updates: Partial<InventoryItem>) => Promise<void>;
 
   expenses: ExpenseItem[];
   addExpense: (expense: Omit<ExpenseItem, 'id'>) => Promise<void>;
@@ -118,17 +126,54 @@ interface ClinicContextType {
 
   // POS State
   posCart: POSCartItem[];
-  addToPosCart: (service: ServiceItem) => void;
+  addToPosCart: (item: ServiceItem | InventoryItem, isPackage?: boolean, sessions?: number, customPrice?: number) => void;
   removeFromPosCart: (serviceId: string) => void;
   updatePosQuantity: (serviceId: string, delta: number) => void;
+  updatePosItemPrice: (serviceId: string, newPrice: number) => void;
+  updatePosItemStaff: (serviceId: string, staffId: string, staffName: string) => void;
   clearPosCart: () => void;
   completePosCheckout: (
     clientName: string,
     paymentMethod: FinancialTransaction['paymentMethod'],
     discountPercent: number,
     taxPercent: number,
-    cardDetails?: { cardLastFour?: string; cardType?: string; bankTxnId?: string }
+    cardDetails?: { cardLastFour?: string; cardType?: string; bankTxnId?: string },
+    additionalDetails?: {
+      amountPaid?: number;
+      remainingDue?: number;
+      cashReceived?: number;
+      cashReturned?: number;
+      paymentSplits?: any[];
+      packageId?: string;
+      clientId?: string;
+      clientPhone?: string;
+      appointmentId?: string;
+    }
   ) => Promise<FinancialTransaction>;
+
+  // Purchases
+  purchaseItems: PurchaseItem[];
+  purchaseBills: PurchaseBill[];
+  refreshPurchases: () => Promise<void>;
+  addPurchase: (data: any) => Promise<void>;
+  payPurchaseBill: (id: string, amount: number, paymentMethod: string, notes?: string) => Promise<void>;
+  returns: PurchaseReturn[];
+  refreshReturns: () => Promise<void>;
+  createPurchaseReturn: (data: any) => Promise<PurchaseReturn>;
+
+  // Partner Equity
+  partnerEquity: PartnerEquityOverview | null;
+  refreshPartnerEquity: () => Promise<void>;
+  recordPartnerDrawing: (data: any) => Promise<void>;
+  updatePartnerProfile: (data: { partnerName: string; equityPercentage: number; initialInvestment: number; notes?: string }) => Promise<void>;
+
+  // Packages & Prepaid Sessions
+  packages: ClientPackage[];
+  refreshPackages: () => Promise<void>;
+  redeemPackageSession: (packageId: string, staffName?: string, notes?: string) => Promise<void>;
+
+  // Client Dues Settlement
+  settleClientDue: (clientId: string, amount: number, paymentMethod: string, notes?: string) => Promise<void>;
 
   // Loading & error states
   isLoading: boolean;
@@ -194,7 +239,10 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (typeof window === 'undefined') return fallback;
     try {
       const item = localStorage.getItem(`clinic_cache_${key}`);
-      return item ? JSON.parse(item) : fallback;
+      if (!item) return fallback;
+      const parsed = JSON.parse(item);
+      if (parsed === null || parsed === undefined) return fallback;
+      return parsed;
     } catch (e) {
       return fallback;
     }
@@ -212,7 +260,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [theme] = useState<'light' | 'dark'>('dark');
   const [searchQuery, setSearchQuery] = useState('');
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-  const [printData, setPrintData] = useState<{ title: string; type: 'invoice' | 'slip' | 'client'; data: any } | null>(null);
+  const [printData, setPrintData] = useState<{ title: string; type: 'invoice' | 'slip' | 'client' | 'z-report'; data: any } | null>(null);
 
   // Collections state initialized from instant local cache
   const [branches, setBranches] = useState<Branch[]>(() => loadCachedData('branches', []));
@@ -226,19 +274,17 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => loadCachedData('attendance', []));
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => loadCachedData('notifications', []));
   const [partners, setPartners] = useState<{ id: number; username: string }[]>(() => loadCachedData('partners', []));
+  const [purchaseItems, setPurchaseItems] = useState<PurchaseItem[]>(() => loadCachedData('purchase_items', []));
+  const [purchaseBills, setPurchaseBills] = useState<PurchaseBill[]>(() => loadCachedData('purchase_bills', []));
+  const [returns, setReturns] = useState<PurchaseReturn[]>(() => loadCachedData('returns', []));
+  const [partnerEquity, setPartnerEquity] = useState<PartnerEquityOverview | null>(null);
+  const [packages, setPackages] = useState<ClientPackage[]>(() => loadCachedData('packages', []));
 
   // POS
   const [posCart, setPosCart] = useState<POSCartItem[]>([]);
 
-  // Loading state starts false IF access token exists so UI renders immediately without blocking spinner
-  const [isLoading, setIsLoading] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    const hasToken = !!localStorage.getItem('access_token') || document.cookie.includes('access_token=');
-    if (hasToken) {
-      return false;
-    }
-    return true;
-  });
+  // Loading state starts false to guarantee identical server and initial client hydration
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Force dark mode globally
@@ -325,6 +371,12 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (bootstrapRes.expenses) safeSet(setExpenses, 'expenses', bootstrapRes.expenses);
         if (bootstrapRes.transactions) safeSet(setTransactions, 'transactions', bootstrapRes.transactions);
         if (bootstrapRes.partners) safeSet(setPartners, 'partners', bootstrapRes.partners);
+        if (bootstrapRes.packages) safeSet(setPackages, 'packages', bootstrapRes.packages);
+        if (bootstrapRes.purchaseBills) safeSet(setPurchaseBills, 'purchase_bills', bootstrapRes.purchaseBills);
+        if (bootstrapRes.purchaseItems) safeSet(setPurchaseItems, 'purchase_items', bootstrapRes.purchaseItems);
+        if (activeRole === 'admin' || activeRole === 'partner') {
+          refreshPartnerEquity();
+        }
         return;
       }
 
@@ -789,6 +841,22 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const updateInventoryItem = async (id: string, updates: Partial<InventoryItem>) => {
+    try {
+      await apiFetch(`/inventory/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(updates),
+      });
+      await refreshInventory();
+    } catch (e) {
+      setInventory(prev => {
+        const next = prev.map(item => item.id === id ? { ...item, ...updates } : item);
+        saveCachedData('inventory', next);
+        return next;
+      });
+    }
+  };
+
   // Expenses CRUD
   const addExpense = async (expense: Omit<ExpenseItem, 'id'>) => {
     const activeUser = userEmail || (role === 'staff' ? 'Staff' : 'Admin/Partner');
@@ -1019,14 +1087,42 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // POS Cart logic (local client side cart)
-  const addToPosCart = (service: ServiceItem) => {
+  const addToPosCart = (item: ServiceItem | InventoryItem, isPackage?: boolean, sessions?: number, customPrice?: number) => {
     setPosCart(prev => {
-      const existing = prev.find(item => item.serviceId === service.id);
+      const isProduct = 'itemName' in item || (item as any).category === 'Products' || 'minStock' in item;
+      const itemId = item.id;
+      const itemName = 'itemName' in item ? (item as InventoryItem).itemName : (item as ServiceItem).name;
+      const itemPrice = customPrice !== undefined ? customPrice : item.price;
+      const stockAvail = 'quantity' in item ? (item as InventoryItem).quantity : undefined;
+
+      const existing = prev.find(cartItem => cartItem.serviceId === itemId && !!cartItem.isPackage === !!isPackage);
       if (existing) {
-        return prev.map(item => item.serviceId === service.id ? { ...item, quantity: item.quantity + 1 } : item);
+        return prev.map(cartItem => (cartItem.serviceId === itemId && !!cartItem.isPackage === !!isPackage) 
+          ? { ...cartItem, quantity: cartItem.quantity + 1, price: customPrice !== undefined ? customPrice : cartItem.price } 
+          : cartItem
+        );
       }
-      return [...prev, { serviceId: service.id, name: service.name, price: service.price, quantity: 1, category: service.category }];
+      return [...prev, {
+        serviceId: itemId,
+        name: isPackage ? `${itemName} (${sessions || 3} Sessions Bundle)` : itemName,
+        price: isPackage ? itemPrice * (sessions || 3) * 0.9 : itemPrice,
+        quantity: 1,
+        category: item.category,
+        isPackage,
+        sessions: isPackage ? (sessions || 3) : undefined,
+        isProduct,
+        inventoryItemId: isProduct ? itemId : undefined,
+        stockAvailable: stockAvail
+      }];
     });
+  };
+
+  const updatePosItemPrice = (serviceId: string, newPrice: number) => {
+    setPosCart(prev => prev.map(item => item.serviceId === serviceId ? { ...item, price: Math.max(0, newPrice) } : item));
+  };
+
+  const updatePosItemStaff = (serviceId: string, staffId: string, staffName: string) => {
+    setPosCart(prev => prev.map(item => item.serviceId === serviceId ? { ...item, staffId, staffName } : item));
   };
 
   const removeFromPosCart = (serviceId: string) => {
@@ -1050,7 +1146,18 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     paymentMethod: FinancialTransaction['paymentMethod'],
     discountPercent: number,
     taxPercent: number,
-    cardDetails?: { cardLastFour?: string; cardType?: string; bankTxnId?: string }
+    cardDetails?: { cardLastFour?: string; cardType?: string; bankTxnId?: string },
+    additionalDetails?: {
+      amountPaid?: number;
+      remainingDue?: number;
+      cashReceived?: number;
+      cashReturned?: number;
+      paymentSplits?: any[];
+      packageId?: string;
+      clientId?: string;
+      clientPhone?: string;
+      appointmentId?: string;
+    }
   ): Promise<FinancialTransaction> => {
     try {
       const clientTime = getLocalTimeString();
@@ -1068,7 +1175,16 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           bankTxnId: cardDetails?.bankTxnId,
           branchId: selectedBranchId || userBranchId || undefined,
           clientTime,
-          clientDate
+          clientDate,
+          amountPaid: additionalDetails?.amountPaid,
+          remainingDue: additionalDetails?.remainingDue,
+          cashReceived: additionalDetails?.cashReceived,
+          cashReturned: additionalDetails?.cashReturned,
+          paymentSplits: additionalDetails?.paymentSplits,
+          packageId: additionalDetails?.packageId,
+          clientId: additionalDetails?.clientId,
+          clientPhone: additionalDetails?.clientPhone,
+          appointmentId: additionalDetails?.appointmentId
         })
       });
 
@@ -1076,7 +1192,9 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       Promise.all([
         refreshTransactions(),
         refreshClients(),
-        refreshInventory()
+        refreshInventory(),
+        refreshPackages(),
+        refreshAppointments()
       ]).catch(err => console.error(err));
       return {
         ...txn,
@@ -1085,6 +1203,172 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       };
     } catch (e: any) {
       console.error('POS Checkout failed:', e);
+      throw e;
+    }
+  };
+
+  // Purchases
+  const refreshPurchases = async () => {
+    try {
+      const [items, bills] = await Promise.all([
+        fetchSafe<PurchaseItem[]>('/purchases/items', []),
+        fetchSafe<PurchaseBill[]>('/purchases/bills', [])
+      ]);
+      setPurchaseItems(items);
+      setPurchaseBills(bills);
+      saveCachedData('purchase_items', items);
+      saveCachedData('purchase_bills', bills);
+    } catch (e) {
+      console.error('Failed to refresh purchases:', e);
+    }
+  };
+
+  const addPurchase = async (data: any) => {
+    try {
+      await apiFetch('/purchases', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      });
+      await Promise.all([
+        refreshPurchases(),
+        refreshInventory(),
+        refreshExpenses()
+      ]);
+    } catch (e) {
+      console.error('Failed to add purchase:', e);
+      throw e;
+    }
+  };
+
+  const payPurchaseBill = async (id: string, amount: number, paymentMethod: string, notes?: string) => {
+    try {
+      await apiFetch(`/purchases/bills/${id}/pay`, {
+        method: 'POST',
+        body: JSON.stringify({ amount, paymentMethod, notes })
+      });
+      await Promise.all([
+        refreshPurchases(),
+        refreshExpenses()
+      ]);
+    } catch (e) {
+      console.error('Failed to pay purchase bill:', e);
+      throw e;
+    }
+  };
+
+  // Vendor Returns & Debit Notes
+  const refreshReturns = async () => {
+    try {
+      const data = await fetchSafe<PurchaseReturn[]>('/returns', []);
+      setReturns(data);
+      saveCachedData('returns', data);
+    } catch (e) {
+      console.error('Failed to fetch returns:', e);
+    }
+  };
+
+  const createPurchaseReturn = async (data: any): Promise<PurchaseReturn> => {
+    try {
+      const res = await apiFetch<PurchaseReturn>('/returns', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      });
+      await Promise.all([
+        refreshReturns(),
+        refreshPurchases(),
+        refreshInventory(),
+        refreshTransactions()
+      ]);
+      return res;
+    } catch (e) {
+      console.error('Failed to create return:', e);
+      throw e;
+    }
+  };
+
+  // Partner Equity
+  const refreshPartnerEquity = async () => {
+    try {
+      const data = await fetchSafe<PartnerEquityOverview | null>('/partners/equity', null);
+      if (data) {
+        setPartnerEquity(data);
+      }
+    } catch (e) {
+      console.error('Failed to fetch partner equity:', e);
+    }
+  };
+
+  const recordPartnerDrawing = async (data: any) => {
+    try {
+      await apiFetch('/partners/drawings', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      });
+      await Promise.all([
+        refreshPartnerEquity(),
+        refreshExpenses()
+      ]);
+    } catch (e) {
+      console.error('Failed to record drawing:', e);
+      throw e;
+    }
+  };
+
+  const updatePartnerProfile = async (data: { partnerName: string; equityPercentage: number; initialInvestment: number; notes?: string }) => {
+    try {
+      await apiFetch('/partners/profiles', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      });
+      await refreshPartnerEquity();
+    } catch (e) {
+      console.error('Failed to update partner profile:', e);
+      throw e;
+    }
+  };
+
+  // Packages & Prepaid Sessions
+  const refreshPackages = async () => {
+    try {
+      const pkgs = await fetchSafe<ClientPackage[]>('/packages', []);
+      setPackages(pkgs);
+      saveCachedData('packages', pkgs);
+    } catch (e) {
+      console.error('Failed to fetch packages:', e);
+    }
+  };
+
+  const redeemPackageSession = async (packageId: string, staffName?: string, notes?: string) => {
+    try {
+      await apiFetch(`/packages/${packageId}/redeem`, {
+        method: 'POST',
+        body: JSON.stringify({ staffName, notes })
+      });
+      await Promise.all([
+        refreshPackages(),
+        refreshTransactions(),
+        refreshClients(),
+        refreshInventory()
+      ]);
+    } catch (e) {
+      console.error('Failed to redeem package session:', e);
+      throw e;
+    }
+  };
+
+  // Client Dues Settlement
+  const settleClientDue = async (clientId: string, amount: number, paymentMethod: string, notes?: string) => {
+    try {
+      await apiFetch(`/clients/${clientId}/settle-dues`, {
+        method: 'POST',
+        body: JSON.stringify({ amount, paymentMethod, notes })
+      });
+      await Promise.all([
+        refreshClients(),
+        refreshTransactions()
+      ]);
+    } catch (e) {
+      console.error('Failed to settle client due:', e);
       throw e;
     }
   };
@@ -1136,6 +1420,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         refreshInventory,
         addInventoryItem,
         updateInventoryQuantity,
+        updateInventoryItem,
 
         expenses,
         addExpense,
@@ -1164,8 +1449,30 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         addToPosCart,
         removeFromPosCart,
         updatePosQuantity,
+        updatePosItemPrice,
+        updatePosItemStaff,
         clearPosCart,
         completePosCheckout,
+
+        purchaseItems: Array.isArray(purchaseItems) ? purchaseItems : [],
+        purchaseBills: Array.isArray(purchaseBills) ? purchaseBills : [],
+        refreshPurchases,
+        addPurchase,
+        payPurchaseBill,
+        returns: Array.isArray(returns) ? returns : [],
+        refreshReturns,
+        createPurchaseReturn,
+
+        partnerEquity,
+        refreshPartnerEquity,
+        recordPartnerDrawing,
+        updatePartnerProfile,
+
+        packages,
+        refreshPackages,
+        redeemPackageSession,
+
+        settleClientDue,
 
         isLoading,
         error,

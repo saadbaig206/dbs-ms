@@ -27,6 +27,7 @@ async def list_inventory(
     result = await db.execute(query.order_by(InventoryItem.id.desc()))
     return result.scalars().all()
 
+import secrets
 from app.routers.bootstrap import invalidate_bootstrap_cache
 
 @router.post("", response_model=InventoryResponse)
@@ -35,9 +36,7 @@ async def create_inventory_item(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_staff_user)
 ):
-    count_result = await db.execute(select(InventoryItem))
-    count = len(count_result.scalars().all())
-    item_id = f"INV-{str(count + 1).zfill(2)}"
+    item_id = f"INV-{secrets.token_hex(3).upper()}"
     
     db_item = InventoryItem(
         id=item_id,
@@ -85,11 +84,15 @@ async def update_inventory_item(
 async def adjust_quantity(
     item_id: str,
     delta: int,
+    reason: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_staff_user)
 ):
     if current_user.role == "partner" and delta < 0:
         raise HTTPException(status_code=403, detail="Partners cannot reduce inventory stock")
+
+    if delta < 0 and current_user.role != "admin" and not reason:
+        raise HTTPException(status_code=400, detail="Stock reductions require an explanation/reason for audit tracking")
 
     result = await db.execute(select(InventoryItem).where(InventoryItem.id == item_id))
     db_item = result.scalars().first()
@@ -99,6 +102,18 @@ async def adjust_quantity(
     db_item.quantity = max(0, db_item.quantity + delta)
     if delta > 0:
         db_item.last_restocked = datetime.now().strftime("%Y-%m-%d")
+    elif delta < 0:
+        from app.models.notification import NotificationItem
+        adj_user = getattr(current_user, 'name', None) or getattr(current_user, 'email', 'Staff')
+        adj_alert = NotificationItem(
+            id=f"NOT-ADJ-{int(datetime.now().timestamp() * 1000)}",
+            title=f"Stock Adjustment: {db_item.item_name} ({delta})",
+            message=f"{adj_user} adjusted stock of '{db_item.item_name}' by {delta} units (New qty: {db_item.quantity}). Reason: {reason or 'Manual adjustment'}.",
+            time=datetime.now().strftime("%Y-%m-%d %I:%M %p"),
+            type="inventory",
+            read=False
+        )
+        db.add(adj_alert)
         
     db.add(db_item)
     

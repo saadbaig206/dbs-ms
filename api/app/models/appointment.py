@@ -20,4 +20,6 @@ class Appointment(Base):
     price = Column(Float, nullable=False)
     branch_id = Column(String, ForeignKey("branches.id"), nullable=True, index=True)
     category = Column(String, nullable=False, default="treatment")
+    transaction_id = Column(String, nullable=True) # Linked POS invoice
+    payment_status = Column(String, nullable=False, default="Unpaid") # Unpaid, Billed, Paid, Complimentary
 

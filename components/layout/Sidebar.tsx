@@ -12,6 +12,7 @@ import {
   CreditCard,
   Sparkles,
   Package,
+  ShoppingBag,
   DollarSign,
   Receipt,
   UserCheck,
@@ -39,6 +40,13 @@ export const Sidebar: React.FC = () => {
   const { role, toggleRole, clinicInfo } = useClinic();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const effectiveRole = mounted ? role : 'staff';
 
   // Lock body scroll on mobile/tablet when sidebar drawer is open
   React.useEffect(() => {
@@ -79,6 +87,7 @@ export const Sidebar: React.FC = () => {
     { title: 'Billing', href: '/pos', icon: CreditCard, adminOnly: false },
     { title: 'Services', href: '/services', icon: Sparkles, adminOnly: false },
     { title: 'Inventory', href: '/inventory', icon: Package, adminOnly: false },
+    { title: 'Purchases', href: '/purchases', icon: ShoppingBag, adminOnly: true },
     { title: 'Attendance', href: '/attendance', icon: UserCheck, adminOnly: false },
     { title: 'Branches', href: '/branches', icon: MapPin, adminOnly: true },
     { title: 'Finance & Reports', href: '/finance-reports', icon: DollarSign, adminOnly: true },
@@ -122,10 +131,10 @@ export const Sidebar: React.FC = () => {
       <div className="flex-1 py-4 px-3 space-y-1 overflow-y-auto overscroll-contain custom-scrollbar">
         {menuItems
           .filter((item) => {
-            if (role === 'partner') {
-              return item.href === '/dashboard' || item.href === '/finance-reports' || item.href === '/inventory';
+            if (effectiveRole === 'partner') {
+              return item.href === '/dashboard' || item.href === '/finance-reports' || item.href === '/purchases' || item.href === '/inventory';
             }
-            if (role === 'staff') {
+            if (effectiveRole === 'staff') {
               return !item.adminOnly;
             }
             return true;
@@ -161,7 +170,7 @@ export const Sidebar: React.FC = () => {
                   <span className="truncate">{item.title}</span>
                   {isRestricted ? (
                     <Lock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                  ) : item.adminOnly && role === 'admin' ? (
+                  ) : item.adminOnly && effectiveRole === 'admin' ? (
                     <span className="text-[10px] bg-slate-800 text-blue-400 px-1.5 py-0.5 rounded font-mono">
                       ADM
                     </span>

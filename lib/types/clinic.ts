@@ -19,6 +19,8 @@ export interface Appointment {
   price: number;
   branchId?: string;
   category?: 'treatment' | 'consultation';
+  transactionId?: string;
+  paymentStatus?: 'Unpaid' | 'Billed' | 'Paid' | 'Complimentary';
 }
 
 export interface ClientHistoryItem {
@@ -42,6 +44,7 @@ export interface Client {
   assignedStaffName?: string;
   preferredService?: string;
   totalSpent: number;
+  outstandingBalance?: number;
   visitsCount: number;
   notes?: string;
   history: ClientHistoryItem[];
@@ -181,12 +184,16 @@ export interface ExpenseItem {
 
 
 
-export type PaymentMethod = 'Cash' | 'Card' | 'Bank' | 'Online';
+export type PaymentMethod = 'Cash' | 'Card' | 'Online' | 'Split';
 
 export interface InvoiceLineItem {
   name: string;
   price: number;
   quantity: number;
+  isProduct?: boolean;
+  staffId?: string;
+  staffName?: string;
+  packageId?: string;
 }
 
 export interface FinancialTransaction {
@@ -199,12 +206,27 @@ export interface FinancialTransaction {
   tax: number;
   taxPercent?: number;
   grandTotal: number;
+  amountPaid?: number;
+  remainingDue?: number;
+  cashReceived?: number;
+  cashReturned?: number;
+  paymentStatus?: 'Paid' | 'Partial' | 'Unpaid';
+  paymentSplits?: any[];
+  packageId?: string;
   date: string;
   time?: string;
   paymentMethod: PaymentMethod;
   status: 'Paid' | 'Refunded' | 'Pending';
   items?: InvoiceLineItem[];
   branchId?: string;
+  transactionType?: 'Sale' | 'Debt_Settlement' | 'Package_Redemption';
+  auditLogs?: Array<{
+    timestamp: string;
+    updated_by: string;
+    changes: Record<string, { from: any; to: any }>;
+    reason?: string;
+  }>;
+  reprintCount?: number;
 }
 
 export type AttendanceStatus = 'Present' | 'Late' | 'Leave' | 'Absent' | 'Checked Out';
@@ -236,4 +258,125 @@ export interface POSCartItem {
   price: number;
   quantity: number;
   category: string;
+  isPackage?: boolean;
+  sessions?: number;
+  isProduct?: boolean;
+  inventoryItemId?: string;
+  stockAvailable?: number;
+  staffId?: string;
+  staffName?: string;
 }
+
+export interface PurchaseItem {
+  id: string;
+  purchaseId: string;
+  vendorName: string;
+  itemName: string;
+  category: string;
+  unitCost: number;
+  quantity: number;
+  totalCost: number;
+  batchNumber?: string;
+  expiryDate?: string;
+  date: string;
+  branchId?: string;
+}
+
+export interface PurchaseBill {
+  id: string;
+  vendorName: string;
+  billNumber?: string;
+  date: string;
+  totalAmount: number;
+  amountPaid: number;
+  remainingDue: number;
+  paymentMethod: string;
+  paymentStatus: 'Paid' | 'Pending' | 'Partial';
+  notes?: string;
+  branchId?: string;
+  createdBy?: string;
+}
+
+export interface PartnerEquityReportItem {
+  id: string;
+  partnerName: string;
+  equityPercentage: number;
+  initialInvestment: number;
+  profitShare: number;
+  totalWithdrawn: number;
+  netCapitalBalance: number;
+  marketBrandStake: number;
+  drawingsCount: number;
+}
+
+export interface PartnerDrawing {
+  id: string;
+  partnerId: string;
+  partnerName: string;
+  date: string;
+  amount: number;
+  paymentMethod: string;
+  notes?: string;
+  createdBy?: string;
+}
+
+export interface PartnerEquityOverview {
+  totalRevenue: number;
+  totalExpenses: number;
+  netProfit: number;
+  estimatedBrandValuation: number;
+  partners: PartnerEquityReportItem[];
+  recentDrawings: PartnerDrawing[];
+}
+
+export interface ClientPackage {
+  id: string;
+  clientId: string;
+  clientName: string;
+  packageName: string;
+  serviceId: string;
+  totalSessions: number;
+  usedSessions: number;
+  remainingSessions: number;
+  totalAmountPaid: number;
+  pricePerSession: number;
+  status: 'Active' | 'Completed' | 'Expired';
+  branchId?: string;
+  purchaseDate: string;
+  notes?: string;
+}
+
+export interface PackageRedemptionLog {
+  id: string;
+  packageId: string;
+  clientName: string;
+  sessionNumber: number;
+  date: string;
+  time?: string;
+  staffName?: string;
+  notes?: string;
+}
+
+export interface PurchaseReturnItem {
+  itemName: string;
+  quantity: number;
+  unitCost: number;
+  totalCost?: number;
+  batchNumber?: string;
+  reason?: string;
+}
+
+export interface PurchaseReturn {
+  id: string;
+  debitNoteNumber: string;
+  vendorName: string;
+  totalRefundAmount: number;
+  settlementType: 'Deduct_From_Payable' | 'Cash_Refund' | 'Store_Credit';
+  status: 'Issued' | 'Settled' | 'Rejected';
+  reason?: string;
+  date: string;
+  items: PurchaseReturnItem[];
+  branchId?: string;
+  notes?: string;
+}
+

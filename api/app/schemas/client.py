@@ -37,6 +37,7 @@ class ClientUpdate(CamelModel):
     assigned_staff_name: Optional[str] = None
     preferred_service: Optional[str] = None
     total_spent: Optional[float] = Field(None, ge=0)
+    outstanding_balance: Optional[float] = None
     visits_count: Optional[int] = Field(None, ge=0)
     notes: Optional[str] = None
     history: Optional[List[ClientHistoryItemSchema]] = None
@@ -45,6 +46,8 @@ class ClientUpdate(CamelModel):
 class ClientResponse(ClientBase):
     id: str
     total_spent: float
+    outstanding_balance: Optional[float] = 0.0
     visits_count: int
     history: Optional[List[ClientHistoryItemSchema]] = []
     joined_date: str
+

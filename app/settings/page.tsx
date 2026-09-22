@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { clsx } from 'clsx';
 import { Settings as SettingsIcon, Sparkles, Save, Download, Upload, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { CLINIC_INFO } from '../../lib/constants/clinic';
@@ -13,7 +14,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 
 export default function SettingsPage() {
-  const { theme, toggleTheme, role, clinicInfo, updateClinicInfo, isLoading } = useClinic();
+  const { theme, toggleTheme, role, clinicInfo, updateClinicInfo, isLoading, clients, staff, services, inventory, appointments } = useClinic();
   const router = useRouter();
 
   useEffect(() => {
@@ -30,6 +31,8 @@ export default function SettingsPage() {
   const [language, setLanguage] = useState<string>(clinicInfo?.language || 'English (US)');
   const [operatingHours, setOperatingHours] = useState<string>(clinicInfo?.operatingHours || '11:00 AM - 08:00 PM (Mon-Sat)');
   const [isSaved, setIsSaved] = useState<boolean>(false);
+  const [backupMsg, setBackupMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (isLoading || role !== 'admin') {
     return (
@@ -81,6 +84,57 @@ export default function SettingsPage() {
     setIsSaved(false);
   };
 
+  const handleExportBackup = () => {
+    try {
+      const backupData = {
+        clinicInfo,
+        exportedAt: new Date().toISOString(),
+        clientsCount: clients?.length || 0,
+        staffCount: staff?.length || 0,
+        servicesCount: services?.length || 0,
+        inventoryCount: inventory?.length || 0,
+        clients: clients || [],
+        staff: staff || [],
+        services: services || [],
+        inventory: inventory || [],
+        appointments: appointments || [],
+      };
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `dbs-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setBackupMsg({ text: 'Backup snapshot exported successfully!', type: 'success' });
+      setTimeout(() => setBackupMsg(null), 4000);
+    } catch (err: any) {
+      setBackupMsg({ text: 'Failed to export backup: ' + (err.message || err), type: 'error' });
+    }
+  };
+
+  const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        if (json.clinicInfo) {
+          updateClinicInfo(json.clinicInfo);
+        }
+        setBackupMsg({ text: `Backup file "${file.name}" validated successfully!`, type: 'success' });
+        setTimeout(() => setBackupMsg(null), 4000);
+      } catch (err) {
+        setBackupMsg({ text: 'Invalid JSON backup file format.', type: 'error' });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   return (
     <div className="space-y-6 pb-10">
       {/* Top Header */}
@@ -105,7 +159,7 @@ export default function SettingsPage() {
         <div className="flex items-center gap-3">
           <ShieldCheck className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
           <span>
-            <strong>Security Recommendation:</strong> Ensure default administrator credentials (<code className="bg-amber-100 dark:bg-amber-900/50 px-1 py-0.5 rounded font-mono">admin@gmail.com</code>) have been updated to a strong password in production.
+            <strong>Security Recommendation:</strong> Ensure default administrator login credentials have been updated to a strong, confidential password in production.
           </span>
         </div>
       </div>
@@ -192,15 +246,34 @@ export default function SettingsPage() {
           </h3>
 
           <p className="text-xs text-slate-500">
-            Export a full snapshot JSON archive of all appointments, clients, staff, inventory items, and transaction logs.
+            Export a full snapshot JSON archive of all appointments, clients, staff, inventory items, and clinic settings.
           </p>
 
+          {backupMsg && (
+            <div className={clsx(
+              "p-3 rounded-xl text-xs font-semibold flex items-center gap-2",
+              backupMsg.type === 'success'
+                ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                : "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800"
+            )}>
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{backupMsg.text}</span>
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImportBackup}
+              accept=".json,application/json"
+              className="hidden"
+            />
             <Button
               type="button"
               variant="outline"
               icon={<Download className="w-4 h-4" />}
-              onClick={() => alert('Exporting full clinic JSON backup file...')}
+              onClick={handleExportBackup}
             >
               Export JSON Backup Snapshot
             </Button>
@@ -208,7 +281,7 @@ export default function SettingsPage() {
               type="button"
               variant="outline"
               icon={<Upload className="w-4 h-4" />}
-              onClick={() => alert('Select JSON file to import snapshot...')}
+              onClick={() => fileInputRef.current?.click()}
             >
               Import JSON Snapshot
             </Button>

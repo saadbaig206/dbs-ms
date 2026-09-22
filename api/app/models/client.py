@@ -16,8 +16,10 @@ class Client(Base):
     assigned_staff_name = Column(String, nullable=True)
     preferred_service = Column(String, nullable=True)
     total_spent = Column(Float, default=0.0)
+    outstanding_balance = Column(Float, default=0.0)
     visits_count = Column(Integer, default=0)
     notes = Column(String, nullable=True)
+
     history = Column(MutableList.as_mutable(JSON), nullable=False, default=list) # List of ClientHistoryItem dicts
     joined_date = Column(String, nullable=False) # YYYY-MM-DD
     branch_id = Column(String, ForeignKey("branches.id"), nullable=True, index=True)

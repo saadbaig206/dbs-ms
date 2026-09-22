@@ -1110,7 +1110,7 @@ export const INITIAL_TRANSACTIONS: FinancialTransaction[] = [
     tax: 50,
     grandTotal: 550,
     date: '2026-08-04',
-    paymentMethod: 'Bank',
+    paymentMethod: 'Online',
     status: 'Paid'
   },
   {
@@ -1175,7 +1175,7 @@ export const INITIAL_TRANSACTIONS: FinancialTransaction[] = [
     tax: 95,
     grandTotal: 1045,
     date: '2026-08-02',
-    paymentMethod: 'Bank',
+    paymentMethod: 'Online',
     status: 'Paid'
   },
   {

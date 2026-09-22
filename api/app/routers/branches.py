@@ -7,6 +7,7 @@ from sqlalchemy.future import select
 from app.core.deps import get_db, get_staff_user, get_admin_user
 from app.models.branch import Branch
 from app.schemas.branch import BranchCreate, BranchUpdate, BranchResponse
+from app.routers.bootstrap import invalidate_bootstrap_cache
 
 router = APIRouter()
 
@@ -42,6 +43,7 @@ async def create_branch(
     db.add(db_branch)
     await db.commit()
     await db.refresh(db_branch)
+    invalidate_bootstrap_cache()
     return db_branch
 
 @router.put("/{branch_id}", response_model=BranchResponse)
@@ -66,6 +68,7 @@ async def update_branch(
     db.add(db_branch)
     await db.commit()
     await db.refresh(db_branch)
+    invalidate_bootstrap_cache()
     return db_branch
 
 @router.delete("/{branch_id}")
@@ -97,4 +100,5 @@ async def delete_branch(
 
     await db.delete(db_branch)
     await db.commit()
+    invalidate_bootstrap_cache()
     return {"message": "Branch deleted successfully"}

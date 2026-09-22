@@ -341,11 +341,17 @@ export default function AttendancePage() {
                   return (
                     <tr key={member.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-slate-100 flex items-center gap-3">
-                        <img
-                          src={member.photo || 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=300'}
-                          alt={member.name}
-                          className="w-8 h-8 rounded-full object-cover shrink-0"
-                        />
+                        {member.photo ? (
+                          <img
+                            src={member.photo}
+                            alt={member.name}
+                            className="w-8 h-8 rounded-full object-cover shrink-0"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-200 dark:border-slate-700">
+                            {member.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
                         <span>{member.name}</span>
                       </td>
                       <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">

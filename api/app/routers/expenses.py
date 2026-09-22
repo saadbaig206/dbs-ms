@@ -1,4 +1,5 @@
 from typing import List, Optional
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -54,13 +55,18 @@ async def create_expense(
     
     user_identifier = getattr(current_user, 'email', 'Admin/Partner')
     
+    # Non-admin staff cannot self-approve expenses as Paid
+    expense_status = expense_in.status or "Pending"
+    if getattr(current_user, "role", "") not in ("admin", "partner"):
+        expense_status = "Pending"
+
     db_expense = ExpenseItem(
         id=expense_id,
         title=expense_in.title,
         category=expense_in.category,
         amount=expense_in.amount,
         date=expense_in.date,
-        status=expense_in.status,
+        status=expense_status,
         payment_method=expense_in.payment_method,
         notes=expense_in.notes,
         staff_id=expense_in.staff_id,
@@ -91,7 +97,7 @@ from app.models.user import User
 async def delete_expense(
     expense_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_admin_user)
+    current_user = Depends(get_admin_or_partner_user)
 ):
     result = await db.execute(select(ExpenseItem).where(ExpenseItem.id == expense_id))
     db_expense = result.scalars().first()
@@ -168,8 +174,15 @@ async def update_expense(
     db_expense = result.scalars().first()
     if not db_expense:
         raise HTTPException(status_code=404, detail="Expense not found")
+
+    user_role = getattr(current_user, "role", "")
+    if user_role != "admin" and db_expense.status == "Paid":
+        raise HTTPException(status_code=403, detail="Only Admin can modify already Paid expenses")
         
     update_data = expense_in.model_dump(exclude_unset=True)
+    if "status" in update_data and update_data["status"] == "Paid" and user_role != "admin":
+        raise HTTPException(status_code=403, detail="Only Admin can approve or mark expenses as Paid")
+
     for field, value in update_data.items():
         setattr(db_expense, field, value)
         

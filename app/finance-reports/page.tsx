@@ -19,7 +19,11 @@ import {
   ChevronRight,
   ChevronDown,
   Filter,
-  AlertTriangle
+  AlertTriangle,
+  Banknote,
+  Building2,
+  Globe,
+  Clock
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useClinic } from '../../lib/context/ClinicContext';
@@ -32,6 +36,9 @@ import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { Input, Select } from '../../components/ui/Input';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
+import { PurchasesTab } from '../../components/finance/PurchasesTab';
+import { PartnerEquityTab } from '../../components/finance/PartnerEquityTab';
+import { TreasuryCloseTab } from '../../components/finance/TreasuryCloseTab';
 
 function FinanceDatePicker({
   label,
@@ -137,6 +144,7 @@ export default function FinanceReportsPage() {
   const {
     transactions: allTransactions,
     expenses: allExpenses,
+    purchaseBills: allPurchaseBills = [],
     addExpense,
     updateExpense,
     deleteExpense,
@@ -168,7 +176,21 @@ export default function FinanceReportsPage() {
     ? allExpenses.filter(e => !e.branchId || e.branchId === selectedBranchId)
     : allExpenses;
 
-  const [activeTab, setActiveTab] = useState<'transactions' | 'expenses' | 'reports'>('transactions');
+  const purchaseBills = selectedBranchId
+    ? allPurchaseBills.filter((b: any) => !b.branchId || b.branchId === selectedBranchId)
+    : allPurchaseBills;
+
+  const [activeTab, setActiveTab] = useState<'transactions' | 'purchases' | 'expenses' | 'equity' | 'treasury' | 'reports'>('transactions');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam === 'purchases' || tabParam === 'equity' || tabParam === 'expenses' || tabParam === 'treasury' || tabParam === 'reports' || tabParam === 'transactions') {
+        setActiveTab(tabParam as any);
+      }
+    }
+  }, []);
 
   const handlePayExpense = async (id: string) => {
     try {
@@ -181,6 +203,7 @@ export default function FinanceReportsPage() {
   // Transactions Section State
   const [txnSearch, setTxnSearch] = useState('');
   const [txnPage, setTxnPage] = useState(1);
+  const [txnMethodFilter, setTxnMethodFilter] = useState<'All' | 'Cash' | 'Card' | 'Online'>('All');
 
   // Expenses Section State
   const [expSearch, setExpSearch] = useState('');
@@ -198,7 +221,7 @@ export default function FinanceReportsPage() {
   const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false);
   const [expTitle, setExpTitle] = useState('');
   const [expCategory, setExpCategory] = useState<ExpenseCategory>('Products');
-  const [expAmount, setExpAmount] = useState<string>('1500');
+  const [expAmount, setExpAmount] = useState<string>('');
   const [expPaymentMethod, setExpPaymentMethod] = useState<'Bank Transfer' | 'Cash' | 'Card' | 'Cheque'>('Bank Transfer');
   const [expNotes, setExpNotes] = useState('');
 
@@ -211,7 +234,7 @@ export default function FinanceReportsPage() {
   const [txnDiscount, setTxnDiscount] = useState('');
   const [txnGrandTotal, setTxnGrandTotal] = useState('');
   const [txnDate, setTxnDate] = useState('');
-  const [txnPaymentMethod, setTxnPaymentMethod] = useState<'Cash' | 'Card' | 'Bank' | 'Online'>('Cash');
+  const [txnPaymentMethod, setTxnPaymentMethod] = useState<'Cash' | 'Card' | 'Online'>('Cash');
 
   // Edit Expense State
   const [isEditExpModalOpen, setIsEditExpModalOpen] = useState(false);
@@ -355,6 +378,19 @@ export default function FinanceReportsPage() {
     totalRevenue,
     totalDiscounts,
     totalExpenseAmount,
+    operationalExpenseAmount,
+    purchaseExpenseAmount,
+    cashRevenue,
+    cashCount,
+    cashPct,
+    cardRevenue,
+    cardCount,
+    cardPct,
+    onlineRevenue,
+    onlineCount,
+    onlinePct,
+    uncollectedDues,
+    duePct,
     curMonthRev,
     curMonthExp,
     curMonthDisc,
@@ -366,75 +402,177 @@ export default function FinanceReportsPage() {
     discTrendDirection,
     marginSubtitle
   } = useMemo(() => {
-    const totalRev = transactions.reduce((acc, t) => acc + t.grandTotal, 0);
-    const totalDisc = transactions.reduce((acc, t) => acc + t.discount, 0);
-    const totalExp = expenses.reduce((acc, e) => acc + e.amount, 0);
-
     const now = new Date();
     const currentMonthNum = now.getMonth();
     const currentYearNum = now.getFullYear();
-
     const prevMonthNum = currentMonthNum === 0 ? 11 : currentMonthNum - 1;
     const prevMonthYear = currentMonthNum === 0 ? currentYearNum - 1 : currentYearNum;
 
-    const curRev = transactions
-      .filter(t => {
-        const d = new Date(t.date);
-        return d.getMonth() === currentMonthNum && d.getFullYear() === currentYearNum;
-      })
-      .reduce((acc, t) => acc + t.grandTotal, 0);
+    let totalRev = 0;
+    let totalDisc = 0;
+    let curRev = 0;
+    let curDisc = 0;
+    let prevRev = 0;
+    let prevDisc = 0;
 
-    const curExp = expenses
-      .filter(e => {
-        const d = new Date(e.date);
-        return d.getMonth() === currentMonthNum && d.getFullYear() === currentYearNum;
-      })
-      .reduce((acc, e) => acc + e.amount, 0);
+    let cashRev = 0;
+    let cashCount = 0;
+    let cardRev = 0;
+    let cardCount = 0;
+    let onlineRev = 0;
+    let onlineCount = 0;
 
-    const prevRev = transactions
-      .filter(t => {
-        const d = new Date(t.date);
-        return d.getMonth() === prevMonthNum && d.getFullYear() === prevMonthYear;
-      })
-      .reduce((acc, t) => acc + t.grandTotal, 0);
+    for (let i = 0; i < transactions.length; i++) {
+      const t = transactions[i];
+      const status = (t.status || '').toLowerCase();
+      // Exclude refunded or cancelled transactions from sales revenue
+      if (status === 'refunded' || status === 'cancelled') continue;
 
-    const prevExp = expenses
-      .filter(e => {
-        const d = new Date(e.date);
-        return d.getMonth() === prevMonthNum && d.getFullYear() === prevMonthYear;
-      })
-      .reduce((acc, e) => acc + e.amount, 0);
+      const isDebtSettlement = t.transactionType === 'Debt_Settlement' || t.serviceName === 'Client Debt Settlement';
+      const gTotal = t.grandTotal || 0;
+      const disc = t.discount || 0;
+      const paidAmt = t.amountPaid !== undefined && t.amountPaid !== null ? t.amountPaid : gTotal;
 
-    const curMargin = curRev > 0 ? ((curRev - curExp) / curRev) * 100 : 0;
-    const prevMargin = prevRev > 0 ? ((prevRev - prevExp) / prevRev) * 100 : 0;
+      // Exclude debt settlements from sales revenue to avoid double counting receivables
+      if (!isDebtSettlement) {
+        totalRev += gTotal;
+        totalDisc += disc;
+      }
+
+      // Handle split payment tender vs single method
+      if (t.paymentSplits && t.paymentSplits.length > 0) {
+        for (const split of t.paymentSplits) {
+          const sMethod = (split.method || '').toLowerCase();
+          const sAmt = Number(split.amount) || 0;
+          if (sMethod === 'cash') {
+            cashRev += sAmt;
+            cashCount++;
+          } else if (sMethod === 'card' || sMethod.includes('pos')) {
+            cardRev += sAmt;
+            cardCount++;
+          } else {
+            onlineRev += sAmt;
+            onlineCount++;
+          }
+        }
+      } else {
+        const pm = (t.paymentMethod || '').toLowerCase();
+        if (pm === 'cash') {
+          cashRev += paidAmt;
+          cashCount++;
+        } else if (pm === 'card' || pm.includes('pos')) {
+          cardRev += paidAmt;
+          cardCount++;
+        } else {
+          // online, digital gateway, etc.
+          onlineRev += paidAmt;
+          onlineCount++;
+        }
+      }
+
+      if (t.date && !isDebtSettlement) {
+        const parts = t.date.split('-');
+        if (parts.length >= 2) {
+          const y = parseInt(parts[0], 10);
+          const m = parseInt(parts[1], 10) - 1;
+          if (y === currentYearNum && m === currentMonthNum) {
+            curRev += gTotal;
+            curDisc += disc;
+          } else if (y === prevMonthYear && m === prevMonthNum) {
+            prevRev += gTotal;
+            prevDisc += disc;
+          }
+        }
+      }
+    }
+
+    const uncollectedDues = Math.max(0, totalRev - (cashRev + cardRev + onlineRev));
+    const baseDenominator = totalRev > 0 ? totalRev : 1;
+    const cashPct = totalRev > 0 ? (cashRev / baseDenominator) * 100 : 0;
+    const cardPct = totalRev > 0 ? (cardRev / baseDenominator) * 100 : 0;
+    const onlinePct = totalRev > 0 ? (onlineRev / baseDenominator) * 100 : 0;
+    const duePct = totalRev > 0 ? (uncollectedDues / baseDenominator) * 100 : 0;
+
+    let totalOpExp = 0;
+    let curOpExp = 0;
+    let prevOpExp = 0;
+
+    for (let i = 0; i < expenses.length; i++) {
+      const e = expenses[i];
+      const amt = e.amount || 0;
+      totalOpExp += amt;
+
+      if (e.date) {
+        const parts = e.date.split('-');
+        if (parts.length >= 2) {
+          const y = parseInt(parts[0], 10);
+          const m = parseInt(parts[1], 10) - 1;
+          if (y === currentYearNum && m === currentMonthNum) {
+            curOpExp += amt;
+          } else if (y === prevMonthYear && m === prevMonthNum) {
+            prevOpExp += amt;
+          }
+        }
+      }
+    }
+
+    // Integrate vendor purchase bills (stock & product purchases)
+    let totalPurchExp = 0;
+    let curPurchExp = 0;
+    let prevPurchExp = 0;
+
+    for (let i = 0; i < purchaseBills.length; i++) {
+      const b = purchaseBills[i];
+      const paid = b.amountPaid !== undefined && b.amountPaid !== null ? b.amountPaid : (b.paymentStatus === 'Paid' ? (b.totalAmount || 0) : 0);
+      totalPurchExp += paid;
+
+      if (b.date) {
+        const parts = b.date.split('-');
+        if (parts.length >= 2) {
+          const y = parseInt(parts[0], 10);
+          const m = parseInt(parts[1], 10) - 1;
+          if (y === currentYearNum && m === currentMonthNum) {
+            curPurchExp += paid;
+          } else if (y === prevMonthYear && m === prevMonthNum) {
+            prevPurchExp += paid;
+          }
+        }
+      }
+    }
+
+    const totalCombinedExp = totalOpExp + totalPurchExp;
+    const curCombinedExp = curOpExp + curPurchExp;
+    const prevCombinedExp = prevOpExp + prevPurchExp;
+
+    const curMargin = curRev > 0 ? ((curRev - curCombinedExp) / curRev) * 100 : 0;
+    const prevMargin = prevRev > 0 ? ((prevRev - prevCombinedExp) / prevRev) * 100 : 0;
     const marginDiff = curMargin - prevMargin;
-
-    const curDisc = transactions
-      .filter(t => {
-        const d = new Date(t.date);
-        return d.getMonth() === currentMonthNum && d.getFullYear() === currentYearNum;
-      })
-      .reduce((acc, t) => acc + t.discount, 0);
-
-    const prevDisc = transactions
-      .filter(t => {
-        const d = new Date(t.date);
-        return d.getMonth() === prevMonthNum && d.getFullYear() === prevMonthYear;
-      })
-      .reduce((acc, t) => acc + t.discount, 0);
 
     const revDiff = prevRev > 0 ? ((curRev - prevRev) / prevRev) * 100 : 0;
     const discDiff = prevDisc > 0 ? ((curDisc - prevDisc) / prevDisc) * 100 : 0;
 
-    const overallMargin = totalRev > 0 ? ((totalRev - totalExp) / totalRev) * 100 : 0;
+    const overallMargin = totalRev > 0 ? ((totalRev - totalCombinedExp) / totalRev) * 100 : 0;
     const marginTargetDiff = 70 - overallMargin;
 
     return {
       totalRevenue: totalRev,
       totalDiscounts: totalDisc,
-      totalExpenseAmount: totalExp,
+      totalExpenseAmount: totalCombinedExp,
+      operationalExpenseAmount: totalOpExp,
+      purchaseExpenseAmount: totalPurchExp,
+      cashRevenue: cashRev,
+      cashCount,
+      cashPct,
+      cardRevenue: cardRev,
+      cardCount,
+      cardPct,
+      onlineRevenue: onlineRev,
+      onlineCount,
+      onlinePct,
+      uncollectedDues,
+      duePct,
       curMonthRev: curRev,
-      curMonthExp: curExp,
+      curMonthExp: curCombinedExp,
       curMonthDisc: curDisc,
       dynamicTrend: marginDiff >= 0 ? `+${marginDiff.toFixed(1)}%` : `${marginDiff.toFixed(1)}%`,
       trendDirection: (marginDiff >= 0 ? 'up' : 'down') as 'up' | 'down',
@@ -444,17 +582,24 @@ export default function FinanceReportsPage() {
       discTrendDirection: (discDiff >= 0 ? 'up' : 'down') as 'up' | 'down',
       marginSubtitle: marginTargetDiff > 0 ? `${marginTargetDiff.toFixed(1)}% below target (70%)` : `Target reached! (70%)`
     };
-  }, [transactions, expenses]);
+  }, [transactions, expenses, purchaseBills]);
 
   const filteredTxns = useMemo(() => {
     return transactions.filter((t) => {
-      return (
+      const matchesSearch =
         t.clientName.toLowerCase().includes(txnSearch.toLowerCase()) ||
         t.serviceName.toLowerCase().includes(txnSearch.toLowerCase()) ||
-        t.invoiceId.toLowerCase().includes(txnSearch.toLowerCase())
-      );
+        t.invoiceId.toLowerCase().includes(txnSearch.toLowerCase());
+      if (!matchesSearch) return false;
+
+      if (txnMethodFilter === 'All') return true;
+      const pm = (t.paymentMethod || '').toLowerCase();
+      if (txnMethodFilter === 'Cash') return pm === 'cash';
+      if (txnMethodFilter === 'Card') return pm === 'card' || pm.includes('pos');
+      if (txnMethodFilter === 'Online') return pm === 'online' || pm.includes('bank');
+      return true;
     });
-  }, [transactions, txnSearch]);
+  }, [transactions, txnSearch, txnMethodFilter]);
 
   const sortedTxns = useMemo(() => {
     return [...filteredTxns].sort((a, b) => {
@@ -536,6 +681,7 @@ export default function FinanceReportsPage() {
 
       setIsAddExpenseModalOpen(false);
       setExpTitle('');
+      setExpAmount('');
       setExpNotes('');
     } catch (e: any) {
       showToast("Failed to add expense: " + (e.message || e), "error");
@@ -551,12 +697,17 @@ export default function FinanceReportsPage() {
       setIsSubmitting(true);
       const subtotal = Number(txnAmount) || 0;
       const discVal = Number(txnDiscount) || 0;
-      const total = subtotal - discVal;
+      const taxable = Math.max(0, subtotal - discVal);
+      const taxPct = selectedTxn.taxPercent ?? 0;
+      const taxVal = Math.round(((taxable * taxPct) / 100) * 100) / 100;
+      const total = Math.round((taxable + taxVal) * 100) / 100;
       await updateTransaction(selectedTxn.id, {
         clientName: txnClientName,
         serviceName: txnServiceName,
         amount: subtotal,
         discount: discVal,
+        tax: taxVal,
+        taxPercent: taxPct,
         grandTotal: total,
         date: txnDate,
         paymentMethod: txnPaymentMethod,
@@ -642,6 +793,15 @@ export default function FinanceReportsPage() {
               Ledger
             </button>
             <button
+              onClick={() => setActiveTab('purchases')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'purchases'
+                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                }`}
+            >
+              Purchases
+            </button>
+            <button
               onClick={() => setActiveTab('expenses')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'expenses'
                 ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
@@ -649,6 +809,24 @@ export default function FinanceReportsPage() {
                 }`}
             >
               Expenses
+            </button>
+            <button
+              onClick={() => setActiveTab('equity')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'equity'
+                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                }`}
+            >
+              Partner Equity
+            </button>
+            <button
+              onClick={() => setActiveTab('treasury')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'treasury'
+                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                }`}
+            >
+              Treasury & Close
             </button>
             <button
               onClick={() => setActiveTab('reports')}
@@ -679,12 +857,60 @@ export default function FinanceReportsPage() {
               </div>
               <Button
                 onClick={() => {
-                  const filteredTxns = transactions.filter(t => t.date >= reportStartDate && t.date <= reportEndDate);
-                  const filteredExps = expenses.filter(e => e.date >= reportStartDate && e.date <= reportEndDate);
+                  const activeTxns = transactions.filter(t => {
+                    const status = (t.status || '').toLowerCase();
+                    return t.date >= reportStartDate && t.date <= reportEndDate && status !== 'refunded' && status !== 'cancelled';
+                  });
+                  const salesTxns = activeTxns.filter(
+                    t => t.transactionType !== 'Debt_Settlement' && t.serviceName !== 'Client Debt Settlement'
+                  );
+                  const filteredExps = expenses.filter(e => e.date >= reportStartDate && e.date <= reportEndDate && e.status === 'Paid');
+                  const filteredPurchases = purchaseBills.filter((b: any) => b.date >= reportStartDate && b.date <= reportEndDate && (b.amountPaid || 0) > 0);
 
-                  const totalRev = filteredTxns.reduce((acc, t) => acc + t.grandTotal, 0);
-                  const totalExp = filteredExps.reduce((acc, e) => acc + e.amount, 0);
+                  const totalRev = salesTxns.reduce((acc, t) => acc + t.grandTotal, 0);
+                  const totalOpExp = filteredExps.reduce((acc, e) => acc + e.amount, 0);
+                  const totalPurchExp = filteredPurchases.reduce((acc, b) => acc + (b.amountPaid || 0), 0);
+                  const totalExp = totalOpExp + totalPurchExp;
                   const netProfit = totalRev - totalExp;
+
+                  let pdfCashRev = 0;
+                  let pdfCardRev = 0;
+                  let pdfOnlineRev = 0;
+                  let pdfCashCount = 0;
+                  let pdfCardCount = 0;
+                  let pdfOnlineCount = 0;
+
+                  for (const t of activeTxns) {
+                    const amt = t.amountPaid !== undefined && t.amountPaid !== null ? t.amountPaid : t.grandTotal;
+                    if (t.paymentSplits && t.paymentSplits.length > 0) {
+                      for (const split of t.paymentSplits) {
+                        const sMethod = (split.method || '').toLowerCase();
+                        const sAmt = Number(split.amount) || 0;
+                        if (sMethod === 'cash') {
+                          pdfCashRev += sAmt;
+                          pdfCashCount++;
+                        } else if (sMethod === 'card' || sMethod.includes('pos')) {
+                          pdfCardRev += sAmt;
+                          pdfCardCount++;
+                        } else {
+                          pdfOnlineRev += sAmt;
+                          pdfOnlineCount++;
+                        }
+                      }
+                    } else {
+                      const pm = (t.paymentMethod || '').toLowerCase();
+                      if (pm === 'cash') {
+                        pdfCashRev += amt;
+                        pdfCashCount++;
+                      } else if (pm === 'card' || pm.includes('pos')) {
+                        pdfCardRev += amt;
+                        pdfCardCount++;
+                      } else {
+                        pdfOnlineRev += amt;
+                        pdfOnlineCount++;
+                      }
+                    }
+                  }
 
                   const formatFinancial = (val: number) => {
                     const formatted = formatPKR(Math.abs(val), { decimals: false });
@@ -881,7 +1107,50 @@ export default function FinanceReportsPage() {
                           </div>
                         </div>
 
-                        <h2>Sales Transactions Ledger</h2>
+                        <h2>Collections by Payment Channel</h2>
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Payment Channel</th>
+                              <th>Account Tier / Destination</th>
+                              <th class="text-right">Invoices</th>
+                              <th class="text-right">Total Amount</th>
+                              <th class="text-right">Share (%)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td><strong>Cash Receipts</strong></td>
+                              <td>Front Desk Cash Drawer (#1010)</td>
+                              <td class="text-right">${pdfCashCount}</td>
+                              <td class="text-right font-mono font-bold">${formatFinancial(pdfCashRev)}</td>
+                              <td class="text-right font-mono">${totalRev > 0 ? ((pdfCashRev / totalRev) * 100).toFixed(1) : '0.0'}%</td>
+                            </tr>
+                            <tr>
+                              <td><strong>Card / POS Terminals</strong></td>
+                              <td>Terminal Swipes & Merchant Holding (#1020)</td>
+                              <td class="text-right">${pdfCardCount}</td>
+                              <td class="text-right font-mono font-bold">${formatFinancial(pdfCardRev)}</td>
+                              <td class="text-right font-mono">${totalRev > 0 ? ((pdfCardRev / totalRev) * 100).toFixed(1) : '0.0'}%</td>
+                            </tr>
+                            <tr>
+                              <td><strong>Online Payments</strong></td>
+                              <td>Online Gateway & Digital Checkouts</td>
+                              <td class="text-right">${pdfOnlineCount}</td>
+                              <td class="text-right font-mono font-bold">${formatFinancial(pdfOnlineRev)}</td>
+                              <td class="text-right font-mono">${totalRev > 0 ? ((pdfOnlineRev / totalRev) * 100).toFixed(1) : '0.0'}%</td>
+                            </tr>
+                            <tr>
+                              <td><strong>Uncollected Dues (A/R)</strong></td>
+                              <td>Accounts Receivable / Client Ledger</td>
+                              <td class="text-right">-</td>
+                              <td class="text-right font-mono font-bold">${formatFinancial(Math.max(0, totalRev - (pdfCashRev + pdfCardRev + pdfOnlineRev)))}</td>
+                              <td class="text-right font-mono">${totalRev > 0 ? ((Math.max(0, totalRev - (pdfCashRev + pdfCardRev + pdfOnlineRev)) / totalRev) * 100).toFixed(1) : '0.0'}%</td>
+                            </tr>
+                          </tbody>
+                        </table>
+
+                        <h2>Recent Sales Transactions</h2>
                         <table>
                           <thead>
                             <tr>
@@ -997,22 +1266,205 @@ export default function FinanceReportsPage() {
                 />
               </div>
 
+              {/* Payment Methods Breakdown: Cash, Card, Online */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                      <Banknote className="w-4 h-4 text-emerald-500" />
+                      Payment Collections by Channel (Cash vs. Card vs. Online)
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Real-time breakdown of gross revenue collected across front-desk cash, physical card terminals, and online payments.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300">
+                    <span>Total Inflow:</span>
+                    <span className="font-mono text-emerald-600 dark:text-emerald-400 text-sm">{formatPKR(totalRevenue)}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Cash Card */}
+                  <div className="p-4 rounded-xl border border-emerald-100 dark:border-emerald-950/60 bg-emerald-50/40 dark:bg-emerald-950/20">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                        <Banknote className="w-4 h-4" />
+                        Cash Collections
+                      </span>
+                      <Badge variant="success" size="sm">{cashPct.toFixed(1)}%</Badge>
+                    </div>
+                    <div className="mt-2 flex items-baseline justify-between">
+                      <div className="text-2xl font-black font-mono text-emerald-900 dark:text-emerald-100">
+                        {formatPKR(cashRevenue)}
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-xs text-emerald-700/80 dark:text-emerald-400">
+                      <span>{cashCount} transaction{cashCount !== 1 ? 's' : ''}</span>
+                      <span className="font-mono">Avg: {formatPKR(cashCount > 0 ? Math.round(cashRevenue / cashCount) : 0, { decimals: false })}</span>
+                    </div>
+                  </div>
+
+                  {/* Card / POS Terminals */}
+                  <div className="p-4 rounded-xl border border-blue-100 dark:border-blue-950/60 bg-blue-50/40 dark:bg-blue-950/20">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400 flex items-center gap-1.5">
+                        <CreditCard className="w-4 h-4" />
+                        Card / POS Swipes
+                      </span>
+                      <Badge variant="primary" size="sm">{cardPct.toFixed(1)}%</Badge>
+                    </div>
+                    <div className="mt-2 flex items-baseline justify-between">
+                      <div className="text-2xl font-black font-mono text-blue-900 dark:text-blue-100">
+                        {formatPKR(cardRevenue)}
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-xs text-blue-700/80 dark:text-blue-400">
+                      <span>{cardCount} transaction{cardCount !== 1 ? 's' : ''}</span>
+                      <span className="font-mono">Avg: {formatPKR(cardCount > 0 ? Math.round(cardRevenue / cardCount) : 0, { decimals: false })}</span>
+                    </div>
+                  </div>
+
+                  {/* Online Payments Card */}
+                  <div className="p-4 rounded-xl border border-purple-100 dark:border-purple-950/60 bg-purple-50/40 dark:bg-purple-950/20">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-purple-700 dark:text-purple-400 flex items-center gap-1.5">
+                        <Globe className="w-4 h-4" />
+                        Online Payments
+                      </span>
+                      <Badge variant="purple" size="sm">{onlinePct.toFixed(1)}%</Badge>
+                    </div>
+                    <div className="mt-2 flex items-baseline justify-between">
+                      <div className="text-2xl font-black font-mono text-purple-900 dark:text-purple-100">
+                        {formatPKR(onlineRevenue)}
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-xs text-purple-700/80 dark:text-purple-400">
+                      <span>{onlineCount} transaction{onlineCount !== 1 ? 's' : ''}</span>
+                      <span className="font-mono">Avg: {formatPKR(onlineCount > 0 ? Math.round(onlineRevenue / onlineCount) : 0, { decimals: false })}</span>
+                    </div>
+                  </div>
+
+                  {/* Accounts Receivable / Uncollected Dues Card */}
+                  <div className="p-4 rounded-xl border border-amber-100 dark:border-amber-950/60 bg-amber-50/40 dark:bg-amber-950/20">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                        <Clock className="w-4 h-4" />
+                        Uncollected Dues
+                      </span>
+                      <Badge variant="warning" size="sm">{duePct.toFixed(1)}%</Badge>
+                    </div>
+                    <div className="mt-2 flex items-baseline justify-between">
+                      <div className="text-2xl font-black font-mono text-amber-900 dark:text-amber-100">
+                        {formatPKR(uncollectedDues)}
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-xs text-amber-700/80 dark:text-amber-400">
+                      <span>Accounts Receivable</span>
+                      <span className="font-mono">{duePct.toFixed(1)}% of Revenue</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Multi-segment Progress Distribution Bar */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
+                    <span>Payment Channel Distribution</span>
+                    <span>{cashCount + cardCount + onlineCount} Invoices Total</span>
+                  </div>
+                  <div className="h-2.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden flex">
+                    <div
+                      style={{ width: `${cashPct}%` }}
+                      className="h-full bg-emerald-500 transition-all duration-500"
+                      title={`Cash: ${cashPct.toFixed(1)}%`}
+                    />
+                    <div
+                      style={{ width: `${cardPct}%` }}
+                      className="h-full bg-blue-500 transition-all duration-500"
+                      title={`Card: ${cardPct.toFixed(1)}%`}
+                    />
+                    <div
+                      style={{ width: `${onlinePct}%` }}
+                      className="h-full bg-purple-500 transition-all duration-500"
+                      title={`Online: ${onlinePct.toFixed(1)}%`}
+                    />
+                    <div
+                      style={{ width: `${duePct}%` }}
+                      className="h-full bg-amber-500 transition-all duration-500"
+                      title={`Receivable Dues: ${duePct.toFixed(1)}%`}
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Payment Transactions Table */}
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                    Recent Payment Transactions
-                  </h3>
-                  <Input
-                    placeholder="Search by invoice ID or client..."
-                    value={txnSearch}
-                    onChange={(e) => {
-                      setTxnSearch(e.target.value);
-                      setTxnPage(1);
-                    }}
-                    icon={<Search className="w-4 h-4" />}
-                    className="w-full sm:w-72"
-                  />
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                      Recent Payment Transactions
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Itemized client invoices and settlement history.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {/* Payment Channel Filter Tabs: Cash, Card, Online */}
+                    <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                      <button
+                        onClick={() => { setTxnMethodFilter('All'); setTxnPage(1); }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          txnMethodFilter === 'All'
+                            ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                        }`}
+                      >
+                        All ({transactions.length})
+                      </button>
+                      <button
+                        onClick={() => { setTxnMethodFilter('Cash'); setTxnPage(1); }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          txnMethodFilter === 'Cash'
+                            ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                        }`}
+                      >
+                        Cash ({cashCount})
+                      </button>
+                      <button
+                        onClick={() => { setTxnMethodFilter('Card'); setTxnPage(1); }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          txnMethodFilter === 'Card'
+                            ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                        }`}
+                      >
+                        Card ({cardCount})
+                      </button>
+                      <button
+                        onClick={() => { setTxnMethodFilter('Online'); setTxnPage(1); }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          txnMethodFilter === 'Online'
+                            ? 'bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                        }`}
+                      >
+                        Online ({onlineCount})
+                      </button>
+                    </div>
+
+                    <Input
+                      placeholder="Search invoice or client..."
+                      value={txnSearch}
+                      onChange={(e) => {
+                        setTxnSearch(e.target.value);
+                        setTxnPage(1);
+                      }}
+                      icon={<Search className="w-4 h-4" />}
+                      className="w-full sm:w-60"
+                    />
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -1045,13 +1497,26 @@ export default function FinanceReportsPage() {
                             {txn.date}
                           </td>
                           <td className="py-3.5 px-4">
-                            <Badge variant="neutral">{txn.paymentMethod}</Badge>
+                            <Badge variant={
+                              (txn.paymentMethod || '').toLowerCase() === 'cash' ? 'success' :
+                              (txn.paymentMethod || '').toLowerCase() === 'card' || (txn.paymentMethod || '').toLowerCase().includes('pos') ? 'primary' : 'purple'
+                            }>
+                              {txn.paymentMethod}
+                            </Badge>
                           </td>
                           <td className="py-3.5 px-4 font-mono font-black text-slate-900 dark:text-slate-100">
                             {formatPKR(txn.grandTotal)}
                           </td>
                           <td className="py-3.5 px-4">
-                            <Badge variant="success">{txn.status}</Badge>
+                            <Badge variant={
+                              (txn.status || '').toLowerCase() === 'refunded' || (txn.status || '').toLowerCase() === 'cancelled'
+                                ? 'danger'
+                                : (txn.status || '').toLowerCase() === 'partial' || (txn.status || '').toLowerCase() === 'pending'
+                                ? 'warning'
+                                : 'success'
+                            }>
+                              {txn.status}
+                            </Badge>
                           </td>
                           <td className="py-3.5 px-4 text-right">
                             <div className="flex items-center justify-end gap-2">
@@ -1124,6 +1589,18 @@ export default function FinanceReportsPage() {
                 )}
               </div>
             </div>
+          )}
+
+          {activeTab === 'purchases' && (
+            <PurchasesTab />
+          )}
+
+          {activeTab === 'equity' && (
+            <PartnerEquityTab />
+          )}
+
+          {activeTab === 'treasury' && (
+            <TreasuryCloseTab />
           )}
 
           {activeTab === 'expenses' && (
@@ -1410,6 +1887,62 @@ export default function FinanceReportsPage() {
                         <span className="text-xl font-bold font-mono text-emerald-600 mt-1 block">{formatPKR(totalRevenue)}</span>
                       </div>
                     </div>
+
+                    {/* Payment Channel Breakdown Table */}
+                    <div className="mt-6 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                          <Banknote className="w-4 h-4 text-emerald-500" />
+                          Collections by Payment Method (Cash, Card, Online)
+                        </h4>
+                        <span className="text-xs font-semibold text-slate-500">Channel Audit</span>
+                      </div>
+                      <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[10px] font-bold text-slate-400 tracking-wider">
+                            <tr>
+                              <th className="py-2.5 px-4">Payment Channel</th>
+                              <th className="py-2.5 px-4">Destination Account</th>
+                              <th className="py-2.5 px-4 text-center">Invoices</th>
+                              <th className="py-2.5 px-4 text-right">Total Collected (PKR)</th>
+                              <th className="py-2.5 px-4 text-right">Revenue Share</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
+                            <tr>
+                              <td className="py-3 px-4 font-bold flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                                Cash Collections
+                              </td>
+                              <td className="py-3 px-4 text-slate-500 text-[11px]">Front Desk Cash Drawer (#1010)</td>
+                              <td className="py-3 px-4 text-center font-mono">{cashCount}</td>
+                              <td className="py-3 px-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">{formatPKR(cashRevenue)}</td>
+                              <td className="py-3 px-4 text-right font-mono font-semibold">{cashPct.toFixed(1)}%</td>
+                            </tr>
+                            <tr>
+                              <td className="py-3 px-4 font-bold flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" />
+                                Card / POS Terminals
+                              </td>
+                              <td className="py-3 px-4 text-slate-500 text-[11px]">Merchant POS Terminal (#1020)</td>
+                              <td className="py-3 px-4 text-center font-mono">{cardCount}</td>
+                              <td className="py-3 px-4 text-right font-mono font-bold text-blue-600 dark:text-blue-400">{formatPKR(cardRevenue)}</td>
+                              <td className="py-3 px-4 text-right font-mono font-semibold">{cardPct.toFixed(1)}%</td>
+                            </tr>
+                            <tr>
+                              <td className="py-3 px-4 font-bold flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full bg-purple-500 shrink-0" />
+                                Online Payments
+                              </td>
+                              <td className="py-3 px-4 text-slate-500 text-[11px]">Digital Checkout & Gateways</td>
+                              <td className="py-3 px-4 text-center font-mono">{onlineCount}</td>
+                              <td className="py-3 px-4 text-right font-mono font-bold text-purple-600 dark:text-purple-400">{formatPKR(onlineRevenue)}</td>
+                              <td className="py-3 px-4 text-right font-mono font-semibold">{onlinePct.toFixed(1)}%</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -1670,7 +2203,6 @@ export default function FinanceReportsPage() {
               options={[
                 { label: 'Cash', value: 'Cash' },
                 { label: 'Card', value: 'Card' },
-                { label: 'Bank', value: 'Bank' },
                 { label: 'Online', value: 'Online' }
               ]}
               value={txnPaymentMethod}

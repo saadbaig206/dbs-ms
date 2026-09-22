@@ -51,12 +51,13 @@ async def login(
             raw_email in spec["aliases"]
         )
         if is_match:
-            # Flexible password check for default accounts
-            pass_matched = (
-                not raw_pass or
-                raw_pass in spec["passwords"] or
-                login_data.password in spec["passwords"] or
-                raw_pass.lower() in spec["passwords"]
+            # Strict password check for default accounts
+            pass_matched = bool(
+                raw_pass and (
+                    raw_pass in spec["passwords"] or
+                    login_data.password in spec["passwords"] or
+                    raw_pass.lower() in spec["passwords"]
+                )
             )
             if not pass_matched:
                 raise HTTPException(
@@ -154,7 +155,7 @@ async def login(
         except Exception:
             pass
 
-    # 4. Smart Password Verification & Self-Healing Sync for Database User
+    # 4. Strict Cryptographic Password Verification for Database User
     if user:
         password_valid = False
         if user.hashed_password and raw_pass:
@@ -162,17 +163,6 @@ async def login(
                 verify_password(raw_pass, user.hashed_password) or
                 verify_password(login_data.password, user.hashed_password)
             )
-        
-        # Self-healing: if password didn't match standard hash check but user typed a valid password
-        if not password_valid and raw_pass:
-            # Auto-update user's password so they are never locked out
-            try:
-                user.hashed_password = get_password_hash(raw_pass)
-                db.add(user)
-                await db.commit()
-                password_valid = True
-            except Exception:
-                password_valid = True
         
         if password_valid:
             access_token = create_access_token(subject=user.email)
@@ -196,30 +186,6 @@ async def login(
                 "token_type": "bearer",
                 "role": user.role
             }
-
-    # 5. Last-resort fallback for non-existing user input
-    if raw_pass and len(raw_email) > 0:
-        # Auto-create user if name/email and password provided
-        role = "partner" if "partner" in email_clean or "sheraz" in email_clean else "staff"
-        try:
-            new_u = User(
-                email=raw_email,
-                hashed_password=get_password_hash(raw_pass),
-                role=role
-            )
-            db.add(new_u)
-            await db.commit()
-            access_token = create_access_token(subject=raw_email)
-            refresh_token = create_refresh_token(subject=raw_email)
-            set_cached_user(access_token, new_u)
-            return {
-                "access_token": access_token,
-                "refresh_token": refresh_token,
-                "token_type": "bearer",
-                "role": role
-            }
-        except Exception:
-            pass
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

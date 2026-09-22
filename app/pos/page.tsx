@@ -17,10 +17,12 @@ import {
   ShoppingBag,
   Percent,
   AlertCircle,
-  Edit2
+  Edit2,
+  Package,
+  Tag
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
-import { ServiceItem, PaymentMethod } from '../../lib/types/clinic';
+import { ServiceItem, InventoryItem, PaymentMethod } from '../../lib/types/clinic';
 import { formatPKR } from '../../lib/utils/currency';
 import { formatPhoneInput } from '../../lib/utils/phone';
 import { getLocalDateString, getLocalTimeString } from '../../lib/utils/date';
@@ -30,6 +32,8 @@ import { Badge } from '../../components/ui/Badge';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 import { Modal } from '../../components/ui/Modal';
 import { AddExpenseModal } from '../../components/ui/AddExpenseModal';
+import { posClient } from '../../lib/api/client';
+
 
 function POSContent() {
   const searchParams = useSearchParams();
@@ -37,14 +41,19 @@ function POSContent() {
   const serviceIdParam = searchParams.get('serviceId');
   const serviceNameParam = searchParams.get('serviceName');
   const priceParam = searchParams.get('price');
+  const appointmentIdParam = searchParams.get('appointmentId');
 
   const {
     services,
+    inventory,
     clients,
+    staff,
     posCart,
     addToPosCart,
     removeFromPosCart,
     updatePosQuantity,
+    updatePosItemPrice,
+    updatePosItemStaff,
     clearPosCart,
     completePosCheckout,
     setPrintData,
@@ -54,16 +63,32 @@ function POSContent() {
     role
   } = useClinic();
 
+  const [catalogMode, setCatalogMode] = useState<'services' | 'products'>('services');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [selectedProductCategory, setSelectedProductCategory] = useState<string>('All');
   const [search, setSearch] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientSearch, setClientSearch] = useState('');
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Card');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash');
   const [discountPercent, setDiscountPercent] = useState<string>('0');
-  const [taxPercent, setTaxPercent] = useState<string>('10');
+  const [taxPercent, setTaxPercent] = useState<string>('0');
   const [isPaidSuccess, setIsPaidSuccess] = useState(false);
   const [mobilePosTab, setMobilePosTab] = useState<'catalog' | 'ticket'>('catalog');
+  const [isPartialPayment, setIsPartialPayment] = useState(false);
+  const [partialAmountPaid, setPartialAmountPaid] = useState('');
+
+  // Cash Tender / Change live calculation state
+  const [cashReceived, setCashReceived] = useState<string>('');
+
+  // Split tender breakdown states
+  const [splitCash, setSplitCash] = useState<string>('');
+  const [splitCard, setSplitCard] = useState<string>('');
+  const [splitOnline, setSplitOnline] = useState<string>('');
+
+  // Cart item custom price editing state
+  const [editingCartItem, setEditingCartItem] = useState<{ id: string; name: string; price: number } | null>(null);
+  const [customCartPrice, setCustomCartPrice] = useState<string>('');
 
   // Card details states
   const [cardLastFour, setCardLastFour] = useState('');
@@ -104,7 +129,7 @@ function POSContent() {
           id: serviceIdParam || `SRV-${Date.now()}`,
           name: serviceNameParam,
           category: 'Facial & Skin Care',
-          price: Number(priceParam) || 5000,
+          price: Number(priceParam) || 0,
           durationMinutes: 45,
           assignedStaffIds: [],
           assignedStaffNames: [],
@@ -137,8 +162,9 @@ function POSContent() {
   const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
   const [quickClientName, setQuickClientName] = useState('');
   const [quickClientPhone, setQuickClientPhone] = useState('+92');
-  const [quickClientAge, setQuickClientAge] = useState<string>('30');
+  const [quickClientAge, setQuickClientAge] = useState<string>('');
   const [quickClientGender, setQuickClientGender] = useState<string>('Female');
+  const [quickClientError, setQuickClientError] = useState<string | null>(null);
 
   // Edit Transaction Modal State
   const [isEditTxnModalOpen, setIsEditTxnModalOpen] = useState(false);
@@ -193,53 +219,141 @@ function POSContent() {
     }
   };
 
+  // Refund Transaction Modal State
+  const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
+  const [refundingTxn, setRefundingTxn] = useState<any | null>(null);
+  const [refundReason, setRefundReason] = useState('');
+  const [refundRestock, setRefundRestock] = useState(true);
+  const [isRefunding, setIsRefunding] = useState(false);
+  const [selectedRefundItems, setSelectedRefundItems] = useState<{ [index: number]: boolean }>({});
+
+  const handleOpenRefundModal = (txn: any) => {
+    setRefundingTxn(txn);
+    setRefundReason('');
+    setRefundRestock(true);
+    const initialSelected: { [index: number]: boolean } = {};
+    (txn.items || []).forEach((_: any, idx: number) => {
+      initialSelected[idx] = true;
+    });
+    setSelectedRefundItems(initialSelected);
+    setIsRefundModalOpen(true);
+  };
+
+  const handleRefundSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!refundingTxn || !refundReason.trim()) return;
+    try {
+      setIsRefunding(true);
+      const itemsList = refundingTxn.items || [];
+      const hasSomeSelected = itemsList.some((_: any, idx: number) => selectedRefundItems[idx]);
+      if (itemsList.length > 0 && !hasSomeSelected) {
+        showToast("Please select at least one line item to refund.", "error");
+        setIsRefunding(false);
+        return;
+      }
+      const isPartial = itemsList.length > 0 && itemsList.some((_: any, idx: number) => !selectedRefundItems[idx]);
+      const itemsToRefund = isPartial ? itemsList.filter((_: any, idx: number) => selectedRefundItems[idx]) : undefined;
+
+      const updated = await posClient.refundTransaction(refundingTxn.id, refundReason.trim(), refundRestock, itemsToRefund);
+      showToast(isPartial ? "Partial refund processed successfully." : "Transaction fully refunded. Stock updated.");
+      setIsRefundModalOpen(false);
+      setRefundingTxn(null);
+      updateTransaction(refundingTxn.id, updated || { status: isPartial ? 'Partial Refund' : 'Refunded' });
+    } catch (err: any) {
+      showToast("Refund failed: " + err.message, "error");
+    } finally {
+      setIsRefunding(false);
+    }
+  };
+
+  const handleReprint = async (txn: any) => {
+    try {
+      const res = await posClient.reprintTransaction(txn.id);
+      const updatedCount = res?.reprintCount ?? ((txn.reprintCount || 0) + 1);
+      const matchedClient = clients.find(c => c.name === txn.clientName);
+      const txnWithPhone = {
+        ...txn,
+        phone: txn.phone || matchedClient?.phone,
+        reprintCount: updatedCount
+      };
+      setPrintData({ title: `Invoice ${txnWithPhone.invoiceId}`, type: 'invoice', data: txnWithPhone });
+    } catch (err) {
+      const matchedClient = clients.find(c => c.name === txn.clientName);
+      const txnWithPhone = {
+        ...txn,
+        phone: txn.phone || matchedClient?.phone,
+        reprintCount: (txn.reprintCount || 0) + 1
+      };
+      setPrintData({ title: `Invoice ${txnWithPhone.invoiceId}`, type: 'invoice', data: txnWithPhone });
+    }
+  };
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleQuickAddClient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting || !quickClientName || !quickClientPhone) return;
 
+    setQuickClientError(null);
     if (quickClientName.trim().length < 3) {
-      showToast("Full Name must be at least 3 characters long", "error");
+      setQuickClientError("Full Name must be at least 3 characters long");
       return;
     }
     if (!/^[A-Za-z\s]+$/.test(quickClientName.trim())) {
-      showToast("Full Name must contain only letters and spaces", "error");
+      setQuickClientError("Full Name must contain only letters and spaces");
       return;
     }
     if (!/^\+92\s?\d{9,10}$/.test(quickClientPhone)) {
-      showToast("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)", "error");
+      setQuickClientError("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)");
       return;
     }
     const ageNum = Number(quickClientAge);
     if (isNaN(ageNum) || ageNum < 1 || ageNum > 120) {
-      showToast("Please enter a valid age between 1 and 120", "error");
+      setQuickClientError("Please enter a valid age between 1 and 120");
       return;
     }
 
     try {
       setIsSubmitting(true);
       await addClient({
-        name: quickClientName,
-        phone: quickClientPhone,
+        name: quickClientName.trim(),
+        phone: quickClientPhone.trim(),
         cnic: 'N/A',
         gender: quickClientGender as 'Female' | 'Male' | 'Other',
         age: ageNum,
         address: 'N/A',
         notes: 'Quick POS Register'
       });
-      setClientName(quickClientName);
+      setClientName(quickClientName.trim());
       setIsAddClientModalOpen(false);
       setQuickClientName('');
       setQuickClientPhone('+92');
-      setQuickClientAge('30');
+      setQuickClientAge('');
       setQuickClientGender('Female');
+      setQuickClientError(null);
       showToast("Client registered successfully!");
     } catch (err: any) {
-      showToast("Failed to register client: " + err.message, "error");
+      setQuickClientError(err.message || "Failed to register client");
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleSaveCartItemPrice = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCartItem) return;
+    if (role !== 'admin') {
+      showToast("Manual price adjustments require Administrator privileges.", "error");
+      return;
+    }
+    const newPrice = Number(customCartPrice);
+    if (isNaN(newPrice) || newPrice < 0) {
+      showToast("Please enter a valid price (0 or higher)", "error");
+      return;
+    }
+    updatePosItemPrice(editingCartItem.id, newPrice);
+    showToast(`Price updated for ${editingCartItem.name}`);
+    setEditingCartItem(null);
   };
 
   const categories = ['All', 'Facial & Skin Care', 'Laser Treatments', 'Injectables & Anti-Aging', 'Body Contouring', 'IV Therapy', 'Rejuvenation'];
@@ -251,6 +365,20 @@ function POSContent() {
       return matchesCat && matchesSearch;
     });
   }, [services, selectedCategory, search]);
+
+  const productCategories = useMemo(() => {
+    const cats = Array.from(new Set((inventory || []).map(i => i.category || 'General')));
+    return ['All', ...cats];
+  }, [inventory]);
+
+  const filteredProducts = useMemo(() => {
+    return (inventory || []).filter((p) => {
+      const matchesCat = selectedProductCategory === 'All' || p.category === selectedProductCategory;
+      const matchesSearch = p.itemName.toLowerCase().includes(search.toLowerCase()) ||
+        (p.supplier && p.supplier.toLowerCase().includes(search.toLowerCase()));
+      return matchesCat && matchesSearch;
+    });
+  }, [inventory, selectedProductCategory, search]);
 
   const { subtotal, discountAmount, taxableAmount, taxAmount, grandTotal } = useMemo(() => {
     const sub = posCart.reduce((acc, item) => acc + item.price * item.quantity, 0);
@@ -267,25 +395,96 @@ function POSContent() {
     };
   }, [posCart, discountPercent, taxPercent]);
 
+  const selectedClientObj = useMemo(() => {
+    const term = (clientSearch || clientName).trim().toLowerCase();
+    if (!term) return null;
+    return clients.find(c => c.name.toLowerCase() === term);
+  }, [clients, clientSearch, clientName]);
+
   const handleCheckout = async () => {
     if (isSubmitting || posCart.length === 0) return;
+
+    const paidNow = isPartialPayment ? (Number(partialAmountPaid) || 0) : grandTotal;
+    const remDue = isPartialPayment ? Math.max(0, grandTotal - paidNow) : 0;
+
+    if (paymentMethod === 'Card' && !bankTxnId.trim()) {
+      showToast("Card payments require POS terminal reference / Bank Transaction ID (Slip No).", "error");
+      return;
+    }
+
+    let splitsPayload: any[] | undefined = undefined;
+    if (paymentMethod === 'Split') {
+      const cAmt = Number(splitCash) || 0;
+      const cardAmt = Number(splitCard) || 0;
+      const oAmt = Number(splitOnline) || 0;
+      const splitSum = Math.round((cAmt + cardAmt + oAmt) * 100) / 100;
+      if (Math.abs(splitSum - paidNow) > 0.01) {
+        showToast(`Split total (Rs. ${splitSum}) must exactly equal payment amount (Rs. ${paidNow}).`, "error");
+        return;
+      }
+      if (cardAmt > 0 && !bankTxnId.trim()) {
+        showToast("Card split payments require POS terminal reference / Bank Transaction ID (Slip No).", "error");
+        return;
+      }
+      splitsPayload = [
+        { method: 'Cash', amount: cAmt },
+        { method: 'Card', amount: cardAmt },
+        { method: 'Online', amount: oAmt }
+      ].filter(s => s.amount > 0);
+    }
+
+    const cashReceivedNum = paymentMethod === 'Cash' 
+      ? (Number(cashReceived) || paidNow) 
+      : (paymentMethod === 'Split' ? (Number(splitCash) || undefined) : undefined);
+    const cashReturnedNum = paymentMethod === 'Cash' 
+      ? Math.max(0, (cashReceivedNum || 0) - paidNow)
+      : undefined;
+
+    if (paymentMethod === 'Cash' && cashReceived && Number(cashReceived) < paidNow) {
+      showToast(`Cash tendered (Rs. ${Number(cashReceived)}) cannot be less than amount due (Rs. ${paidNow}).`, "error");
+      return;
+    }
+
+    if (role !== 'admin' && (Number(discountPercent) || 0) > 20) {
+      showToast("Staff discounts are capped at 20%. Discounts above 20% require Admin supervisor override.", "error");
+      return;
+    }
+
     const activeClient = clientSearch.trim() || clientName.trim() || 'Walk-in Client';
     try {
       setIsSubmitting(true);
-      const cardDetails = (paymentMethod === 'Card' || paymentMethod === 'Online') ? {
-        cardLastFour: paymentMethod === 'Card' ? cardLastFour : undefined,
-        cardType: paymentMethod === 'Card' ? cardType : undefined,
+      const cardDetails = (paymentMethod === 'Card' || paymentMethod === 'Online' || (paymentMethod === 'Split' && (Number(splitCard) || 0) > 0)) ? {
+        cardLastFour: (paymentMethod === 'Card' || paymentMethod === 'Split') ? cardLastFour : undefined,
+        cardType: (paymentMethod === 'Card' || paymentMethod === 'Split') ? cardType : undefined,
         bankTxnId
       } : undefined;
-      const txn = await completePosCheckout(activeClient, paymentMethod, Number(discountPercent) || 0, Number(taxPercent) || 0, cardDetails);
 
-      // completePosCheckout only forwards the client's name, so the phone
-      // number never ends up on the transaction — look the client back up
-      // by name and attach it before this gets handed to the print modal.
-      const matchedClient = clients.find(c => c.name === activeClient);
+      const txn = await completePosCheckout(
+        activeClient,
+        paymentMethod,
+        Number(discountPercent) || 0,
+        Number(taxPercent) || 0,
+        cardDetails,
+        {
+          amountPaid: paidNow,
+          remainingDue: remDue,
+          cashReceived: cashReceivedNum,
+          cashReturned: cashReturnedNum,
+          paymentSplits: splitsPayload,
+          clientId: selectedClientObj?.id,
+          clientPhone: selectedClientObj?.phone,
+          appointmentId: appointmentIdParam || undefined
+        }
+      );
+
+      // Attach client phone & tender details for print modal
+      const matchedClient = selectedClientObj || clients.find(c => c.name === activeClient);
       const txnWithPhone = {
         ...txn,
         phone: (txn as any).phone || matchedClient?.phone,
+        cashReceived: cashReceivedNum,
+        cashReturned: cashReturnedNum,
+        paymentSplits: splitsPayload,
         time: txn.time || getLocalTimeString(),
         date: txn.date || getLocalDateString()
       };
@@ -301,6 +500,12 @@ function POSContent() {
       setBankTxnId('');
       setCvc('');
       setExpiryDate('');
+      setCashReceived('');
+      setSplitCash('');
+      setSplitCard('');
+      setSplitOnline('');
+      setIsPartialPayment(false);
+      setPartialAmountPaid('');
 
       setTimeout(() => {
         setIsPaidSuccess(false);
@@ -367,26 +572,62 @@ function POSContent() {
 
       {/* POS Grid: Left Service Catalog (60%) | Right Invoice Checkout Ticket (40%) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column - Service Catalog */}
+        {/* Left Column - Service & Product Catalog */}
         <div className={`lg:col-span-7 space-y-4 ${mobilePosTab === 'ticket' ? 'hidden lg:block' : 'block'}`}>
+          {/* Catalog Type Switcher */}
+          <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 gap-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => {
+                setCatalogMode('services');
+                setSearch('');
+              }}
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                catalogMode === 'services'
+                  ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+              <span>Treatments & Services ({services.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setCatalogMode('products');
+                setSearch('');
+              }}
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                catalogMode === 'products'
+                  ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <Package className="w-3.5 h-3.5 text-emerald-500" />
+              <span>Retail Products & Serums ({inventory.length})</span>
+            </button>
+          </div>
+
           {/* Category Tabs & Search */}
           <div className="luxury-card p-4 space-y-3">
             <Input
-              placeholder="Search treatments (e.g. HydraFacial, Botox, PRP...)"
+              placeholder={catalogMode === 'services' ? "Search treatments (e.g. HydraFacial, Botox, PRP...)" : "Search products (e.g. Serum, Cleanser, Cream, Sunscreen...)"}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               icon={<Search className="w-4 h-4" />}
             />
 
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-              {categories.map((cat) => (
+              {(catalogMode === 'services' ? categories : productCategories).map((cat) => (
                 <button
                   key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${selectedCategory === cat
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                  onClick={() => catalogMode === 'services' ? setSelectedCategory(cat) : setSelectedProductCategory(cat)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                    (catalogMode === 'services' ? selectedCategory === cat : selectedProductCategory === cat)
+                      ? (catalogMode === 'services' ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20')
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                    }`}
+                  }`}
                 >
                   {cat}
                 </button>
@@ -394,56 +635,159 @@ function POSContent() {
             </div>
           </div>
 
-          {/* Service High Density Table */}
+          {/* High Density Table (Services or Products) */}
           <div className="luxury-card p-4 max-h-[600px] overflow-y-auto pr-1">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[10px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
-                  <tr>
-                    <th className="py-2 px-3 rounded-l-xl">Name</th>
-                    <th className="py-2 px-3">Category</th>
-                    <th className="py-2 px-3">Price</th>
-                    <th className="py-2 px-3 text-right rounded-r-xl">Add</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-semibold">
-                  {filteredServices.map((srv) => (
-                    <tr
-                      key={srv.id}
-                      onClick={() => srv.status !== 'Out of Stock' && addToPosCart(srv)}
-                      className={`transition-colors ${srv.status === 'Out of Stock'
-                          ? 'opacity-60 bg-slate-100/50 dark:bg-slate-900/40 cursor-not-allowed'
-                          : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40 cursor-pointer'
-                        }`}
-                    >
-                      <td className="py-2.5 px-3">
-                        <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                          {srv.name}
-                          {srv.status === 'Out of Stock' && (
-                            <Badge variant="danger" size="sm">Out of Stock</Badge>
-                          )}
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-normal">{srv.durationMinutes} min</div>
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <Badge variant="primary" size="sm">{srv.category}</Badge>
-                      </td>
-                      <td className="py-2.5 px-3 font-mono font-black text-slate-900 dark:text-slate-100">
-                        {formatPKR(srv.price, { decimals: false })}
-                      </td>
-                      <td className="py-2.5 px-3 text-right">
-                        {srv.status === 'Out of Stock' ? (
-                          <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider">Empty</span>
-                        ) : (
-                          <button className="p-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white transition-colors">
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </td>
+              {catalogMode === 'services' ? (
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[10px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
+                    <tr>
+                      <th className="py-2 px-3 rounded-l-xl">Service</th>
+                      <th className="py-2 px-3">Category</th>
+                      <th className="py-2 px-3">Price</th>
+                      <th className="py-2 px-3 text-right rounded-r-xl">Add</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-semibold">
+                    {filteredServices.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-8 text-center text-slate-400">
+                          No treatments found matching your criteria.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredServices.map((srv) => (
+                        <tr
+                          key={srv.id}
+                          onClick={() => srv.status !== 'Out of Stock' && addToPosCart(srv)}
+                          className={`transition-colors ${
+                            srv.status === 'Out of Stock'
+                              ? 'opacity-60 bg-slate-100/50 dark:bg-slate-900/40 cursor-not-allowed'
+                              : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40 cursor-pointer'
+                          }`}
+                        >
+                          <td className="py-2.5 px-3">
+                            <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                              {srv.name}
+                              {srv.status === 'Out of Stock' && (
+                                <Badge variant="danger" size="sm">Out of Stock</Badge>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-normal">{srv.durationMinutes} min</div>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <Badge variant="primary" size="sm">{srv.category}</Badge>
+                          </td>
+                          <td className="py-2.5 px-3 font-mono font-black text-slate-900 dark:text-slate-100">
+                            {formatPKR(srv.price, { decimals: false })}
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            {srv.status === 'Out of Stock' ? (
+                              <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider">Empty</span>
+                            ) : (
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  title="Sell as 3-Session Prepaid Bundle (10% off)"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    addToPosCart(srv, true, 3);
+                                  }}
+                                  className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600 hover:text-white transition-colors"
+                                >
+                                  3-Sessions
+                                </button>
+                                <button
+                                  type="button"
+                                  className="p-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white transition-colors"
+                                  title="Add Single Session"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              ) : (
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[10px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
+                    <tr>
+                      <th className="py-2 px-3 rounded-l-xl">Product / Formula</th>
+                      <th className="py-2 px-3">Category</th>
+                      <th className="py-2 px-3">Stock Available</th>
+                      <th className="py-2 px-3">Retail Price</th>
+                      <th className="py-2 px-3 text-right rounded-r-xl">Add</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-semibold">
+                    {filteredProducts.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-slate-400">
+                          No retail products found matching your search.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredProducts.map((prod) => {
+                        const isOutOfStock = prod.quantity <= 0;
+                        const isLowStock = !isOutOfStock && prod.quantity <= (prod.minStock || 5);
+                        return (
+                          <tr
+                            key={prod.id}
+                            onClick={() => !isOutOfStock && addToPosCart(prod)}
+                            className={`transition-colors ${
+                              isOutOfStock
+                                ? 'opacity-60 bg-slate-100/50 dark:bg-slate-900/40 cursor-not-allowed'
+                                : 'hover:bg-emerald-50/50 dark:hover:bg-slate-800/40 cursor-pointer'
+                            }`}
+                          >
+                            <td className="py-2.5 px-3">
+                              <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                                <Package className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                <span>{prod.itemName}</span>
+                              </div>
+                              {prod.supplier && (
+                                <div className="text-[10px] text-slate-400 font-normal">Vendor: {prod.supplier}</div>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <Badge variant="neutral" size="sm">{prod.category || 'Skincare'}</Badge>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              {isOutOfStock ? (
+                                <Badge variant="danger" size="sm">0 units (Out of Stock)</Badge>
+                              ) : isLowStock ? (
+                                <Badge variant="warning" size="sm">Low: {prod.quantity} units</Badge>
+                              ) : (
+                                <Badge variant="success" size="sm">{prod.quantity} in stock</Badge>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 font-mono font-black text-slate-900 dark:text-slate-100">
+                              {formatPKR(prod.price, { decimals: false })}
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              {isOutOfStock ? (
+                                <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider">Out</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="p-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white transition-colors"
+                                  title="Add to Ticket"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         </div>
@@ -536,32 +880,102 @@ function POSContent() {
               </button>
             </div>
 
+            {selectedClientObj?.outstandingBalance && selectedClientObj.outstandingBalance > 0 ? (
+              <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-xl flex items-center justify-between text-xs text-amber-800 dark:text-amber-200">
+                <div className="flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Client Outstanding Dues: <strong>{formatPKR(selectedClientObj.outstandingBalance)}</strong></span>
+                </div>
+              </div>
+            ) : null}
+
             {/* Cart Items List */}
             <div className="max-h-56 overflow-y-auto space-y-3 pr-1 divide-y divide-slate-100 dark:divide-slate-800/60">
               {posCart.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-400">
-                  No treatments selected. Click any service on the left to add to ticket.
+                  No items selected. Click treatments or retail products on the left to add to ticket.
                 </div>
               ) : (
                 posCart.map((item) => (
-                  <div key={item.serviceId} className="pt-2 flex items-center justify-between">
-                    <div>
-                      <h5 className="text-xs font-bold text-slate-900 dark:text-slate-100">{item.name}</h5>
-                      <span className="text-xs font-mono text-slate-500 dark:text-slate-400">{formatPKR(item.price, { decimals: false })} x {item.quantity}</span>
+                  <div key={item.serviceId} className="pt-2.5 pb-1 flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h5 className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">{item.name}</h5>
+                        {item.isProduct && (
+                          <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
+                            Product
+                          </span>
+                        )}
+                        {item.isPackage && (
+                          <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300">
+                            {item.sessions || 3} Srv
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-xs font-mono font-bold text-slate-600 dark:text-slate-300">
+                          {formatPKR(item.price, { decimals: false })}
+                        </span>
+                        {role === 'admin' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingCartItem({ id: item.serviceId, name: item.name, price: item.price });
+                              setCustomCartPrice(String(item.price));
+                            }}
+                            className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline"
+                            title="Set custom selling price (Admin only)"
+                          >
+                            <Edit2 className="w-2.5 h-2.5" />
+                            <span>Edit</span>
+                          </button>
+                        )}
+                        <span className="text-xs text-slate-400 font-mono">× {item.quantity}</span>
+                        {item.isProduct && item.stockAvailable !== undefined && (
+                          <span className="text-[10px] text-slate-400">
+                            (avail: {item.stockAvailable})
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Practitioner assignment */}
+                      <div className="mt-1 flex items-center gap-1">
+                        <User className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                        <select
+                          value={item.staffId || ''}
+                          onChange={(e) => {
+                            const sId = e.target.value;
+                            const st = (staff || []).find(s => s.id === sId);
+                            updatePosItemStaff(item.serviceId, sId, st?.name || '');
+                          }}
+                          className="text-[10px] py-0.5 px-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 max-w-[130px]"
+                        >
+                          <option value="">Assign Practitioner</option>
+                          {(staff || []).filter(s => s.status === 'Active').map(s => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                       <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg">
                         <button
                           onClick={() => updatePosQuantity(item.serviceId, -1)}
-                          className="p-1 text-slate-600 hover:text-slate-900"
+                          className="p-1 text-slate-600 hover:text-slate-900 dark:hover:text-slate-200"
                         >
                           <Minus className="w-3.5 h-3.5" />
                         </button>
                         <span className="px-2 text-xs font-bold font-mono">{item.quantity}</span>
                         <button
+                          disabled={item.isProduct && item.stockAvailable !== undefined && item.quantity >= item.stockAvailable}
                           onClick={() => updatePosQuantity(item.serviceId, 1)}
-                          className="p-1 text-slate-600 hover:text-slate-900"
+                          className={`p-1 ${
+                            item.isProduct && item.stockAvailable !== undefined && item.quantity >= item.stockAvailable
+                              ? 'opacity-30 cursor-not-allowed text-slate-400'
+                              : 'text-slate-600 hover:text-slate-900 dark:hover:text-slate-200'
+                          }`}
+                          title={item.isProduct && item.stockAvailable !== undefined && item.quantity >= item.stockAvailable ? 'Cannot exceed branch stock' : 'Add one more'}
                         >
                           <Plus className="w-3.5 h-3.5" />
                         </button>
@@ -587,11 +1001,27 @@ function POSContent() {
 
               <div className="flex flex-col gap-1.5 py-1 border-b border-slate-100 dark:border-slate-800/60">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-600 dark:text-slate-400">Discount (%)</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-600 dark:text-slate-400">Discount (%)</span>
+                    {role !== 'admin' && (
+                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold bg-amber-50 dark:bg-amber-950/50 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-900/50">
+                        Max 20%
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={discountPercent}
-                    onChange={(e) => setDiscountPercent(e.target.value.replace(/\D/g, ''))}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '');
+                      const num = Number(val);
+                      if (role !== 'admin' && num > 20) {
+                        showToast("Staff discount capped at 20%. Higher discount requires Admin supervisor.", "error");
+                        setDiscountPercent('20');
+                      } else {
+                        setDiscountPercent(val);
+                      }
+                    }}
                     className="w-16 text-right px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-mono text-xs"
                   />
                 </div>
@@ -626,6 +1056,50 @@ function POSContent() {
                 <span>Grand Total</span>
                 <span className="font-mono text-blue-600 dark:text-blue-400">{formatPKR(grandTotal)}</span>
               </div>
+
+              {/* Partial Advance / Due Payment Option */}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={isPartialPayment}
+                    onChange={(e) => {
+                      setIsPartialPayment(e.target.checked);
+                      if (e.target.checked && !partialAmountPaid) {
+                        setPartialAmountPaid(Math.floor(grandTotal / 2).toString());
+                      }
+                    }}
+                    className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                  />
+                  <span>Partial / Advance (Client owes balance)</span>
+                </label>
+
+                {isPartialPayment && (
+                  <div className="p-2.5 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-xl space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">Amount Paid Now:</span>
+                      <div className="flex items-center gap-1">
+                        <span className="font-mono text-xs text-slate-500">PKR</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max={grandTotal}
+                          value={partialAmountPaid}
+                          onChange={(e) => setPartialAmountPaid(e.target.value)}
+                          className="w-24 px-2 py-1 text-right font-mono font-bold text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100"
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center text-xs pt-1 border-t border-amber-200/60 dark:border-amber-900/60">
+                      <span className="font-bold text-amber-700 dark:text-amber-400">Remaining Balance Due:</span>
+                      <span className="font-mono font-black text-amber-700 dark:text-amber-400">
+                        {formatPKR(Math.max(0, grandTotal - (Number(partialAmountPaid) || 0)))}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Payment Method Picker */}
@@ -633,11 +1107,21 @@ function POSContent() {
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
                 Payment Method
               </label>
-              <div className="grid grid-cols-3 gap-2">
-                {(['Cash', 'Card', 'Online'] as const).map((pm) => (
+              <div className="grid grid-cols-4 gap-1.5">
+                {(['Cash', 'Card', 'Online', 'Split'] as const).map((pm) => (
                   <button
                     key={pm}
-                    onClick={() => setPaymentMethod(pm)}
+                    type="button"
+                    onClick={() => {
+                      setPaymentMethod(pm);
+                      if (pm === 'Cash' && !cashReceived) {
+                        setCashReceived(String(isPartialPayment ? (Number(partialAmountPaid) || 0) : grandTotal));
+                      }
+                      if (pm === 'Split' && !splitCash && !splitCard && !splitOnline) {
+                        const targetAmt = isPartialPayment ? (Number(partialAmountPaid) || 0) : grandTotal;
+                        setSplitCash(String(targetAmt));
+                      }
+                    }}
                     className={`py-2 rounded-xl text-xs font-bold transition-all border ${paymentMethod === pm
                         ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20'
                         : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
@@ -648,6 +1132,123 @@ function POSContent() {
                 ))}
               </div>
             </div>
+
+            {/* Cash details with Live Tender & Change Calculation */}
+            {paymentMethod === 'Cash' && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-3 bg-emerald-50/70 dark:bg-emerald-950/20 rounded-2xl border border-emerald-200 dark:border-emerald-900/60 space-y-2"
+              >
+                <div className="flex items-center justify-between text-xs font-semibold">
+                  <span className="text-emerald-900 dark:text-emerald-300">Cash Received / Tendered</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[11px] text-emerald-600 font-mono">PKR</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={cashReceived}
+                      onChange={(e) => setCashReceived(e.target.value)}
+                      placeholder={String(isPartialPayment ? (Number(partialAmountPaid) || 0) : grandTotal)}
+                      className="w-28 px-2 py-1 text-right font-mono font-bold text-xs bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-800 rounded-lg text-emerald-950 dark:text-emerald-100 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-xs font-bold pt-1.5 border-t border-emerald-200/60 dark:border-emerald-900/60">
+                  <span className="text-emerald-800 dark:text-emerald-400">Change Due to Customer</span>
+                  <span className="font-mono text-sm text-emerald-700 dark:text-emerald-300 font-black">
+                    {formatPKR(Math.max(0, (Number(cashReceived) || 0) - (isPartialPayment ? (Number(partialAmountPaid) || 0) : grandTotal)))}
+                  </span>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Split Tender Breakdown */}
+            {paymentMethod === 'Split' && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-3 bg-indigo-50/70 dark:bg-indigo-950/20 rounded-2xl border border-indigo-200 dark:border-indigo-900/60 space-y-2.5"
+              >
+                <div className="text-[11px] font-bold text-indigo-900 dark:text-indigo-300 uppercase tracking-wide">
+                  Split Payment Allocation
+                </div>
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold">Cash Portion:</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-500 font-mono">PKR</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={splitCash}
+                        onChange={(e) => setSplitCash(e.target.value)}
+                        placeholder="0"
+                        className="w-24 px-2 py-1 text-right font-mono font-bold text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold">Card Portion:</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-500 font-mono">PKR</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={splitCard}
+                        onChange={(e) => setSplitCard(e.target.value)}
+                        placeholder="0"
+                        className="w-24 px-2 py-1 text-right font-mono font-bold text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold">Online Portion:</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-500 font-mono">PKR</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={splitOnline}
+                        onChange={(e) => setSplitOnline(e.target.value)}
+                        placeholder="0"
+                        className="w-24 px-2 py-1 text-right font-mono font-bold text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {(() => {
+                  const targetAmt = isPartialPayment ? (Number(partialAmountPaid) || 0) : grandTotal;
+                  const totalSplit = (Number(splitCash) || 0) + (Number(splitCard) || 0) + (Number(splitOnline) || 0);
+                  const diff = Math.round((targetAmt - totalSplit) * 100) / 100;
+                  return (
+                    <div className="pt-2 border-t border-indigo-200/70 dark:border-indigo-900/60 flex items-center justify-between text-xs">
+                      <span className="font-semibold text-indigo-950 dark:text-indigo-200">Allocated / Target:</span>
+                      <span className={`font-mono font-bold ${diff === 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                        {formatPKR(totalSplit)} / {formatPKR(targetAmt)} {diff !== 0 && `(Diff: ${formatPKR(diff)})`}
+                      </span>
+                    </div>
+                  );
+                })()}
+
+                {Number(splitCard) > 0 && (
+                  <div className="pt-2 border-t border-indigo-200/50 dark:border-indigo-900/40">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 flex items-center justify-between">
+                      <span>Card POS Slip / Bank Txn ID</span>
+                      <span className="text-[10px] text-red-500 font-bold uppercase">Required</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. POS-SLIP-129841"
+                      value={bankTxnId}
+                      onChange={(e) => setBankTxnId(e.target.value)}
+                      className="w-full rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs py-1.5 px-2 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                    />
+                  </div>
+                )}
+              </motion.div>
+            )}
 
             {/* Card details sub-form */}
             {paymentMethod === 'Card' && (
@@ -721,13 +1322,17 @@ function POSContent() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Bank Transaction ID</label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 flex items-center justify-between">
+                    <span>Bank Transaction ID / Slip No</span>
+                    <span className="text-[10px] text-red-500 font-bold uppercase">Required</span>
+                  </label>
                   <input
                     type="text"
-                    placeholder="e.g. TXN-129841"
+                    placeholder="e.g. POS-SLIP-129841"
                     value={bankTxnId}
                     onChange={(e) => setBankTxnId(e.target.value)}
-                    className="w-full rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs py-1.5 px-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    required
+                    className="w-full rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs py-1.5 px-2 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
                   />
                 </div>
               </motion.div>
@@ -773,12 +1378,22 @@ function POSContent() {
       {/* Quick Client Add Modal */}
       <Modal
         isOpen={isAddClientModalOpen}
-        onClose={() => setIsAddClientModalOpen(false)}
+        onClose={() => {
+          setIsAddClientModalOpen(false);
+          setQuickClientError(null);
+        }}
         title="Quick Register Client"
         description="Create a client profile immediately without leaving the checkout page"
         maxWidth="md"
       >
         <form onSubmit={handleQuickAddClient} className="space-y-4">
+          {quickClientError && (
+            <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+              {quickClientError}
+            </div>
+          )}
+
           <Input
             label="Client Full Name"
             placeholder="e.g. Ayesha Khan"
@@ -856,7 +1471,14 @@ function POSContent() {
                   {displayTxns.map((txn) => (
                     <tr key={txn.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
                       <td className="py-3 px-4 font-mono text-slate-900 dark:text-slate-100">{txn.invoiceId}</td>
-                      <td className="py-3 px-4">{txn.clientName}</td>
+                      <td className="py-3 px-4">
+                        <div className="font-bold">{txn.clientName}</div>
+                        {txn.status === 'Refunded' && (
+                          <span className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider bg-red-50 dark:bg-red-950/50 px-1.5 py-0.5 rounded border border-red-200 dark:border-red-900/50">
+                            Refunded
+                          </span>
+                        )}
+                      </td>
                       <td className="py-3 px-4">
                         <Badge variant="neutral">{txn.paymentMethod}</Badge>
                       </td>
@@ -865,26 +1487,34 @@ function POSContent() {
                       <td className="py-3 px-4 text-right">
                         <div className="flex gap-2 justify-end">
                           <Button
-                            onClick={() => {
-                              const matchedClient = clients.find(c => c.name === txn.clientName);
-                              const txnWithPhone = { ...txn, phone: txn.phone || matchedClient?.phone };
-                              setPrintData({ title: `Invoice ${txnWithPhone.invoiceId}`, type: 'invoice', data: txnWithPhone });
-                            }}
+                            onClick={() => handleReprint(txn)}
                             variant="outline"
                             size="sm"
                             icon={<Printer className="w-3.5 h-3.5" />}
                           >
-                            Reprint
+                            {txn.reprintCount && txn.reprintCount > 0 ? `Reprint (${txn.reprintCount})` : 'Reprint'}
                           </Button>
                           {role === 'admin' && (
-                            <Button
-                              onClick={() => handleOpenEditTxnModal(txn)}
-                              variant="secondary"
-                              size="sm"
-                              icon={<Edit2 className="w-3.5 h-3.5" />}
-                            >
-                              Edit
-                            </Button>
+                            <>
+                              <Button
+                                onClick={() => handleOpenEditTxnModal(txn)}
+                                variant="secondary"
+                                size="sm"
+                                icon={<Edit2 className="w-3.5 h-3.5" />}
+                              >
+                                Edit
+                              </Button>
+                              {txn.status !== 'Refunded' && (
+                                <Button
+                                  onClick={() => handleOpenRefundModal(txn)}
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 dark:border-red-900/60 dark:hover:bg-red-950/40"
+                                >
+                                  Refund
+                                </Button>
+                              )}
+                            </>
                           )}
                         </div>
                       </td>
@@ -919,7 +1549,6 @@ function POSContent() {
             options={[
               { label: 'Cash', value: 'Cash' },
               { label: 'Card', value: 'Card' },
-              { label: 'Bank', value: 'Bank' },
               { label: 'Online', value: 'Online' }
             ]}
             value={editPaymentMethod}
@@ -958,6 +1587,175 @@ function POSContent() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Edit Cart Item Price Modal */}
+      <Modal
+        isOpen={!!editingCartItem}
+        onClose={() => setEditingCartItem(null)}
+        title="Set Item Selling Price"
+        description="Adjust the unit selling price for this specific invoice ticket"
+        maxWidth="sm"
+      >
+        {editingCartItem && (
+          <form onSubmit={handleSaveCartItemPrice} className="space-y-4 pt-2">
+            <div className="p-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-1">
+              <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Item Selected</div>
+              <div className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                {editingCartItem.name}
+              </div>
+              <div className="text-xs text-slate-500 flex justify-between items-center pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                <span>Standard Catalog Price:</span>
+                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{formatPKR(editingCartItem.price)}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  Quick Discount Presets
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setCustomCartPrice(String(editingCartItem.price))}
+                  className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
+                >
+                  Reset Catalog
+                </button>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {[5, 10, 15, 20].map((pct) => {
+                  const discounted = Math.round(editingCartItem.price * (1 - pct / 100));
+                  return (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => setCustomCartPrice(String(discounted))}
+                      className="py-1.5 px-2 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 dark:bg-slate-800 dark:hover:bg-blue-950/40 rounded-xl font-bold text-xs transition cursor-pointer border border-transparent hover:border-blue-200 dark:hover:border-blue-900"
+                    >
+                      -{pct}%
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <Input
+              label="Custom Unit Price (PKR)"
+              type="text"
+              value={customCartPrice}
+              onChange={(e) => setCustomCartPrice(e.target.value.replace(/\D/g, ''))}
+              placeholder="e.g. 4500"
+              required
+              autoFocus
+            />
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <Button type="button" variant="outline" size="sm" onClick={() => setEditingCartItem(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" size="sm">
+                Apply Price
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      {/* Refund Transaction Modal */}
+      <Modal
+        isOpen={isRefundModalOpen}
+        onClose={() => {
+          setIsRefundModalOpen(false);
+          setRefundingTxn(null);
+        }}
+        title="Process Transaction Refund"
+        description={refundingTxn ? `Refund invoice ${refundingTxn.invoiceId} (${formatPKR(refundingTxn.grandTotal)})` : undefined}
+        maxWidth="sm"
+      >
+        {refundingTxn && (
+          <form onSubmit={handleRefundSubmit} className="space-y-4 pt-2">
+            <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 rounded-xl space-y-1">
+              <div className="text-[10px] text-red-700 dark:text-red-400 font-bold uppercase tracking-wider">Refund Action</div>
+              <p className="text-xs text-red-800 dark:text-red-300">
+                This will mark the selected items as refunded, reverse client spend and dues, and restock inventory.
+              </p>
+            </div>
+
+            {refundingTxn.items && refundingTxn.items.length > 0 && (
+              <div className="space-y-1.5 pt-1">
+                <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex justify-between items-center">
+                  <span>Select Line Items to Refund</span>
+                  <span className="text-[10px] text-slate-400 font-normal">
+                    {refundingTxn.items.filter((_: any, i: number) => selectedRefundItems[i]).length} of {refundingTxn.items.length} selected
+                  </span>
+                </div>
+                <div className="max-h-36 overflow-y-auto space-y-1 p-2 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
+                  {refundingTxn.items.map((item: any, idx: number) => (
+                    <label key={idx} className="flex items-center justify-between py-1 px-1 cursor-pointer text-xs">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={!!selectedRefundItems[idx]}
+                          onChange={(e) => {
+                            setSelectedRefundItems(prev => ({ ...prev, [idx]: e.target.checked }));
+                          }}
+                          className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 cursor-pointer"
+                        />
+                        <span className="text-slate-800 dark:text-slate-200 font-medium">{item.name}</span>
+                      </div>
+                      <span className="font-mono text-slate-500">
+                        {item.quantity} × {formatPKR(item.price)}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <Input
+              label="Refund Reason"
+              value={refundReason}
+              onChange={(e) => setRefundReason(e.target.value)}
+              placeholder="e.g. Client requested return, incorrect service selected"
+              required
+            />
+
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer pt-1">
+              <input
+                type="checkbox"
+                checked={refundRestock}
+                onChange={(e) => setRefundRestock(e.target.checked)}
+                className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+              />
+              <span>Restock returned inventory / products</span>
+            </label>
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsRefundModalOpen(false);
+                  setRefundingTxn(null);
+                }}
+                disabled={isRefunding}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                className="bg-red-600 hover:bg-red-700 text-white"
+                disabled={isRefunding || !refundReason.trim()}
+              >
+                {isRefunding ? 'Refunding...' : 'Confirm Refund'}
+              </Button>
+            </div>
+          </form>
+        )}
       </Modal>
 
       {/* Toast Notification */}

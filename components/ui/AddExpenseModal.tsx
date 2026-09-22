@@ -31,6 +31,8 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   const resetForm = () => {
     setTitle('');
     setCategory('Other');
@@ -38,6 +40,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     setPaymentMethod('Cash');
     setNotes('');
     setVendorName('');
+    setErrorMsg(null);
     setSuccessMsg(null);
   };
 
@@ -52,12 +55,13 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
 
     const parsedAmount = Number(amount);
     if (!parsedAmount || parsedAmount <= 0) {
-      alert('Please enter a valid expense amount.');
+      setErrorMsg('Please enter a valid expense amount greater than zero.');
       return;
     }
 
     try {
       setIsSubmitting(true);
+      setErrorMsg(null);
       const activeBranch = branchId || defaultBranchId || selectedBranchId || userBranchId || undefined;
       const today = new Date().toISOString().split('T')[0];
       const activeUser = userEmail || (role === 'staff' ? 'Staff' : 'Admin');
@@ -81,7 +85,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
         handleClose();
       }, 1200);
     } catch (err: any) {
-      alert('Failed to save expense: ' + (err.message || err));
+      setErrorMsg(err.message || 'Failed to record expense. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -92,7 +96,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       isOpen={isOpen}
       onClose={handleClose}
       title="Record Clinic Expense"
-      description="Quickly record petty cash or operational expense"
+      description="Quickly record petty cash, vendor payments, or operational clinic expenses"
       maxWidth="lg"
     >
       {successMsg ? (
@@ -100,11 +104,17 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
           <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
             <CheckCircle2 className="w-7 h-7" />
           </div>
-          <h3 className="text-base font-bold text-slate-100">Expense Logged</h3>
-          <p className="text-sm text-slate-400">{successMsg}</p>
+          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Expense Logged</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400">{successMsg}</p>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
+          {errorMsg && (
+            <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs font-semibold">
+              {errorMsg}
+            </div>
+          )}
+
           <Input
             label="Expense Title"
             placeholder="e.g. Tea & Refreshments, Cleaning Supplies, Courier"
@@ -120,11 +130,11 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               options={[
                 { label: 'Other / Miscellaneous', value: 'Other' },
                 { label: 'Products & Consumables', value: 'Products' },
-                { label: 'Marketing', value: 'Marketing' },
+                { label: 'Marketing & Ads', value: 'Marketing' },
                 { label: 'Electric Bill', value: 'Electric Bill' },
                 { label: 'Water Bill', value: 'Water Bill' },
                 { label: 'Rent', value: 'Rent' },
-                { label: 'Salary', value: 'Salary' },
+                { label: 'Staff Salary & Advance', value: 'Salary' },
                 { label: 'Machines & Maintenance', value: 'Machines' }
               ]}
               value={category}
@@ -146,37 +156,40 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               label="Payment Method"
               options={[
                 { label: 'Cash (Drawer / Petty Cash)', value: 'Cash' },
-                { label: 'Card', value: 'Card' },
-                { label: 'Bank Transfer', value: 'Bank Transfer' },
-                { label: 'Cheque', value: 'Cheque' }
+                { label: 'Credit / Debit Card', value: 'Card' },
+                { label: 'Online / Bank Transfer', value: 'Online' }
               ]}
               value={paymentMethod}
               onChange={(e) => setPaymentMethod(e.target.value as any)}
             />
 
+            <Input
+              label="Vendor / Person Paid To"
+              placeholder="e.g. Rider, Mart, Cleaners, Landlord"
+              value={vendorName}
+              onChange={(e) => setVendorName(e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {branches && branches.length > 1 ? (
               <Select
-                label="Branch"
+                label="Clinic Branch"
                 options={branches.map(b => ({ label: b.name, value: b.id }))}
                 value={branchId}
                 onChange={(e) => setBranchId(e.target.value)}
               />
-            ) : (
-              <Input
-                label="Vendor / Person Paid To"
-                placeholder="e.g. Rider, Mart, Cleaners"
-                value={vendorName}
-                onChange={(e) => setVendorName(e.target.value)}
-              />
-            )}
-          </div>
+            ) : null}
 
-          <Input
-            label="Notes / Description (Optional)"
-            placeholder="Optional notes or receipt reference..."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
+            <div className={branches && branches.length > 1 ? 'sm:col-span-1' : 'sm:col-span-2'}>
+              <Input
+                label="Notes / Receipt Reference (Optional)"
+                placeholder="Optional notes or receipt reference..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+          </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
             <Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting}>

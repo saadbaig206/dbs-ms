@@ -57,12 +57,12 @@ export default function StaffPage() {
   // Form State for Adding/Editing Staff
   const [name, setName] = useState('');
   const [staffRole, setStaffRole] = useState<StaffRole>('Aesthetic Physician');
-  const [salary, setSalary] = useState<string>('12000');
+  const [salary, setSalary] = useState<string>('');
   const [phone, setPhone] = useState('+92');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [staffBranchId, setStaffBranchId] = useState('');
-  const [photo, setPhoto] = useState('https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=300');
+  const [photo, setPhoto] = useState('');
 
   // Attendance Form State
   const [isMarkModalOpen, setIsMarkModalOpen] = useState(false);
@@ -117,7 +117,8 @@ export default function StaffPage() {
     setName('');
     setPhone('+92');
     setEmail('');
-    setSalary('12000');
+    setSalary('');
+    setPhoto('');
     setStaffRole('Aesthetic Physician');
     setStaffBranchId('');
     setPassword('');
@@ -140,7 +141,7 @@ export default function StaffPage() {
 
     setEmail(member.email || '');
     setStaffBranchId(member.branchId || '');
-    setPhoto(member.photo);
+    setPhoto(member.photo || '');
     setIsEditModalOpen(true);
   };
 
@@ -187,6 +188,8 @@ export default function StaffPage() {
       setName('');
       setPhone('+92');
       setEmail('');
+      setSalary('');
+      setPhoto('');
       setStaffBranchId('');
       showToast('Staff member updated successfully');
     } catch (err) {
@@ -239,6 +242,8 @@ export default function StaffPage() {
       setName('');
       setPhone('+92');
       setEmail('');
+      setSalary('');
+      setPhoto('');
       setPassword('');
       setStaffBranchId('');
       showToast('Staff member added successfully');
@@ -741,6 +746,23 @@ export default function StaffPage() {
               value={phone}
               onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
               required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Email Address (Optional Login)"
+              type="email"
+              placeholder="staff@dbsaesthetic.pk"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <Input
+              label="Account Password (Optional)"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
             />
           </div>
 

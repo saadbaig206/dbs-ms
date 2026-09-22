@@ -150,3 +150,22 @@ export const authClient = {
     return await res.json();
   }
 };
+
+export const posClient = {
+  async reprintTransaction(id: string) {
+    return apiFetch<{ id: string; invoiceId: string; reprintCount: number }>(`/pos/transactions/${id}/reprint`, {
+      method: 'POST'
+    });
+  },
+  async refundTransaction(id: string, reason: string, restockInventory: boolean = true, itemsToRefund?: any[]) {
+    return apiFetch<any>(`/pos/transactions/${id}/refund`, {
+      method: 'POST',
+      body: JSON.stringify({
+        reason,
+        restockInventory,
+        itemsToRefund: itemsToRefund && itemsToRefund.length > 0 ? itemsToRefund : undefined
+      })
+    });
+  }
+};
+

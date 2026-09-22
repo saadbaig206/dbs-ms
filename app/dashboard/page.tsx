@@ -30,6 +30,7 @@ export default function DashboardPage() {
     inventory: allInventory,
     transactions: allTransactions,
     expenses: allExpenses,
+    purchaseBills: allPurchaseBills,
     branches,
     selectedBranchId,
     setSelectedBranchId,
@@ -75,6 +76,12 @@ export default function DashboardPage() {
       : allExpenses;
   }, [allExpenses, selectedBranchId]);
 
+  const purchaseBills = useMemo(() => {
+    return selectedBranchId
+      ? allPurchaseBills.filter(b => !b.branchId || b.branchId === selectedBranchId)
+      : allPurchaseBills;
+  }, [allPurchaseBills, selectedBranchId]);
+
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const todayAppointments = useMemo(() => appointments.filter(a => a.date === todayStr), [appointments, todayStr]);
@@ -85,37 +92,142 @@ export default function DashboardPage() {
   const hasCheckedInToday = !!todayRecord;
   const hasCheckedOutToday = !!todayRecord?.checkOutTime;
 
-  const { totalRevenue, todayRevenue, monthlyRevenue, totalExpenses, monthlyExpenses, netProfit } = useMemo(() => {
-    const totRev = transactions.reduce((acc, t) => acc + t.grandTotal, 0);
-    const todRev = transactions.filter(t => t.date === todayStr).reduce((acc, t) => acc + t.grandTotal, 0);
+  const {
+    totalRevenue,
+    todayRevenue,
+    monthlyRevenue,
+    cashTotal,
+    cardTotal,
+    onlineTotal,
+    monCashTotal,
+    monCardTotal,
+    monOnlineTotal,
+    totalExpenses,
+    monthlyExpenses,
+    netProfit
+  } = useMemo(() => {
     const dNow = new Date();
     const curMonth = dNow.getMonth();
     const curYear = dNow.getFullYear();
 
-    const monRev = transactions
-      .filter(t => {
-        const d = new Date(t.date);
-        return d.getMonth() === curMonth && d.getFullYear() === curYear;
-      })
-      .reduce((acc, t) => acc + t.grandTotal, 0);
+    // Exclude debt settlements, refunded, and cancelled transactions from gross sales revenue
+    const salesTransactions = transactions.filter(t => {
+      const isDebtSettlement = t.transactionType === 'Debt_Settlement' || t.serviceName === 'Client Debt Settlement';
+      const status = (t.status || '').toLowerCase();
+      return !isDebtSettlement && status !== 'refunded' && status !== 'cancelled';
+    });
 
-    const totExp = expenses.reduce((acc, e) => acc + e.amount, 0);
-    const monExp = expenses
-      .filter(e => {
-        const d = new Date(e.date);
-        return d.getMonth() === curMonth && d.getFullYear() === curYear;
-      })
-      .reduce((acc, e) => acc + e.amount, 0);
+    const totRev = salesTransactions.reduce((acc, t) => acc + (t.grandTotal || 0), 0);
+    const todRev = salesTransactions.filter(t => t.date === todayStr).reduce((acc, t) => acc + (t.grandTotal || 0), 0);
+
+    const curMonthSalesTxns = salesTransactions.filter(t => {
+      if (!t.date) return false;
+      const parts = t.date.split('-');
+      if (parts.length < 2) return false;
+      return parseInt(parts[0], 10) === curYear && (parseInt(parts[1], 10) - 1) === curMonth;
+    });
+    const monRev = curMonthSalesTxns.reduce((acc, t) => acc + (t.grandTotal || 0), 0);
+
+    let cashTot = 0;
+    let cardTot = 0;
+    let onlineTot = 0;
+
+    let monCash = 0;
+    let monCard = 0;
+    let monOnline = 0;
+
+    for (let i = 0; i < transactions.length; i++) {
+      const t = transactions[i];
+      const status = (t.status || '').toLowerCase();
+      if (status === 'refunded' || status === 'cancelled') continue;
+
+      let isCurrentMonth = false;
+      if (t.date) {
+        const parts = t.date.split('-');
+        if (parts.length >= 2) {
+          isCurrentMonth = parseInt(parts[0], 10) === curYear && (parseInt(parts[1], 10) - 1) === curMonth;
+        }
+      }
+
+      const paidAmt = t.amountPaid !== undefined && t.amountPaid !== null ? t.amountPaid : (t.grandTotal || 0);
+
+      if (t.paymentSplits && Array.isArray(t.paymentSplits) && t.paymentSplits.length > 0) {
+        for (const s of t.paymentSplits) {
+          const sMethod = (s.method || '').toLowerCase();
+          const sAmt = Number(s.amount) || 0;
+          if (sMethod === 'cash') {
+            cashTot += sAmt;
+            if (isCurrentMonth) monCash += sAmt;
+          } else if (sMethod === 'card' || sMethod.includes('pos')) {
+            cardTot += sAmt;
+            if (isCurrentMonth) monCard += sAmt;
+          } else {
+            onlineTot += sAmt;
+            if (isCurrentMonth) monOnline += sAmt;
+          }
+        }
+      } else {
+        const pm = (t.paymentMethod || '').toLowerCase();
+        if (pm === 'cash') {
+          cashTot += paidAmt;
+          if (isCurrentMonth) monCash += paidAmt;
+        } else if (pm === 'card' || pm.includes('pos')) {
+          cardTot += paidAmt;
+          if (isCurrentMonth) monCard += paidAmt;
+        } else {
+          onlineTot += paidAmt;
+          if (isCurrentMonth) monOnline += paidAmt;
+        }
+      }
+    }
+
+    let totExp = 0;
+    let monExp = 0;
+
+    for (let i = 0; i < expenses.length; i++) {
+      const e = expenses[i];
+      const amt = e.amount || 0;
+      totExp += amt;
+      if (e.date) {
+        const parts = e.date.split('-');
+        if (parts.length >= 2) {
+          if (parseInt(parts[0], 10) === curYear && (parseInt(parts[1], 10) - 1) === curMonth) {
+            monExp += amt;
+          }
+        }
+      }
+    }
+
+    // Integrate purchase bills (products and supplier stock)
+    for (let i = 0; i < purchaseBills.length; i++) {
+      const b = purchaseBills[i];
+      const paid = b.amountPaid !== undefined && b.amountPaid !== null ? b.amountPaid : (b.paymentStatus === 'Paid' ? (b.totalAmount || 0) : 0);
+      totExp += paid;
+      if (b.date) {
+        const parts = b.date.split('-');
+        if (parts.length >= 2) {
+          if (parseInt(parts[0], 10) === curYear && (parseInt(parts[1], 10) - 1) === curMonth) {
+            monExp += paid;
+          }
+        }
+      }
+    }
 
     return {
       totalRevenue: totRev,
       todayRevenue: todRev,
       monthlyRevenue: monRev,
+      cashTotal: cashTot,
+      cardTotal: cardTot,
+      onlineTotal: onlineTot,
+      monCashTotal: monCash,
+      monCardTotal: monCard,
+      monOnlineTotal: monOnline,
       totalExpenses: totExp,
       monthlyExpenses: monExp,
       netProfit: totRev - totExp
     };
-  }, [transactions, expenses, todayStr]);
+  }, [transactions, expenses, purchaseBills, todayStr]);
 
   if (!mounted) {
     return (
@@ -298,7 +410,7 @@ export default function DashboardPage() {
                 trendDirection="up"
                 colorVariant="emerald"
                 icon={<TrendingUp className="w-5 h-5" />}
-                subtitle="current month"
+                subtitle={`Cash: ${formatPKR(monCashTotal, { decimals: false })} • Card: ${formatPKR(monCardTotal, { decimals: false })} • Online: ${formatPKR(monOnlineTotal, { decimals: false })}`}
               />
             </Link>
             <StatCard
@@ -367,6 +479,39 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {/* Payment Channel Overview Banner */}
+      {(role === 'admin' || role === 'partner') && (
+        <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="font-bold text-slate-900 dark:text-slate-100">
+              Payment Collections by Channel:
+            </span>
+            <span className="text-slate-500 dark:text-slate-400 font-medium">
+              (All-Time Verified Receipts)
+            </span>
+          </div>
+          <div className="flex items-center gap-4 flex-wrap font-semibold">
+            <span className="text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              Cash: <strong className="font-mono text-slate-900 dark:text-slate-100">{formatPKR(cashTotal)}</strong> ({totalRevenue > 0 ? ((cashTotal / totalRevenue) * 100).toFixed(1) : '0.0'}%)
+            </span>
+            <span className="text-blue-700 dark:text-blue-400 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-blue-500" />
+              Card: <strong className="font-mono text-slate-900 dark:text-slate-100">{formatPKR(cardTotal)}</strong> ({totalRevenue > 0 ? ((cardTotal / totalRevenue) * 100).toFixed(1) : '0.0'}%)
+            </span>
+            <span className="text-purple-700 dark:text-purple-400 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-purple-500" />
+              Online: <strong className="font-mono text-slate-900 dark:text-slate-100">{formatPKR(onlineTotal)}</strong> ({totalRevenue > 0 ? ((onlineTotal / totalRevenue) * 100).toFixed(1) : '0.0'}%)
+            </span>
+            <span className="text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              Receivable Dues: <strong className="font-mono text-slate-900 dark:text-slate-100">{formatPKR(Math.max(0, totalRevenue - (cashTotal + cardTotal + onlineTotal)))}</strong> ({totalRevenue > 0 ? ((Math.max(0, totalRevenue - (cashTotal + cardTotal + onlineTotal)) / totalRevenue) * 100).toFixed(1) : '0.0'}%)
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Conditional Dashboard Table: Recent Transactions for Partner role, Live Treatment Schedule for Admin/Staff */}
       {role === 'partner' ? (
         <div className="luxury-card p-6">
@@ -420,7 +565,14 @@ export default function DashboardPage() {
                         {txn.serviceName}
                       </td>
                       <td className="py-3.5 px-4">
-                        <Badge variant="neutral">{txn.paymentMethod}</Badge>
+                        <Badge
+                          variant={
+                            (txn.paymentMethod || '').toLowerCase() === 'cash' ? 'success' :
+                            (txn.paymentMethod || '').toLowerCase() === 'card' || (txn.paymentMethod || '').toLowerCase().includes('pos') ? 'primary' : 'purple'
+                          }
+                        >
+                          {txn.paymentMethod}
+                        </Badge>
                       </td>
                       <td className="py-3.5 px-4 font-mono font-bold text-emerald-600 dark:text-emerald-400">
                         {formatPKR(txn.grandTotal)}

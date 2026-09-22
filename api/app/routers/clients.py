@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
+from pydantic import Field
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -100,3 +101,139 @@ async def update_client(
     except Exception:
         pass
     return db_client
+
+from app.schemas.base import CamelModel
+from app.models.transaction import FinancialTransaction
+from sqlalchemy.orm.attributes import flag_modified
+
+class ClientSettleDueInput(CamelModel):
+    amount: float = Field(..., gt=0.0)
+    payment_method: str = "Cash"
+    bank_txn_id: Optional[str] = None
+    notes: Optional[str] = None
+
+@router.post("/{client_id}/settle-dues")
+async def settle_client_dues(
+    client_id: str,
+    payload: ClientSettleDueInput,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_staff_user),
+    user_branch_id: Optional[str] = Depends(get_user_branch_id)
+):
+    """Record an installment or full debt settlement payment for a client."""
+    res = await db.execute(select(Client).where(Client.id == client_id))
+    client = res.scalars().first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    curr_balance = client.outstanding_balance or 0.0
+    if curr_balance <= 0.0:
+        raise HTTPException(status_code=400, detail="Client has no outstanding balance to settle.")
+
+    if payload.amount > curr_balance:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Settlement amount (Rs. {payload.amount}) cannot exceed current outstanding debt (Rs. {curr_balance})."
+        )
+
+    if payload.payment_method == "Card" and (not payload.bank_txn_id or not str(payload.bank_txn_id).strip()):
+        raise HTTPException(status_code=400, detail="Card settlement payments require POS terminal reference / Bank Transaction ID.")
+
+    pay_amount = payload.amount
+    client.outstanding_balance = max(0.0, curr_balance - pay_amount)
+    client.total_spent = (client.total_spent or 0.0) + pay_amount
+
+    # Offset open unpaid invoices for this client in FIFO order
+    unpaid_stmt = (
+        select(FinancialTransaction)
+        .where(
+            FinancialTransaction.client_id == client.id,
+            FinancialTransaction.remaining_due > 0,
+            FinancialTransaction.transaction_type == "Sale"
+        )
+        .order_by(FinancialTransaction.date.asc(), FinancialTransaction.id.asc())
+        .with_for_update()
+    )
+    unpaid_res = await db.execute(unpaid_stmt)
+    unpaid_txns = unpaid_res.scalars().all()
+    rem_to_offset = pay_amount
+    for utxn in unpaid_txns:
+        if rem_to_offset <= 0:
+            break
+        offset = min(utxn.remaining_due, rem_to_offset)
+        utxn.remaining_due = max(0.0, round(utxn.remaining_due - offset, 2))
+        utxn.amount_paid = round((utxn.amount_paid or 0.0) + offset, 2)
+        if utxn.remaining_due == 0:
+            utxn.payment_status = "Paid"
+            utxn.status = "Paid"
+        else:
+            utxn.payment_status = "Partial"
+        rem_to_offset -= offset
+        db.add(utxn)
+
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    current_time_str = datetime.now().strftime("%I:%M %p")
+    suffix = secrets.token_hex(2).upper()
+    txn_id = f"TXN-DUE-{suffix}"
+    inv_id = f"INV-DUE-{datetime.now().year}-{suffix}"
+
+    history_item = {
+        "id": f"HIS-{txn_id}",
+        "date": today_str,
+        "serviceName": f"Debt Settlement ({payload.notes or 'Account Due'})",
+        "staffName": getattr(current_user, 'name', None) or getattr(current_user, 'email', 'Front Desk'),
+        "amount": pay_amount,
+        "status": "Paid"
+    }
+    if client.history is None:
+        client.history = []
+    client.history.append(history_item)
+    flag_modified(client, "history")
+    db.add(client)
+
+    # Financial Transaction entry for the receipt
+    txn = FinancialTransaction(
+        id=txn_id,
+        invoice_id=inv_id,
+        client_id=client.id,
+        client_name=client.name,
+        service_name="Client Debt Settlement",
+        transaction_type="Debt_Settlement",
+        amount=pay_amount,
+        discount=0.0,
+        tax=0.0,
+        tax_percent=0.0,
+        grand_total=pay_amount,
+        amount_paid=pay_amount,
+        remaining_due=0.0,
+        payment_status="Paid",
+        date=today_str,
+        time=current_time_str,
+        payment_method=payload.payment_method,
+        bank_txn_id=payload.bank_txn_id,
+        status="Paid",
+        items=[{
+            "name": f"Due Payment Settlement - Remaining Client Debt: Rs. {client.outstanding_balance}",
+            "price": pay_amount,
+            "quantity": 1
+        }],
+        branch_id=client.branch_id or user_branch_id,
+        audit_logs=[]
+    )
+    db.add(txn)
+
+    await db.commit()
+    await db.refresh(client)
+    try:
+        from app.routers.bootstrap import invalidate_bootstrap_cache
+        invalidate_bootstrap_cache()
+    except Exception:
+        pass
+
+    return {
+        "message": f"Successfully settled Rs. {pay_amount}. Remaining balance: Rs. {client.outstanding_balance}",
+        "outstandingBalance": client.outstanding_balance,
+        "transactionId": txn.id,
+        "invoiceId": txn.invoice_id
+    }
+

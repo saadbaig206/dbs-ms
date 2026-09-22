@@ -27,24 +27,66 @@ import { Input, Select } from '../../components/ui/Input';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 
 export default function ClientsPage() {
-  const { clients, addClient, staff, services, setPrintData, branches } = useClinic();
+  const { clients, addClient, staff, services, setPrintData, branches, settleClientDue } = useClinic();
 
   const [search, setSearch] = useState('');
   const [branchFilter, setBranchFilter] = useState('All');
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
+  // Settle Dues Modal State
+  const [isSettleModalOpen, setIsSettleModalOpen] = useState(false);
+  const [settleClient, setSettleClient] = useState<Client | null>(null);
+  const [settleAmount, setSettleAmount] = useState('');
+  const [settleMethod, setSettleMethod] = useState('Cash');
+  const [settleNotes, setSettleNotes] = useState('');
+  const [isSettling, setIsSettling] = useState(false);
+  const [settleError, setSettleError] = useState<string | null>(null);
+
   // Add Client Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [clientError, setClientError] = useState<string | null>(null);
+
+  // Form State
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('+92');
+  const [cnic, setCnic] = useState('');
   const [gender, setGender] = useState<'Female' | 'Male' | 'Other'>('Female');
-  const [age, setAge] = useState<string>('32');
+  const [age, setAge] = useState<string>('');
   const [address, setAddress] = useState('');
   const [preferredService, setPreferredService] = useState(services[0]?.name || '');
   const [assignedStaffId, setAssignedStaffId] = useState(staff[0]?.id || '');
   const [clientBranchId, setClientBranchId] = useState('');
   const [notes, setNotes] = useState('');
+
+  const handleSettleDue = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!settleClient || isSettling) return;
+    const amountNum = Number(settleAmount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      setSettleError("Please enter a valid settlement amount.");
+      return;
+    }
+    if (amountNum > (settleClient.outstandingBalance || 0)) {
+      if (!confirm(`Amount (${formatPKR(amountNum)}) exceeds current outstanding due (${formatPKR(settleClient.outstandingBalance || 0)}). Proceed?`)) {
+        return;
+      }
+    }
+
+    try {
+      setIsSettling(true);
+      setSettleError(null);
+      await settleClientDue(settleClient.id, amountNum, settleMethod, settleNotes.trim() || undefined);
+      setIsSettleModalOpen(false);
+      setSettleClient(null);
+      setSettleAmount('');
+      setSettleNotes('');
+    } catch (err: any) {
+      setSettleError(err.message || "Failed to settle due.");
+    } finally {
+      setIsSettling(false);
+    }
+  };
 
   const filteredClients = (clients || []).filter((c) => {
     if (!c) return false;
@@ -62,35 +104,33 @@ export default function ClientsPage() {
     const staffObj = staff.find(st => st.id === assignedStaffId);
 
     if (name.trim().length < 3) {
-      alert("Full Name must be at least 3 characters long");
+      setClientError("Full Name must be at least 3 characters long.");
       return;
     }
     if (!/^[A-Za-z\s]+$/.test(name.trim())) {
-      alert("Full Name must contain only letters and spaces");
+      setClientError("Full Name must contain only letters and spaces.");
       return;
     }
     if (!/^\+92\s?\d{9,10}$/.test(phone)) {
-      alert("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)");
+      setClientError("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits).");
       return;
     }
     const ageNum = Number(age);
     if (isNaN(ageNum) || ageNum < 1 || ageNum > 120) {
-      alert("Please enter a valid age between 1 and 120");
-      return;
-    }
-    if (address.trim().length === 0) {
-      alert("Please enter a residential address");
+      setClientError("Please enter a valid age between 1 and 120.");
       return;
     }
 
     try {
       setIsSubmitting(true);
+      setClientError(null);
       await addClient({
         name,
         phone,
+        cnic: cnic.trim() || undefined,
         gender,
         age: ageNum,
-        address,
+        address: address.trim() || 'N/A',
         assignedStaffId: staffObj?.id,
         assignedStaffName: staffObj?.name,
         preferredService,
@@ -101,12 +141,13 @@ export default function ClientsPage() {
       setIsAddModalOpen(false);
       setName('');
       setPhone('+92');
-      setAge('32');
+      setCnic('');
+      setAge('');
       setAddress('');
       setNotes('');
       setClientBranchId('');
     } catch (err: any) {
-      alert("Failed to register client: " + (err.message || err));
+      setClientError(err.message || "Failed to register client profile.");
     } finally {
       setIsSubmitting(false);
     }
@@ -164,6 +205,7 @@ export default function ClientsPage() {
                 <th className="py-3.5 px-4">Primary Doctor</th>
                 <th className="py-3.5 px-4">Visits</th>
                 <th className="py-3.5 px-4">Total Spent</th>
+                <th className="py-3.5 px-4 text-right">Outstanding Dues</th>
                 <th className="py-3.5 px-4 text-right rounded-r-xl">Actions</th>
               </tr>
             </thead>
@@ -197,6 +239,27 @@ export default function ClientsPage() {
                   <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-slate-100 font-mono">
                     {formatPKR(client.totalSpent, { decimals: false })}
                   </td>
+                  <td className="py-3.5 px-4 text-right">
+                    {(client.outstandingBalance || 0) > 0 ? (
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="font-mono font-bold text-rose-600 dark:text-rose-400">
+                          {formatPKR(client.outstandingBalance || 0, { decimals: false })}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setSettleClient(client);
+                            setSettleAmount(String(client.outstandingBalance || 0));
+                            setIsSettleModalOpen(true);
+                          }}
+                          className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300 transition-colors"
+                        >
+                          Collect Due
+                        </button>
+                      </div>
+                    ) : (
+                      <Badge variant="success" size="sm">Cleared</Badge>
+                    )}
+                  </td>
                   <td className="py-3.5 px-4 text-right space-x-1">
                     <button
                       onClick={() => setSelectedClient(client)}
@@ -216,12 +279,22 @@ export default function ClientsPage() {
       {/* Add Client Registration Modal */}
       <Modal
         isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setClientError(null);
+        }}
         title="Register New Client Profile"
         description="Add a new VIP patient record to the clinic database"
         maxWidth="xl"
       >
         <form onSubmit={handleRegisterClient} className="space-y-4">
+          {clientError && (
+            <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+              {clientError}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Full Name"
@@ -270,7 +343,7 @@ export default function ClientsPage() {
             <div className="sm:col-span-2">
               <Select
                 label="Preferred Treatment"
-                options={services.map((s) => ({ label: s.name, value: s.name }))}
+                options={(services || []).map((s) => ({ label: s.name, value: s.name }))}
                 value={preferredService}
                 onChange={(e) => setPreferredService(e.target.value)}
               />
@@ -279,7 +352,7 @@ export default function ClientsPage() {
               label="Assigned Branch"
               options={[
                 { label: 'Unassigned', value: '' },
-                ...branches.map(b => ({ label: b.name, value: b.id }))
+                ...(branches || []).map(b => ({ label: b.name, value: b.id }))
               ]}
               value={clientBranchId}
               onChange={(e) => setClientBranchId(e.target.value)}
@@ -289,9 +362,18 @@ export default function ClientsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
               label="Assigned Practitioner"
-              options={staff.map((st) => ({ label: `${st.name} (${st.role})`, value: st.id }))}
+              options={[
+                { label: 'Select Practitioner', value: '' },
+                ...(staff || []).map((st) => ({ label: `${st.name} (${st.role})`, value: st.id }))
+              ]}
               value={assignedStaffId}
               onChange={(e) => setAssignedStaffId(e.target.value)}
+            />
+            <Input
+              label="National ID / CNIC (Optional)"
+              placeholder="e.g. 42101-1234567-1"
+              value={cnic}
+              onChange={(e) => setCnic(e.target.value)}
             />
           </div>
 
@@ -323,10 +405,30 @@ export default function ClientsPage() {
           maxWidth="2xl"
         >
           <div className="space-y-6">
-            <div className="grid grid-cols-3 gap-3 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl">
               <div>
-                <span className="text-[11px] font-semibold text-slate-400 uppercase block">Total Lifetime Spend</span>
+                <span className="text-[11px] font-semibold text-slate-400 uppercase block">Lifetime Spend</span>
                 <span className="text-lg font-black text-slate-900 dark:text-slate-100 font-mono">{formatPKR(selectedClient.totalSpent, { decimals: false })}</span>
+              </div>
+              <div>
+                <span className="text-[11px] font-semibold text-slate-400 uppercase block">Outstanding Due</span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className={`text-lg font-black font-mono ${(selectedClient.outstandingBalance || 0) > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                    {formatPKR(selectedClient.outstandingBalance || 0, { decimals: false })}
+                  </span>
+                  {(selectedClient.outstandingBalance || 0) > 0 && (
+                    <button
+                      onClick={() => {
+                        setSettleClient(selectedClient);
+                        setSettleAmount(String(selectedClient.outstandingBalance || 0));
+                        setIsSettleModalOpen(true);
+                      }}
+                      className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 hover:bg-rose-200 dark:bg-rose-950 dark:text-rose-300"
+                    >
+                      Collect
+                    </button>
+                  )}
+                </div>
               </div>
               <div>
                 <span className="text-[11px] font-semibold text-slate-400 uppercase block">Total Visits</span>
@@ -366,6 +468,71 @@ export default function ClientsPage() {
           </div>
         </Modal>
       )}
+
+      {/* Settle Outstanding Dues Modal */}
+      <Modal
+        isOpen={isSettleModalOpen}
+        onClose={() => {
+          setIsSettleModalOpen(false);
+          setSettleClient(null);
+          setSettleError(null);
+        }}
+        title={`Collect Outstanding Due - ${settleClient?.name || ''}`}
+        description={`Current Balance Owed: ${formatPKR(settleClient?.outstandingBalance || 0, { decimals: false })}`}
+        maxWidth="md"
+      >
+        <form onSubmit={handleSettleDue} className="space-y-4">
+          {settleError && (
+            <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+              {settleError}
+            </div>
+          )}
+
+          <Input
+            label="Payment Amount Received (PKR)"
+            type="number"
+            value={settleAmount}
+            onChange={(e) => setSettleAmount(e.target.value)}
+            required
+          />
+
+          <Select
+            label="Payment Method"
+            options={[
+              { label: 'Cash at Counter', value: 'Cash' },
+              { label: 'Credit / Debit Card POS', value: 'Card' },
+              { label: 'Online / Bank Transfer (IBFT)', value: 'Online' }
+            ]}
+            value={settleMethod}
+            onChange={(e) => setSettleMethod(e.target.value)}
+          />
+
+          <Input
+            label="Reference / Receipt Notes"
+            placeholder="e.g. Settle balance from laser session invoice"
+            value={settleNotes}
+            onChange={(e) => setSettleNotes(e.target.value)}
+          />
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsSettleModalOpen(false);
+                setSettleClient(null);
+              }}
+              disabled={isSettling}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" disabled={isSettling}>
+              {isSettling ? 'Recording...' : 'Record Payment Receipt'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

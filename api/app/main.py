@@ -13,7 +13,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.future import select
 from app.routers import (
     auth, staff, services, clients, appointments, inventory,
-    expenses, transactions, attendance, notifications, pos, dashboard, branches, whatsapp, bootstrap
+    expenses, transactions, attendance, notifications, pos, dashboard, branches, whatsapp, bootstrap,
+    purchases, partners, packages, returns
 )
 
 _db_initialized = False
@@ -27,35 +28,56 @@ async def lifespan(app: FastAPI):
                 # 1. Create tables on startup dynamically
                 async with engine.begin() as conn:
                     await conn.run_sync(Base.metadata.create_all)
-                    await conn.execute(text("""
-                        ALTER TABLE staff ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;
-                        ALTER TABLE clients ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;
-                        ALTER TABLE appointments ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;
-                        ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_status VARCHAR DEFAULT 'Pending';
-                        ALTER TABLE appointments ADD COLUMN IF NOT EXISTS category VARCHAR DEFAULT 'treatment';
-                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;
-                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS time VARCHAR;
-                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS tax_percent FLOAT DEFAULT 0.0;
-                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS items JSON;
-                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS card_last_four VARCHAR;
-                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS card_type VARCHAR;
-                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS bank_txn_id VARCHAR;
-                        ALTER TABLE inventory ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;
-                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;
-                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS added_by VARCHAR;
-                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS paid_by VARCHAR;
-                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS vendor_name VARCHAR;
-                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS product_name VARCHAR;
-                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_type VARCHAR;
-                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS actual_amount FLOAT;
-                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS amount_paid FLOAT;
-                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS remaining_amount FLOAT;
-                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_logs JSON DEFAULT '[]';
-                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS deletion_approvals JSON DEFAULT '[]';
-                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS deletion_requested_by VARCHAR;
-                        ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS branch_id VARCHAR UNIQUE REFERENCES branches(id) ON DELETE SET NULL;
-                        ALTER TABLE services ADD COLUMN IF NOT EXISTS required_inventory JSON DEFAULT '[]';
-                    """))
+                    migration_statements = [
+                        "ALTER TABLE staff ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL",
+                        "ALTER TABLE clients ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL",
+                        "ALTER TABLE clients ADD COLUMN IF NOT EXISTS cnic VARCHAR",
+                        "ALTER TABLE clients ADD COLUMN IF NOT EXISTS outstanding_balance FLOAT DEFAULT 0.0",
+                        "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL",
+                        "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_status VARCHAR DEFAULT 'Pending'",
+                        "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS category VARCHAR DEFAULT 'treatment'",
+                        "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS transaction_id VARCHAR",
+                        "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS payment_status VARCHAR DEFAULT 'Unpaid'",
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL",
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS time VARCHAR",
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS tax_percent FLOAT DEFAULT 0.0",
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS items JSON",
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS card_last_four VARCHAR",
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS card_type VARCHAR",
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS bank_txn_id VARCHAR",
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS amount_paid FLOAT",
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS client_id VARCHAR REFERENCES clients(id) ON DELETE SET NULL",
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS cash_received FLOAT",
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS cash_returned FLOAT",
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS remaining_due FLOAT DEFAULT 0.0",
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS payment_status VARCHAR DEFAULT 'Paid'",
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS payment_splits JSON",
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS package_id VARCHAR",
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS transaction_type VARCHAR DEFAULT 'Sale'",
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS audit_logs JSON DEFAULT '[]'",
+                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS reprint_count INTEGER DEFAULT 0",
+                        "ALTER TABLE inventory ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL",
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL",
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS added_by VARCHAR",
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS paid_by VARCHAR",
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS vendor_name VARCHAR",
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS product_name VARCHAR",
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_type VARCHAR",
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS actual_amount FLOAT",
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS amount_paid FLOAT",
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS remaining_amount FLOAT",
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_logs JSON DEFAULT '[]'",
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS deletion_approvals JSON DEFAULT '[]'",
+                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS deletion_requested_by VARCHAR",
+                        "ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS branch_id VARCHAR UNIQUE REFERENCES branches(id) ON DELETE SET NULL",
+                        "ALTER TABLE services ADD COLUMN IF NOT EXISTS required_inventory JSON DEFAULT '[]'",
+                    ]
+                    for stmt in migration_statements:
+                        try:
+                            async with conn.begin_nested():
+                                await conn.execute(text(stmt))
+                        except Exception:
+                            pass
 
                 
                 # 2. Seed default users and settings if none exist
@@ -150,6 +172,10 @@ app.include_router(pos.router, prefix=f"{settings.API_V1_STR}/pos", tags=["pos"]
 app.include_router(dashboard.router, prefix=f"{settings.API_V1_STR}/dashboard", tags=["dashboard"])
 app.include_router(branches.router, prefix=f"{settings.API_V1_STR}/branches", tags=["branches"])
 app.include_router(whatsapp.router, prefix=f"{settings.API_V1_STR}/whatsapp", tags=["whatsapp"])
+app.include_router(purchases.router, prefix=f"{settings.API_V1_STR}/purchases", tags=["purchases"])
+app.include_router(partners.router, prefix=f"{settings.API_V1_STR}/partners", tags=["partners"])
+app.include_router(packages.router, prefix=f"{settings.API_V1_STR}/packages", tags=["packages"])
+app.include_router(returns.router, prefix=f"{settings.API_V1_STR}/returns", tags=["returns"])
 
 
 @app.get("/")

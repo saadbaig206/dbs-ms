@@ -19,6 +19,8 @@ from app.models.attendance import AttendanceRecord
 from app.models.notification import NotificationItem
 from app.models.expense import ExpenseItem
 from app.models.transaction import FinancialTransaction
+from app.models.purchase import PurchaseBill, PurchaseItem
+from app.models.package import ClientPackage
 from app.schemas.branch import BranchResponse
 from app.schemas.staff import StaffResponse
 from app.schemas.service import ServiceResponse
@@ -29,6 +31,8 @@ from app.schemas.attendance import AttendanceResponse
 from app.schemas.notification import NotificationResponse
 from app.schemas.expense import ExpenseResponse
 from app.schemas.transaction import FinancialTransactionResponse
+from app.schemas.purchase import PurchaseBillResponse, PurchaseItemResponse
+from app.schemas.package import ClientPackageResponse
 
 router = APIRouter()
 
@@ -120,8 +124,12 @@ async def get_bootstrap_data(
         notif_query = notif_query.order_by(NotificationItem.id.desc()).limit(50)
         notifications_task = fetch_item(notif_query, NotificationResponse)
 
-        task_names = ["branches", "staff", "services", "clients", "appointments", "inventory", "attendance", "notifications"]
-        tasks = [branches_task, staff_task, services_task, clients_task, appointments_task, inventory_task, attendance_task, notifications_task]
+        task_names = ["branches", "staff", "services", "clients", "appointments", "inventory", "attendance", "notifications", "packages"]
+        pkg_query = select(ClientPackage).order_by(ClientPackage.purchase_date.desc())
+        if user_branch_id:
+            pkg_query = pkg_query.where(or_(ClientPackage.branch_id == user_branch_id, ClientPackage.branch_id == None))
+        packages_task = fetch_item(pkg_query, ClientPackageResponse)
+        tasks = [branches_task, staff_task, services_task, clients_task, appointments_task, inventory_task, attendance_task, notifications_task, packages_task]
 
         # Role-gated tasks (Staff never queries expenses, transactions, or partners)
         if role in ("admin", "partner"):
@@ -136,6 +144,18 @@ async def get_bootstrap_data(
                 t_query = t_query.where(FinancialTransaction.branch_id == user_branch_id)
             task_names.append("transactions")
             tasks.append(fetch_item(t_query.order_by(FinancialTransaction.id.desc()), FinancialTransactionResponse))
+
+            pur_query = select(PurchaseBill)
+            if user_branch_id:
+                pur_query = pur_query.where(or_(PurchaseBill.branch_id == user_branch_id, PurchaseBill.branch_id == None))
+            task_names.append("purchaseBills")
+            tasks.append(fetch_item(pur_query.order_by(PurchaseBill.date.desc()), PurchaseBillResponse))
+
+            item_query = select(PurchaseItem)
+            if user_branch_id:
+                item_query = item_query.where(or_(PurchaseItem.branch_id == user_branch_id, PurchaseItem.branch_id == None))
+            task_names.append("purchaseItems")
+            tasks.append(fetch_item(item_query.order_by(PurchaseItem.date.desc()), PurchaseItemResponse))
 
         if role == "admin":
             async def fetch_partners():
@@ -163,7 +183,10 @@ async def get_bootstrap_data(
             "notifications": result_map.get("notifications", []),
             "expenses": result_map.get("expenses", []),
             "transactions": result_map.get("transactions", []),
-            "partners": result_map.get("partners", [])
+            "partners": result_map.get("partners", []),
+            "packages": result_map.get("packages", []),
+            "purchaseBills": result_map.get("purchaseBills", []),
+            "purchaseItems": result_map.get("purchaseItems", [])
         }
     else:
         # Fallback sequential execution if pool is not configured
