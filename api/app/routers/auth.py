@@ -1,3 +1,4 @@
+import asyncio
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -94,33 +95,44 @@ async def login(
             access_token = create_access_token(subject=key)
             refresh_token = create_refresh_token(subject=key)
 
-            # Non-blocking best-effort database user sync
-            user_obj = None
-            branch_id = None
-            try:
-                res = await db.execute(select(User).where(or_(User.email == key, func.lower(User.email) == key)))
-                db_user = res.scalars().first()
-                if not db_user:
-                    new_u = User(email=key, hashed_password=get_password_hash(spec["passwords"][0]), role=spec["role"])
-                    db.add(new_u)
-                    await db.commit()
-                    user_obj = new_u
-                else:
-                    user_obj = db_user
+            # Instant in-memory user object (zero DB wait for login response)
+            default_id = 3 if "zaini" in key.lower() else (2 if spec["role"] == "staff" else 1)
+            default_branch = "BR-001" if spec["role"] == "staff" else None
+            user_obj = User(
+                id=default_id,
+                email=key,
+                role=spec["role"]
+            )
+            setattr(user_obj, "_cached_branch_id", default_branch)
+            set_cached_user(access_token, user_obj, default_branch)
 
-                if spec["role"] == "staff":
-                    from app.models.staff import Staff
-                    s_res = await db.execute(select(Staff).where(func.lower(Staff.email) == key))
-                    sm = s_res.scalars().first()
-                    if sm:
-                        branch_id = sm.branch_id
-            except Exception:
-                pass
+            # Best-effort background DB sync so HTTP response returns in <20ms
+            async def _sync_default_user_bg(k=key, s=spec, tok=access_token):
+                from app.db.session import SessionLocal
+                if not SessionLocal:
+                    return
+                try:
+                    async with SessionLocal() as bg_db:
+                        res = await bg_db.execute(select(User).where(or_(User.email == k, func.lower(User.email) == k)))
+                        db_user = res.scalars().first()
+                        if not db_user:
+                            new_u = User(email=k, hashed_password=get_password_hash(s["passwords"][0]), role=s["role"])
+                            bg_db.add(new_u)
+                            await bg_db.commit()
+                            db_user = new_u
+                        b_id = None
+                        if s["role"] == "staff":
+                            from app.models.staff import Staff
+                            s_res = await bg_db.execute(select(Staff).where(func.lower(Staff.email) == k))
+                            sm = s_res.scalars().first()
+                            if sm:
+                                b_id = sm.branch_id
+                        if db_user:
+                            set_cached_user(tok, db_user, b_id)
+                except Exception:
+                    pass
 
-            if not user_obj:
-                user_obj = User(email=key, role=spec["role"])
-
-            set_cached_user(access_token, user_obj, branch_id)
+            asyncio.create_task(_sync_default_user_bg())
 
             return {
                 "access_token": access_token,
@@ -129,42 +141,45 @@ async def login(
                 "role": spec["role"]
             }
 
-    # 2. Check Database Users (Custom Staff / Partner / Admin Accounts)
+    # 2. Check Database Users: fast direct User lookup first
     user = None
-    staff_emails = []
     try:
-        staff_res = await db.execute(
-            select(Staff).where(
+        user_res = await db.execute(
+            select(User).where(
                 or_(
-                    func.lower(Staff.email) == email_clean,
-                    func.lower(Staff.name) == email_clean,
-                    Staff.email == raw_email,
-                    Staff.name.ilike(f"%{email_clean}%")
+                    func.lower(User.email) == email_clean,
+                    User.email == raw_email
                 )
             )
         )
-        for s_member in staff_res.scalars().all():
-            if s_member.email:
-                staff_emails.append(s_member.email.strip().lower())
+        user = user_res.scalars().first()
     except Exception:
         pass
 
-    conditions = [
-        func.lower(User.email) == email_clean,
-        User.email == raw_email
-    ]
-    if "@" in email_clean:
-        prefix = email_clean.split("@")[0]
-        conditions.append(func.lower(User.email) == prefix)
-
-    for se in staff_emails:
-        conditions.append(func.lower(User.email) == se)
-
-    try:
-        result = await db.execute(select(User).where(or_(*conditions)))
-        user = result.scalars().first()
-    except Exception:
-        pass
+    # If not found directly, check staff table for alias/name matching
+    staff_emails = []
+    if not user:
+        try:
+            staff_res = await db.execute(
+                select(Staff).where(
+                    or_(
+                        func.lower(Staff.email) == email_clean,
+                        func.lower(Staff.name) == email_clean,
+                        Staff.email == raw_email,
+                        Staff.name.ilike(f"%{email_clean}%")
+                    )
+                )
+            )
+            for s_member in staff_res.scalars().all():
+                if s_member.email:
+                    staff_emails.append(s_member.email.strip().lower())
+            
+            if staff_emails:
+                conditions = [func.lower(User.email) == se for se in staff_emails]
+                result = await db.execute(select(User).where(or_(*conditions)))
+                user = result.scalars().first()
+        except Exception:
+            pass
 
     # 3. Auto-provision User account for staff directory members if missing
     if not user and staff_emails:

@@ -25,107 +25,115 @@ async def lifespan(app: FastAPI):
     if not _db_initialized:
         try:
             if engine:
-                # 1. Create tables on startup dynamically
-                async with engine.begin() as conn:
-                    await conn.run_sync(Base.metadata.create_all)
-                    migration_statements = [
-                        "ALTER TABLE staff ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL",
-                        "ALTER TABLE clients ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL",
-                        "ALTER TABLE clients ADD COLUMN IF NOT EXISTS cnic VARCHAR",
-                        "ALTER TABLE clients ADD COLUMN IF NOT EXISTS outstanding_balance FLOAT DEFAULT 0.0",
-                        "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL",
-                        "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_status VARCHAR DEFAULT 'Pending'",
-                        "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS category VARCHAR DEFAULT 'treatment'",
-                        "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS transaction_id VARCHAR",
-                        "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS payment_status VARCHAR DEFAULT 'Unpaid'",
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL",
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS time VARCHAR",
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS tax_percent FLOAT DEFAULT 0.0",
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS items JSON",
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS card_last_four VARCHAR",
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS card_type VARCHAR",
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS bank_txn_id VARCHAR",
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS amount_paid FLOAT",
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS client_id VARCHAR REFERENCES clients(id) ON DELETE SET NULL",
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS cash_received FLOAT",
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS cash_returned FLOAT",
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS remaining_due FLOAT DEFAULT 0.0",
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS payment_status VARCHAR DEFAULT 'Paid'",
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS payment_splits JSON",
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS package_id VARCHAR",
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS transaction_type VARCHAR DEFAULT 'Sale'",
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS audit_logs JSON DEFAULT '[]'",
-                        "ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS reprint_count INTEGER DEFAULT 0",
-                        "ALTER TABLE inventory ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL",
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL",
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS added_by VARCHAR",
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS paid_by VARCHAR",
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS vendor_name VARCHAR",
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS product_name VARCHAR",
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_type VARCHAR",
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS actual_amount FLOAT",
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS amount_paid FLOAT",
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS remaining_amount FLOAT",
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_logs JSON DEFAULT '[]'",
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS deletion_approvals JSON DEFAULT '[]'",
-                        "ALTER TABLE expenses ADD COLUMN IF NOT EXISTS deletion_requested_by VARCHAR",
-                        "ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS branch_id VARCHAR UNIQUE REFERENCES branches(id) ON DELETE SET NULL",
-                        "ALTER TABLE services ADD COLUMN IF NOT EXISTS required_inventory JSON DEFAULT '[]'",
-                    ]
-                    for stmt in migration_statements:
+                # Fast-path check: if users table already exists, skip slow DDL migrations and seed checks
+                tables_ready = False
+                try:
+                    async with engine.connect() as conn:
+                        res = await conn.execute(text("SELECT 1 FROM users LIMIT 1"))
+                        if res.scalar() is not None:
+                            tables_ready = True
+                except Exception:
+                    tables_ready = False
+
+                if not tables_ready:
+                    # 1. Create tables on initial startup
+                    async with engine.begin() as conn:
+                        await conn.run_sync(Base.metadata.create_all)
+                        migration_block = """
+                        ALTER TABLE staff ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;
+                        ALTER TABLE clients ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;
+                        ALTER TABLE clients ADD COLUMN IF NOT EXISTS cnic VARCHAR;
+                        ALTER TABLE clients ADD COLUMN IF NOT EXISTS outstanding_balance FLOAT DEFAULT 0.0;
+                        ALTER TABLE appointments ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;
+                        ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_status VARCHAR DEFAULT 'Pending';
+                        ALTER TABLE appointments ADD COLUMN IF NOT EXISTS category VARCHAR DEFAULT 'treatment';
+                        ALTER TABLE appointments ADD COLUMN IF NOT EXISTS transaction_id VARCHAR;
+                        ALTER TABLE appointments ADD COLUMN IF NOT EXISTS payment_status VARCHAR DEFAULT 'Unpaid';
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS time VARCHAR;
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS tax_percent FLOAT DEFAULT 0.0;
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS items JSON;
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS card_last_four VARCHAR;
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS card_type VARCHAR;
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS bank_txn_id VARCHAR;
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS amount_paid FLOAT;
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS client_id VARCHAR REFERENCES clients(id) ON DELETE SET NULL;
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS cash_received FLOAT;
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS cash_returned FLOAT;
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS remaining_due FLOAT DEFAULT 0.0;
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS payment_status VARCHAR DEFAULT 'Paid';
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS payment_splits JSON;
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS package_id VARCHAR;
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS transaction_type VARCHAR DEFAULT 'Sale';
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS audit_logs JSON DEFAULT '[]';
+                        ALTER TABLE financial_transactions ADD COLUMN IF NOT EXISTS reprint_count INTEGER DEFAULT 0;
+                        ALTER TABLE inventory ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS branch_id VARCHAR REFERENCES branches(id) ON DELETE SET NULL;
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS added_by VARCHAR;
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS paid_by VARCHAR;
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS vendor_name VARCHAR;
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS product_name VARCHAR;
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_type VARCHAR;
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS actual_amount FLOAT;
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS amount_paid FLOAT;
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS remaining_amount FLOAT;
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_logs JSON DEFAULT '[]';
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS deletion_approvals JSON DEFAULT '[]';
+                        ALTER TABLE expenses ADD COLUMN IF NOT EXISTS deletion_requested_by VARCHAR;
+                        ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS branch_id VARCHAR UNIQUE REFERENCES branches(id) ON DELETE SET NULL;
+                        ALTER TABLE services ADD COLUMN IF NOT EXISTS required_inventory JSON DEFAULT '[]';
+                        """
                         try:
-                            async with conn.begin_nested():
-                                await conn.execute(text(stmt))
-                        except Exception:
-                            pass
+                            # Execute as a single SQL block without SAVEPOINTs (PgBouncer compatible)
+                            await conn.execute(text(migration_block))
+                        except Exception as m_err:
+                            print(f"Migration batch warning: {m_err}")
 
-                
-                # 2. Seed default users and settings if none exist
-                async_session = sessionmaker(
-                    engine, class_=AsyncSession, expire_on_commit=False
-                )
-                async with async_session() as session:
-                    from sqlalchemy import func
-                    default_users = [
-                        ("admin@gmail.com", "admin", "admin"),
-                        ("staff@gmail.com", "staff", "staff"),
-                        ("drzaini", "drzaini109", "admin")
-                    ]
-                    for email_str, pass_str, role_str in default_users:
-                        u_res = await session.execute(select(User).where(func.lower(User.email) == email_str))
-                        if not u_res.scalars().first():
-                            session.add(User(
-                                email=email_str,
-                                hashed_password=get_password_hash(pass_str),
-                                role=role_str
-                            ))
-                    await session.commit()
-
-                    from app.models.branch import Branch
-                    from app.models.staff import Staff
-
-                    branch_result = await session.execute(select(Branch))
-                    if not branch_result.scalars().first():
-                        default_branch = Branch(
-                            id="BR-001",
-                            name="Main Branch",
-                            location="DBS Lahore, Pakistan",
-                            phone="+924211112233",
-                            latitude=31.5204,
-                            longitude=74.3587
-                        )
-                        session.add(default_branch)
+                    # 2. Seed default users and settings if none exist
+                    async_session = sessionmaker(
+                        engine, class_=AsyncSession, expire_on_commit=False
+                    )
+                    async with async_session() as session:
+                        from sqlalchemy import func
+                        default_users = [
+                            ("admin@gmail.com", "admin", "admin"),
+                            ("staff@gmail.com", "staff", "staff"),
+                            ("drzaini", "drzaini109", "admin")
+                        ]
+                        for email_str, pass_str, role_str in default_users:
+                            u_res = await session.execute(select(User).where(func.lower(User.email) == email_str))
+                            if not u_res.scalars().first():
+                                session.add(User(
+                                    email=email_str,
+                                    hashed_password=get_password_hash(pass_str),
+                                    role=role_str
+                                ))
                         await session.commit()
 
+                        from app.models.branch import Branch
 
-                    settings_result = await session.execute(select(WhatsAppSettings))
-                    if not settings_result.scalars().first():
-                        default_settings = WhatsAppSettings(
-                            system_prompt="You are a helpful customer service assistant for DBS Aesthetics Clinic. Be professional, polite, and direct.",
-                            knowledge_base="Aura Luxury / DBS Aesthetics Clinic is a premium luxury clinic. We offer advanced skincare, laser treatments, hair transplants, dental aesthetics, and cosmetic surgery."
-                        )
-                        session.add(default_settings)
-                        await session.commit()
+                        branch_result = await session.execute(select(Branch))
+                        if not branch_result.scalars().first():
+                            default_branch = Branch(
+                                id="BR-001",
+                                name="Main Branch",
+                                location="DBS Lahore, Pakistan",
+                                phone="+924211112233",
+                                latitude=31.5204,
+                                longitude=74.3587
+                            )
+                            session.add(default_branch)
+                            await session.commit()
+
+                        settings_result = await session.execute(select(WhatsAppSettings))
+                        if not settings_result.scalars().first():
+                            default_settings = WhatsAppSettings(
+                                system_prompt="You are a helpful customer service assistant for DBS Aesthetics Clinic. Be professional, polite, and direct.",
+                                knowledge_base="Aura Luxury / DBS Aesthetics Clinic is a premium luxury clinic. We offer advanced skincare, laser treatments, hair transplants, dental aesthetics, and cosmetic surgery."
+                            )
+                            session.add(default_settings)
+                            await session.commit()
+
                 _db_initialized = True
             else:
                 print("Lifespan startup skipped database setup: engine is None.")
