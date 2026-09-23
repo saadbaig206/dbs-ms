@@ -37,27 +37,36 @@ export const Navbar: React.FC = () => {
   } = useClinic();
 
   const userName = React.useMemo(() => {
-    if (userEmail) {
+    const effectiveEmail =
+      userEmail ||
+      (typeof window !== 'undefined' ? localStorage.getItem('user_email') : null);
+
+    if (effectiveEmail) {
       const matchingStaff = (staff || []).find(
-        s => s.email && s.email.toLowerCase().trim() === userEmail.toLowerCase().trim()
+        s => s.email && s.email.toLowerCase().trim() === effectiveEmail.toLowerCase().trim()
       );
       if (matchingStaff?.name) {
         return matchingStaff.name;
       }
 
-      const rawName = userEmail.includes('@') ? userEmail.split('@')[0] : userEmail;
-      
-      if (rawName.toLowerCase() === 'admin') return 'Admin User';
-      if (rawName.toLowerCase() === 'drzaini') return 'Dr. Zaini';
-      
+      const rawName = effectiveEmail.includes('@') ? effectiveEmail.split('@')[0] : effectiveEmail;
+      const lower = rawName.toLowerCase().replace(/[\.\s_]/g, '');
+
+      if (lower === 'admin' || lower === 'administrator') return 'Admin User';
+      if (lower === 'drzaini' || lower === 'drzaini109' || lower === 'zaini') return 'Dr. Zaini';
+
       return rawName
         .split(/[\._\-]/)
         .map(part => part.charAt(0).toUpperCase() + part.slice(1))
         .join(' ');
     }
 
-    if (role === 'admin') return 'Admin User';
-    if (role === 'partner') return 'Clinic Partner';
+    const effectiveRole =
+      role ||
+      (typeof window !== 'undefined' ? localStorage.getItem('user_role') : null);
+
+    if (effectiveRole === 'admin') return 'Admin User';
+    if (effectiveRole === 'partner') return 'Clinic Partner';
     return 'Staff Practitioner';
   }, [userEmail, staff, role]);
 

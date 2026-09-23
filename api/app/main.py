@@ -145,14 +145,14 @@ app = FastAPI(
 # CORS configuration
 from fastapi.middleware.gzip import GZipMiddleware
 
-if settings.cors_origins:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins if settings.cors_origins else ["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origin_regex=r"https://.*",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.add_middleware(GZipMiddleware, minimum_size=500)
 

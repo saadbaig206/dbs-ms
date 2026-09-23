@@ -313,13 +313,17 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (bootstrapRes && bootstrapRes.user) {
         const activeUser = bootstrapRes.user;
         const activeRole = (activeUser.role || 'staff') as UserRole;
+        const finalEmail = activeUser.email || userEmail || (typeof window !== 'undefined' ? localStorage.getItem('user_email') : null);
         setRoleState(activeRole);
         if (typeof window !== 'undefined') {
           localStorage.setItem('user_role', activeRole);
+          if (finalEmail) {
+            localStorage.setItem('user_email', finalEmail);
+          }
         }
         document.cookie = `user_role=${activeRole}; path=/; max-age=${60 * 60 * 24 * 8}; SameSite=Lax`;
         setUserId(activeUser.id || null);
-        setUserEmail(activeUser.email || null);
+        setUserEmail(finalEmail || null);
         const bId = activeUser.branch_id || activeUser.branchId || null;
         setUserBranchId(bId);
         if (activeRole === 'staff' && bId) {
@@ -427,14 +431,18 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return;
       }
 
-      const activeRole = (activeUser.role || initialRole || 'staff') as UserRole;
+      const finalEmail = activeUser.email || userEmail || (typeof window !== 'undefined' ? localStorage.getItem('user_email') : null);
+      const activeRole = (activeUser.role || initialRole || (finalEmail && (finalEmail.toLowerCase().includes('drzaini') || finalEmail.toLowerCase().includes('admin')) ? 'admin' : 'staff')) as UserRole;
       setRoleState(activeRole);
       if (typeof window !== 'undefined') {
         localStorage.setItem('user_role', activeRole);
+        if (finalEmail) {
+          localStorage.setItem('user_email', finalEmail);
+        }
       }
       document.cookie = `user_role=${activeRole}; path=/; max-age=${60 * 60 * 24 * 8}; SameSite=Lax`;
       setUserId(activeUser.id || null);
-      setUserEmail(activeUser.email || null);
+      setUserEmail(finalEmail || null);
       const bId = (activeUser as any).branch_id || (activeUser as any).branchId || null;
       setUserBranchId(bId);
       if (activeRole === 'staff' && bId) {
@@ -508,9 +516,18 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Fetch data and hydrate client storage safely after initial mount without hydration mismatch
   useEffect(() => {
     try {
+      const storedEmail = localStorage.getItem('user_email');
+      if (storedEmail) {
+        setUserEmail(storedEmail);
+      }
       const storedRole = localStorage.getItem('user_role') || (document.cookie.match(/(?:^|; )user_role=([^;]*)/)?.[1]);
       if (storedRole === 'admin' || storedRole === 'staff' || storedRole === 'partner') {
         setRoleState(storedRole as UserRole);
+      } else if (storedEmail) {
+        const lower = storedEmail.toLowerCase().replace(/[\.\s_]/g, '');
+        if (lower.includes('drzaini') || lower.includes('admin')) {
+          setRoleState('admin');
+        }
       }
     } catch (e) {}
 
