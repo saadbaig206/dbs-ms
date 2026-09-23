@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
 export default function FinanceRedirect() {
-  redirect('/finance-reports');
+  redirect('/finance-reports?tab=transactions');
 }

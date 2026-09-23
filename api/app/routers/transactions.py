@@ -92,23 +92,31 @@ async def update_transaction(
         
     db.add(db_transaction)
 
-    # Sync remaining_due, payment_status, and client balances when grand_total or amount_paid changes
-    if "grand_total" in update_data or "amount_paid" in update_data:
-        was_fully_paid = (old_rem_due == 0) or (old_amount_paid >= old_grand_total) or (db_transaction.status == "Paid")
+    # Sync remaining_due, payment_status, and client balances when grand_total, amount_paid, or status changes
+    status_voided = "status" in update_data and update_data["status"] in ("Cancelled", "Refunded") and changes.get("status", {}).get("from") not in ("Cancelled", "Refunded")
 
-        if "amount_paid" not in update_data and "grand_total" in update_data:
-            if was_fully_paid:
-                db_transaction.amount_paid = db_transaction.grand_total
-            else:
-                db_transaction.amount_paid = min(db_transaction.grand_total, old_amount_paid)
-        
-        db_transaction.remaining_due = max(0.0, round((db_transaction.grand_total or 0.0) - (db_transaction.amount_paid or 0.0), 2))
-        db_transaction.payment_status = "Paid" if db_transaction.remaining_due == 0 else ("Partial" if (db_transaction.amount_paid or 0) > 0 else "Unpaid")
-        if db_transaction.status not in ("Refunded", "Cancelled"):
-            db_transaction.status = "Paid" if db_transaction.remaining_due == 0 else "Pending"
+    if "grand_total" in update_data or "amount_paid" in update_data or status_voided:
+        if status_voided:
+            db_transaction.remaining_due = 0.0
+            db_transaction.payment_status = update_data["status"]
+            due_diff = -old_rem_due
+            paid_diff = -old_amount_paid
+        else:
+            was_fully_paid = (old_rem_due == 0) or (old_amount_paid >= old_grand_total) or (db_transaction.status == "Paid")
 
-        due_diff = db_transaction.remaining_due - old_rem_due
-        paid_diff = (db_transaction.amount_paid or 0.0) - old_amount_paid
+            if "amount_paid" not in update_data and "grand_total" in update_data:
+                if was_fully_paid:
+                    db_transaction.amount_paid = db_transaction.grand_total
+                else:
+                    db_transaction.amount_paid = min(db_transaction.grand_total, old_amount_paid)
+            
+            db_transaction.remaining_due = max(0.0, round((db_transaction.grand_total or 0.0) - (db_transaction.amount_paid or 0.0), 2))
+            db_transaction.payment_status = "Paid" if db_transaction.remaining_due == 0 else ("Partial" if (db_transaction.amount_paid or 0) > 0 else "Unpaid")
+            if db_transaction.status not in ("Refunded", "Cancelled"):
+                db_transaction.status = "Paid" if db_transaction.remaining_due == 0 else "Pending"
+
+            due_diff = db_transaction.remaining_due - old_rem_due
+            paid_diff = (db_transaction.amount_paid or 0.0) - old_amount_paid
 
         from app.models.client import Client
         from sqlalchemy.orm.attributes import flag_modified
@@ -126,9 +134,9 @@ async def update_transaction(
             if client.history:
                 for h in client.history:
                     if h.get("id") == f"HIS-{db_transaction.id}":
-                        h["amount"] = db_transaction.amount_paid
-                        h["grandTotal"] = db_transaction.grand_total
-                        h["due"] = db_transaction.remaining_due
+                        h["amount"] = 0.0 if status_voided else db_transaction.amount_paid
+                        h["grandTotal"] = 0.0 if status_voided else db_transaction.grand_total
+                        h["due"] = 0.0 if status_voided else db_transaction.remaining_due
                         h["status"] = db_transaction.payment_status
                 flag_modified(client, "history")
             db.add(client)

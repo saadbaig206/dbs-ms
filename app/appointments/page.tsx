@@ -235,8 +235,7 @@ export default function AppointmentsPage() {
       let resolvedClientId = matchedClient?.id;
       if (!resolvedClientId) {
         try {
-          const newId = `CLT-${Date.now().toString().slice(-4)}`;
-          await addClient({
+          const created = await addClient({
             name: newClientName.trim(),
             phone: cleanPhone,
             cnic: 'N/A',
@@ -245,15 +244,18 @@ export default function AppointmentsPage() {
             address: 'N/A',
             notes: 'Auto-registered via appointment booking'
           });
-          resolvedClientId = newId;
+          resolvedClientId = created?.id;
         } catch {
-          resolvedClientId = `CLT-${Date.now().toString().slice(-4)}`;
+          const existing = (clients || []).find(c => c.phone && c.phone.replace(/\s+/g, '') === cleanPhone);
+          resolvedClientId = existing?.id;
         }
       }
 
+      const finalClientId = resolvedClientId || `CLT-${Date.now().toString().slice(-4)}`;
+
       if (numberOfSessions === 1) {
         await addAppointment({
-          clientId: resolvedClientId,
+          clientId: finalClientId,
           clientName: newClientName,
           phone: cleanPhone,
           serviceId: serviceObj.id,
@@ -273,7 +275,7 @@ export default function AppointmentsPage() {
           const sess = sessionsList[i];
           const sessionTag = `Session ${i + 1}/${sessionsList.length}`;
           await addAppointment({
-            clientId: resolvedClientId,
+            clientId: finalClientId,
             clientName: newClientName,
             phone: cleanPhone,
             serviceId: serviceObj.id,
@@ -298,7 +300,7 @@ export default function AppointmentsPage() {
       setNumberOfSessions(1);
       setSessionsList([{ sessionNumber: 1, date: getLocalDateString(), time: '11:00 AM' }]);
     } catch (err: any) {
-      alert("Failed to create appointment: " + (err.message || err));
+      setBookingError(err.message || String(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -432,10 +434,7 @@ export default function AppointmentsPage() {
                       <div className="flex flex-col gap-1">
                         <span>{apt.serviceName}</span>
                         {apt.category && (
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase w-max ${apt.category === 'consultation'
-                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-900/40'
-                              : 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-900/40'
-                            }`}>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase w-max bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-900/40">
                             {apt.category}
                           </span>
                         )}
@@ -453,15 +452,15 @@ export default function AppointmentsPage() {
                     </td>
                     <td className="py-3.5 px-4">
                       {apt.paymentStatus === 'Paid' ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/40">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-900/40">
                           Paid
                         </span>
                       ) : apt.paymentStatus === 'Billed' ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-900/40">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                           Billed
                         </span>
                       ) : apt.paymentStatus === 'Complimentary' ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-900/40">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800/50">
                           Waived
                         </span>
                       ) : (

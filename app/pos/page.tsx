@@ -398,7 +398,11 @@ function POSContent() {
   const selectedClientObj = useMemo(() => {
     const term = (clientSearch || clientName).trim().toLowerCase();
     if (!term) return null;
-    return clients.find(c => c.name.toLowerCase() === term);
+    const cleanTermPhone = term.replace(/\s+/g, '');
+    return clients.find(c => 
+      c.name.trim().toLowerCase() === term ||
+      (c.phone && c.phone.replace(/\s+/g, '') === cleanTermPhone)
+    );
   }, [clients, clientSearch, clientName]);
 
   const handleCheckout = async () => {
@@ -693,7 +697,7 @@ function POSContent() {
                                     e.stopPropagation();
                                     addToPosCart(srv, true, 3);
                                   }}
-                                  className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600 hover:text-white transition-colors"
+                                  className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white transition-colors"
                                 >
                                   3-Sessions
                                 </button>
@@ -907,7 +911,7 @@ function POSContent() {
                           </span>
                         )}
                         {item.isPackage && (
-                          <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300">
+                          <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
                             {item.sessions || 3} Srv
                           </span>
                         )}
@@ -1168,9 +1172,9 @@ function POSContent() {
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="p-3 bg-indigo-50/70 dark:bg-indigo-950/20 rounded-2xl border border-indigo-200 dark:border-indigo-900/60 space-y-2.5"
+                className="p-3 bg-blue-50/70 dark:bg-blue-950/20 rounded-2xl border border-blue-200 dark:border-blue-900/60 space-y-2.5"
               >
-                <div className="text-[11px] font-bold text-indigo-900 dark:text-indigo-300 uppercase tracking-wide">
+                <div className="text-[11px] font-bold text-blue-900 dark:text-blue-300 uppercase tracking-wide">
                   Split Payment Allocation
                 </div>
                 <div className="space-y-1.5 text-xs">
@@ -1223,9 +1227,9 @@ function POSContent() {
                   const totalSplit = (Number(splitCash) || 0) + (Number(splitCard) || 0) + (Number(splitOnline) || 0);
                   const diff = Math.round((targetAmt - totalSplit) * 100) / 100;
                   return (
-                    <div className="pt-2 border-t border-indigo-200/70 dark:border-indigo-900/60 flex items-center justify-between text-xs">
-                      <span className="font-semibold text-indigo-950 dark:text-indigo-200">Allocated / Target:</span>
-                      <span className={`font-mono font-bold ${diff === 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                    <div className="pt-2 border-t border-blue-200/70 dark:border-blue-900/60 flex items-center justify-between text-xs">
+                      <span className="font-semibold text-blue-950 dark:text-blue-200">Allocated / Target:</span>
+                      <span className={`font-mono font-bold ${diff === 0 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`}>
                         {formatPKR(totalSplit)} / {formatPKR(targetAmt)} {diff !== 0 && `(Diff: ${formatPKR(diff)})`}
                       </span>
                     </div>
@@ -1233,7 +1237,7 @@ function POSContent() {
                 })()}
 
                 {Number(splitCard) > 0 && (
-                  <div className="pt-2 border-t border-indigo-200/50 dark:border-indigo-900/40">
+                  <div className="pt-2 border-t border-blue-200/50 dark:border-blue-900/40">
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1 flex items-center justify-between">
                       <span>Card POS Slip / Bank Txn ID</span>
                       <span className="text-[10px] text-red-500 font-bold uppercase">Required</span>

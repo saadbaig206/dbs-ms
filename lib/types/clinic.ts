@@ -147,6 +147,7 @@ export type ExpenseCategory =
   | 'Products' 
   | 'Machines' 
   | 'Marketing' 
+  | 'Inventory Purchase'
   | 'Other';
 
 export interface PaymentLog {

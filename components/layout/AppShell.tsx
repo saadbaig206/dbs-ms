@@ -78,7 +78,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     <>
       <OfflineBanner />
       {mounted && isLoading && (
-        <div className="fixed top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-500 z-50 animate-pulse pointer-events-none" />
+        <div className="fixed top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-600 via-blue-400 to-blue-600 z-50 animate-pulse pointer-events-none" />
       )}
       <div className="flex min-h-screen">
         <Sidebar />

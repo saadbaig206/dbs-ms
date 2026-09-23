@@ -65,6 +65,7 @@ export default function InventoryPage() {
   const [isAddVendorModalOpen, setIsAddVendorModalOpen] = useState(false);
   const [reduceModalItemId, setReduceModalItemId] = useState<string | null>(null);
   const [reduceAmount, setReduceAmount] = useState<string>('1');
+  const [reduceReason, setReduceReason] = useState<string>('Treatment consumption / Clinic usage');
 
   // Edit Selling Price Modal State
   const [editPriceModalItem, setEditPriceModalItem] = useState<any>(null);
@@ -378,11 +379,19 @@ export default function InventoryPage() {
     if (isSubmitting) return;
     const amount = Number(reduceAmount) || 0;
     if (!reduceModalItemId || amount <= 0) return;
+    const currentItem = inventory.find(i => i.id === reduceModalItemId);
+    if (!currentItem) return;
+    if (amount > currentItem.quantity) {
+      showToast(`Cannot reduce by ${amount}. Only ${currentItem.quantity} units currently in stock.`, "error");
+      return;
+    }
     try {
       setIsSubmitting(true);
-      await updateInventoryQuantity(reduceModalItemId, -amount);
+      await updateInventoryQuantity(reduceModalItemId, -amount, reduceReason.trim() || 'Treatment consumption');
       setReduceModalItemId(null);
       setReduceAmount('1');
+      setReduceReason('Treatment consumption / Clinic usage');
+      showToast("Stock reduced successfully");
     } catch (err: any) {
       showToast("Failed to reduce stock: " + (err.message || err), "error");
     } finally {
@@ -585,7 +594,7 @@ export default function InventoryPage() {
                           </button>
                           <button
                             onClick={() => handleOpenRenewModal(item.id)}
-                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 hover:bg-emerald-100 transition-colors flex items-center gap-1"
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 hover:bg-blue-100 transition-colors flex items-center gap-1"
                           >
                             <RotateCw className="w-3 h-3" />
                             Renew Vendor
@@ -698,7 +707,7 @@ export default function InventoryPage() {
                 onClick={() => setPaymentType('Debit')}
                 className={`py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
                   paymentType === 'Debit'
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/30'
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/30'
                     : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
                 }`}
               >
@@ -709,7 +718,7 @@ export default function InventoryPage() {
                 onClick={() => setPaymentType('Credit')}
                 className={`py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
                   paymentType === 'Credit'
-                    ? 'bg-amber-600 text-white border-amber-600 shadow-md shadow-amber-600/30'
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/30'
                     : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
                 }`}
               >
@@ -745,8 +754,8 @@ export default function InventoryPage() {
           {/* Balance calculation banner */}
           <div className={`p-4 rounded-xl text-xs flex justify-between items-center ${
             remainingAmount > 0
-              ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-900/60'
-              : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-900/60'
+              ? 'bg-blue-50/70 dark:bg-blue-950/40 text-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-900/60'
+              : 'bg-slate-50 dark:bg-slate-800/60 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
           }`}>
             <div>
               <span className="font-bold">Remaining Balance Due to Vendor: </span>
@@ -779,6 +788,13 @@ export default function InventoryPage() {
             type="text"
             value={reduceAmount}
             onChange={(e) => setReduceAmount(e.target.value.replace(/\D/g, ''))}
+            required
+          />
+          <Input
+            label="Reason / Audit Note"
+            placeholder="e.g. Treatment consumption, damaged, expired"
+            value={reduceReason}
+            onChange={(e) => setReduceReason(e.target.value)}
             required
           />
           <p className="text-xs text-slate-500">
@@ -885,7 +901,7 @@ export default function InventoryPage() {
                 onClick={() => setRenewPaymentType('Debit')}
                 className={`py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
                   renewPaymentType === 'Debit'
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/30'
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/30'
                     : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
                 }`}
               >
@@ -896,7 +912,7 @@ export default function InventoryPage() {
                 onClick={() => setRenewPaymentType('Credit')}
                 className={`py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
                   renewPaymentType === 'Credit'
-                    ? 'bg-amber-600 text-white border-amber-600 shadow-md shadow-amber-600/30'
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/30'
                     : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
                 }`}
               >
@@ -924,8 +940,8 @@ export default function InventoryPage() {
           {/* Dues summary */}
           <div className={`p-4 rounded-xl text-xs flex justify-between items-center ${
             renewRemainingAmount > 0
-              ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-900/60'
-              : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-900/60'
+              ? 'bg-blue-50/70 dark:bg-blue-950/40 text-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-900/60'
+              : 'bg-slate-50 dark:bg-slate-800/60 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
           }`}>
             <div>
               <span className="font-bold">Remaining Dues to Vendor: </span>

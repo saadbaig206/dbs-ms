@@ -29,7 +29,30 @@ async def list_clients(
     result = await db.execute(query.order_by(Client.id.desc()))
     return result.scalars().all()
 
+import re
 import secrets
+
+def normalize_phone(phone: Optional[str]) -> str:
+    if not phone:
+        return ""
+    clean = re.sub(r"[\s\-\(\)]", "", phone.strip())
+    if clean in ("0000000000", "+920000000000", "N/A"):
+        return clean
+    if clean.startswith("03") and len(clean) == 11:
+        return "+92" + clean[1:]
+    if clean.startswith("923") and len(clean) == 12:
+        return "+" + clean
+    return clean
+
+def get_phone_variants(phone: str) -> list[str]:
+    norm = normalize_phone(phone)
+    if not norm or norm in ("0000000000", "+920000000000", "N/A"):
+        return [phone]
+    variants = {phone, norm}
+    if norm.startswith("+92") and len(norm) == 13:
+        variants.add("0" + norm[3:])
+        variants.add(norm[1:])
+    return list(variants)
 
 @router.post("", response_model=ClientResponse)
 async def create_client(
@@ -38,6 +61,18 @@ async def create_client(
     current_user = Depends(get_staff_user),
     user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
+    clean_phone = client_in.phone.strip() if client_in.phone else ""
+    norm_phone = normalize_phone(clean_phone)
+    if norm_phone and norm_phone not in ("0000000000", "+920000000000", "N/A"):
+        variants = get_phone_variants(clean_phone)
+        existing_res = await db.execute(select(Client).where(Client.phone.in_(variants)))
+        existing_client = existing_res.scalars().first()
+        if existing_client:
+            raise HTTPException(
+                status_code=400,
+                detail=f"A client with phone '{clean_phone}' is already registered: {existing_client.name} (ID: {existing_client.id})."
+            )
+
     client_id = f"CLT-{secrets.token_hex(3).upper()}"
     
     db_client = Client(
@@ -85,6 +120,18 @@ async def update_client(
         raise HTTPException(status_code=404, detail="Client not found")
         
     update_data = client_in.model_dump(exclude_unset=True)
+    if "phone" in update_data and update_data["phone"]:
+        clean_phone = update_data["phone"].strip()
+        norm_phone = normalize_phone(clean_phone)
+        if norm_phone and norm_phone not in ("0000000000", "+920000000000", "+92 0000000000", "N/A"):
+            variants = get_phone_variants(clean_phone)
+            existing_res = await db.execute(select(Client).where(Client.phone.in_(variants), Client.id != client_id))
+            existing_client = existing_res.scalars().first()
+            if existing_client:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot update phone to '{clean_phone}': already registered to {existing_client.name} (ID: {existing_client.id})."
+                )
     for field, value in update_data.items():
         if field == "history" and value is not None:
             # Map list of schema to list of dict

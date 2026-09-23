@@ -41,7 +41,7 @@ export const Avatar: React.FC<AvatarProps> = ({
         />
       ) : (
         <div className={clsx(
-          'rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold flex items-center justify-center border border-white dark:border-slate-900 shadow-sm',
+          'rounded-full bg-gradient-to-tr from-blue-600 to-blue-500 text-white font-bold flex items-center justify-center border border-white dark:border-slate-900 shadow-sm',
           sizeMap[size],
           className
         )}>

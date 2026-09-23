@@ -82,7 +82,7 @@ interface ClinicContextType {
   updateService: (id: string, updated: Partial<ServiceItem>) => Promise<void>;
 
   clients: Client[];
-  addClient: (newClient: Omit<Client, 'id' | 'totalSpent' | 'visitsCount' | 'history' | 'joinedDate'>) => Promise<void>;
+  addClient: (newClient: Omit<Client, 'id' | 'totalSpent' | 'visitsCount' | 'history' | 'joinedDate'>) => Promise<Client | undefined>;
   updateClient: (id: string, updated: Partial<Client>) => Promise<void>;
 
   appointments: Appointment[];
@@ -96,7 +96,7 @@ interface ClinicContextType {
   inventory: InventoryItem[];
   refreshInventory: () => Promise<void>;
   addInventoryItem: (item: Omit<InventoryItem, 'id' | 'status'>) => Promise<void>;
-  updateInventoryQuantity: (id: string, delta: number) => Promise<void>;
+  updateInventoryQuantity: (id: string, delta: number, reason?: string) => Promise<void>;
   updateInventoryItem: (id: string, updates: Partial<InventoryItem>) => Promise<void>;
 
   expenses: ExpenseItem[];
@@ -195,42 +195,22 @@ interface ClinicContextType {
 const ClinicContext = createContext<ClinicContextType | undefined>(undefined);
 
 export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [role, setRoleState] = useState<UserRole>(() => {
-    if (typeof window !== 'undefined') {
-      const storedRole = localStorage.getItem('user_role') || (document.cookie.match(/(?:^|; )user_role=([^;]*)/)?.[1]);
-      if (storedRole === 'admin' || storedRole === 'staff' || storedRole === 'partner') {
-        return storedRole as UserRole;
-      }
-    }
-    return 'staff';
-  });
+  const [role, setRoleState] = useState<UserRole>('staff');
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [userBranchId, setUserBranchId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [clinicInfo, setClinicInfoState] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('clinic_info');
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch (e) {
-          // ignore
-        }
-      }
-    }
-    return {
-      name: CLINIC_INFO.name,
-      phone: CLINIC_INFO.phone,
-      email: CLINIC_INFO.email,
-      address: CLINIC_INFO.address,
-      currency: 'PKR (Rs)',
-      language: 'English (US)',
-      operatingHours: CLINIC_INFO.operatingHours || '11:00 AM - 08:00 PM (Mon-Sat)',
-    };
+  const [clinicInfo, setClinicInfoState] = useState<ClinicContextType['clinicInfo']>({
+    name: CLINIC_INFO.name,
+    phone: CLINIC_INFO.phone,
+    email: CLINIC_INFO.email,
+    address: CLINIC_INFO.address,
+    currency: 'PKR (Rs)',
+    language: 'English (US)',
+    operatingHours: CLINIC_INFO.operatingHours || '11:00 AM - 08:00 PM (Mon-Sat)',
   });
 
-  const updateClinicInfo = (info: typeof clinicInfo) => {
+  const updateClinicInfo = (info: ClinicContextType['clinicInfo']) => {
     setClinicInfoState(info);
     localStorage.setItem('clinic_info', JSON.stringify(info));
   };
@@ -262,23 +242,23 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [printData, setPrintData] = useState<{ title: string; type: 'invoice' | 'slip' | 'client' | 'z-report'; data: any } | null>(null);
 
-  // Collections state initialized from instant local cache
-  const [branches, setBranches] = useState<Branch[]>(() => loadCachedData('branches', []));
-  const [staff, setStaff] = useState<Staff[]>(() => loadCachedData('staff', []));
-  const [services, setServices] = useState<ServiceItem[]>(() => loadCachedData('services', []));
-  const [clients, setClients] = useState<Client[]>(() => loadCachedData('clients', []));
-  const [appointments, setAppointments] = useState<Appointment[]>(() => loadCachedData('appointments', []));
-  const [inventory, setInventory] = useState<InventoryItem[]>(() => loadCachedData('inventory', []));
-  const [expenses, setExpenses] = useState<ExpenseItem[]>(() => loadCachedData('expenses', []));
-  const [transactions, setTransactions] = useState<FinancialTransaction[]>(() => loadCachedData('transactions', []));
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => loadCachedData('attendance', []));
-  const [notifications, setNotifications] = useState<NotificationItem[]>(() => loadCachedData('notifications', []));
-  const [partners, setPartners] = useState<{ id: number; username: string }[]>(() => loadCachedData('partners', []));
-  const [purchaseItems, setPurchaseItems] = useState<PurchaseItem[]>(() => loadCachedData('purchase_items', []));
-  const [purchaseBills, setPurchaseBills] = useState<PurchaseBill[]>(() => loadCachedData('purchase_bills', []));
-  const [returns, setReturns] = useState<PurchaseReturn[]>(() => loadCachedData('returns', []));
+  // Collections state initialized with empty arrays to guarantee identical SSR and initial client hydration
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [services, setServices] = useState<ServiceItem[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
+  const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [partners, setPartners] = useState<{ id: number; username: string }[]>([]);
+  const [purchaseItems, setPurchaseItems] = useState<PurchaseItem[]>([]);
+  const [purchaseBills, setPurchaseBills] = useState<PurchaseBill[]>([]);
+  const [returns, setReturns] = useState<PurchaseReturn[]>([]);
   const [partnerEquity, setPartnerEquity] = useState<PartnerEquityOverview | null>(null);
-  const [packages, setPackages] = useState<ClientPackage[]>(() => loadCachedData('packages', []));
+  const [packages, setPackages] = useState<ClientPackage[]>([]);
 
   // POS
   const [posCart, setPosCart] = useState<POSCartItem[]>([]);
@@ -525,8 +505,61 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  // Fetch data on load in background without blocking screen
+  // Fetch data and hydrate client storage safely after initial mount without hydration mismatch
   useEffect(() => {
+    try {
+      const storedRole = localStorage.getItem('user_role') || (document.cookie.match(/(?:^|; )user_role=([^;]*)/)?.[1]);
+      if (storedRole === 'admin' || storedRole === 'staff' || storedRole === 'partner') {
+        setRoleState(storedRole as UserRole);
+      }
+    } catch (e) {}
+
+    try {
+      const saved = localStorage.getItem('clinic_info');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.name && !parsed.name.includes('Aura')) {
+          setClinicInfoState(parsed);
+        } else if (parsed?.name?.includes('Aura')) {
+          const updated = { ...parsed, name: CLINIC_INFO.name };
+          localStorage.setItem('clinic_info', JSON.stringify(updated));
+          setClinicInfoState(updated);
+        }
+      }
+    } catch (e) {}
+
+    // Load cached collections for instant offline display
+    const b = loadCachedData<Branch[]>('branches', []);
+    if (b.length > 0) setBranches(b);
+    const s = loadCachedData<Staff[]>('staff', []);
+    if (s.length > 0) setStaff(s);
+    const srv = loadCachedData<ServiceItem[]>('services', []);
+    if (srv.length > 0) setServices(srv);
+    const c = loadCachedData<Client[]>('clients', []);
+    if (c.length > 0) setClients(c);
+    const a = loadCachedData<Appointment[]>('appointments', []);
+    if (a.length > 0) setAppointments(a);
+    const inv = loadCachedData<InventoryItem[]>('inventory', []);
+    if (inv.length > 0) setInventory(inv);
+    const exp = loadCachedData<ExpenseItem[]>('expenses', []);
+    if (exp.length > 0) setExpenses(exp);
+    const tx = loadCachedData<FinancialTransaction[]>('transactions', []);
+    if (tx.length > 0) setTransactions(tx);
+    const att = loadCachedData<AttendanceRecord[]>('attendance', []);
+    if (att.length > 0) setAttendance(att);
+    const notif = loadCachedData<NotificationItem[]>('notifications', []);
+    if (notif.length > 0) setNotifications(notif);
+    const prt = loadCachedData<{ id: number; username: string }[]>('partners', []);
+    if (prt.length > 0) setPartners(prt);
+    const pi = loadCachedData<PurchaseItem[]>('purchase_items', []);
+    if (pi.length > 0) setPurchaseItems(pi);
+    const pb = loadCachedData<PurchaseBill[]>('purchase_bills', []);
+    if (pb.length > 0) setPurchaseBills(pb);
+    const ret = loadCachedData<PurchaseReturn[]>('returns', []);
+    if (ret.length > 0) setReturns(ret);
+    const pkg = loadCachedData<ClientPackage[]>('packages', []);
+    if (pkg.length > 0) setPackages(pkg);
+
     refreshData(false);
   }, []);
 
@@ -625,7 +658,6 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Services CRUD
   const addService = async (newService: Omit<ServiceItem, 'id'>) => {
-    const created: ServiceItem = { ...newService, id: `SRV-${Math.floor(Math.random() * 900) + 100}` };
     try {
       await apiFetch('/services', {
         method: 'POST',
@@ -633,7 +665,8 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
       await refreshServices();
     } catch (e) {
-      setServices(prev => { const next = [created, ...prev]; saveCachedData('services', next); return next; });
+      console.error('Failed to create service on backend:', e);
+      throw e;
     }
   };
 
@@ -645,7 +678,8 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
       await refreshServices();
     } catch (e) {
-      setServices(prev => { const next = prev.map(s => s.id === id ? { ...s, ...updated } : s); saveCachedData('services', next); return next; });
+      console.error('Failed to update service on backend:', e);
+      throw e;
     }
   };
 
@@ -653,31 +687,26 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const recentAddClientRef = useRef<{ key: string; timestamp: number }[]>([]);
 
   // Clients CRUD
-  const addClient = async (newClientData: Omit<Client, 'id' | 'totalSpent' | 'visitsCount' | 'history' | 'joinedDate'>) => {
+  const addClient = async (newClientData: Omit<Client, 'id' | 'totalSpent' | 'visitsCount' | 'history' | 'joinedDate'>): Promise<Client | undefined> => {
     const key = `${newClientData.name.trim().toLowerCase()}-${newClientData.phone.trim()}`;
     const now = Date.now();
     recentAddClientRef.current = recentAddClientRef.current.filter(item => now - item.timestamp < 3000);
     if (recentAddClientRef.current.some(item => item.key === key)) {
-      return;
+      const existing = (clients || []).find(c => c.phone && c.phone.trim() === newClientData.phone.trim());
+      return existing;
     }
     recentAddClientRef.current.push({ key, timestamp: now });
 
-    const created: Client = {
-      ...newClientData,
-      id: `CLT-${Math.floor(Math.random() * 900) + 100}`,
-      totalSpent: 0,
-      visitsCount: 0,
-      joinedDate: new Date().toISOString().split('T')[0],
-      history: []
-    };
     try {
-      await apiFetch('/clients', {
+      const created = await apiFetch<Client>('/clients', {
         method: 'POST',
         body: JSON.stringify(newClientData),
       });
       await refreshClients();
+      return created;
     } catch (e) {
-      setClients(prev => { const next = [created, ...prev]; saveCachedData('clients', next); return next; });
+      console.error('Failed to create client on backend:', e);
+      throw e;
     }
   };
 
@@ -689,7 +718,8 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
       await refreshClients();
     } catch (e) {
-      setClients(prev => { const next = prev.map(c => c.id === id ? { ...c, ...updated } : c); saveCachedData('clients', next); return next; });
+      console.error('Failed to update client on backend:', e);
+      throw e;
     }
   };
 
@@ -726,7 +756,13 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
       refreshAppointments().catch(() => {});
     } catch (e) {
-      // Optimistic state already set
+      // Revert optimistic appointment on backend rejection/conflict
+      setAppointments(prev => {
+        const next = prev.filter(a => a.id !== created.id);
+        saveCachedData('appointments', next);
+        return next;
+      });
+      throw e;
     }
   };
 
@@ -800,11 +836,6 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Inventory CRUD
   const addInventoryItem = async (item: Omit<InventoryItem, 'id' | 'status'>) => {
-    const newItem: InventoryItem = {
-      ...item,
-      id: `INV-${Math.floor(Math.random() * 900) + 100}`,
-      status: item.quantity > item.minStock ? 'In Stock' : item.quantity > 0 ? 'Low Stock' : 'Out of Stock'
-    };
     try {
       await apiFetch('/inventory', {
         method: 'POST',
@@ -815,29 +846,24 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
       await refreshInventory();
     } catch (e) {
-      setInventory(prev => { const next = [newItem, ...prev]; saveCachedData('inventory', next); return next; });
+      console.error('Failed to add inventory item:', e);
+      throw e;
     }
   };
 
-  const updateInventoryQuantity = async (id: string, delta: number) => {
+  const updateInventoryQuantity = async (id: string, delta: number, reason?: string) => {
     try {
-      await apiFetch(`/inventory/${id}/quantity?delta=${delta}`, {
+      const queryParams = new URLSearchParams({ delta: String(delta) });
+      if (reason) {
+        queryParams.set('reason', reason);
+      }
+      await apiFetch(`/inventory/${id}/quantity?${queryParams.toString()}`, {
         method: 'PATCH',
       });
       await refreshInventory();
     } catch (e) {
-      setInventory(prev => {
-        const next = prev.map(item => {
-          if (item.id === id) {
-            const newQty = Math.max(0, item.quantity + delta);
-            const status = newQty > item.minStock ? 'In Stock' : newQty > 0 ? 'Low Stock' : 'Out of Stock';
-            return { ...item, quantity: newQty, status: status as InventoryItem['status'] };
-          }
-          return item;
-        });
-        saveCachedData('inventory', next);
-        return next;
-      });
+      console.error('Failed to update inventory quantity:', e);
+      throw e;
     }
   };
 
@@ -849,11 +875,8 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
       await refreshInventory();
     } catch (e) {
-      setInventory(prev => {
-        const next = prev.map(item => item.id === id ? { ...item, ...updates } : item);
-        saveCachedData('inventory', next);
-        return next;
-      });
+      console.error('Failed to update inventory item:', e);
+      throw e;
     }
   };
 

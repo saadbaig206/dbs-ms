@@ -35,11 +35,23 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/login?logout=1', request.nextUrl));
   }
 
-  // Admin & Partner allowed paths for finance/reports/expenses
+  // Admin-only paths (staff and partners blocked)
+  const isAdminOnlyPath =
+    path.startsWith('/staff') ||
+    path.startsWith('/branches') ||
+    path.startsWith('/settings');
+
+  if (isAdminOnlyPath && role !== 'admin') {
+    const fallback = role === 'staff' ? '/pos' : '/dashboard';
+    return NextResponse.redirect(new URL(fallback, request.nextUrl));
+  }
+
+  // Admin & Partner allowed paths for finance/reports/expenses/purchases
   const isFinanceOrAdminPath =
     path.startsWith('/expenses') ||
     path.startsWith('/finance') ||
-    path.startsWith('/reports');
+    path.startsWith('/reports') ||
+    path.startsWith('/purchases');
 
   if (isFinanceOrAdminPath && role !== 'admin' && role !== 'partner') {
     return NextResponse.redirect(new URL('/pos', request.nextUrl));

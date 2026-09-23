@@ -301,18 +301,18 @@ Thank you!`;
                           {apt.serviceName}
                         </span>
                         <span className="flex items-center gap-1 font-mono">
-                          <Calendar className="w-3.5 h-3.5 text-indigo-500" />
+                          <Calendar className="w-3.5 h-3.5 text-blue-500" />
                           {apt.date} @ {apt.time}
                         </span>
                         <span className="flex items-center gap-1 font-mono">
-                          <Phone className="w-3.5 h-3.5 text-emerald-500" />
+                          <Phone className="w-3.5 h-3.5 text-blue-500" />
                           {apt.phone}
                         </span>
                         {(() => {
                           const b = branches.find(br => br.id === apt.branchId) || (branches.length > 0 ? branches[0] : null);
                           return b ? (
                             <span className="flex items-center gap-1 text-slate-700 dark:text-slate-200">
-                              <MapPin className="w-3.5 h-3.5 text-amber-500" />
+                              <MapPin className="w-3.5 h-3.5 text-blue-500" />
                               {b.name}
                             </span>
                           ) : null;

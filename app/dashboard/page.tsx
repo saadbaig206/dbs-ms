@@ -32,6 +32,7 @@ export default function DashboardPage() {
     expenses: allExpenses,
     purchaseBills: allPurchaseBills,
     branches,
+    clients: allClients,
     selectedBranchId,
     setSelectedBranchId,
     role,
@@ -82,6 +83,12 @@ export default function DashboardPage() {
       : allPurchaseBills;
   }, [allPurchaseBills, selectedBranchId]);
 
+  const clients = useMemo(() => {
+    return selectedBranchId
+      ? (allClients || []).filter(c => !c.branchId || c.branchId === selectedBranchId)
+      : (allClients || []);
+  }, [allClients, selectedBranchId]);
+
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const todayAppointments = useMemo(() => appointments.filter(a => a.date === todayStr), [appointments, todayStr]);
@@ -104,7 +111,9 @@ export default function DashboardPage() {
     monOnlineTotal,
     totalExpenses,
     monthlyExpenses,
-    netProfit
+    netProfit,
+    totalCollections,
+    clientReceivables
   } = useMemo(() => {
     const dNow = new Date();
     const curMonth = dNow.getMonth();
@@ -152,9 +161,11 @@ export default function DashboardPage() {
       const paidAmt = t.amountPaid !== undefined && t.amountPaid !== null ? t.amountPaid : (t.grandTotal || 0);
 
       if (t.paymentSplits && Array.isArray(t.paymentSplits) && t.paymentSplits.length > 0) {
+        const origTotal = t.grandTotal || paidAmt || 1;
+        const scaleFactor = paidAmt < origTotal && origTotal > 0 ? (paidAmt / origTotal) : 1;
         for (const s of t.paymentSplits) {
           const sMethod = (s.method || '').toLowerCase();
-          const sAmt = Number(s.amount) || 0;
+          const sAmt = (Number(s.amount) || 0) * scaleFactor;
           if (sMethod === 'cash') {
             cashTot += sAmt;
             if (isCurrentMonth) monCash += sAmt;
@@ -186,6 +197,10 @@ export default function DashboardPage() {
 
     for (let i = 0; i < expenses.length; i++) {
       const e = expenses[i];
+      // Only include settled Paid expenses, and exclude auto-logged purchase bills to avoid double-counting
+      if ((e.status || '').toLowerCase() !== 'paid') continue;
+      if (e.category === 'Inventory Purchase') continue;
+
       const amt = e.amount || 0;
       totExp += amt;
       if (e.date) {
@@ -225,9 +240,11 @@ export default function DashboardPage() {
       monOnlineTotal: monOnline,
       totalExpenses: totExp,
       monthlyExpenses: monExp,
-      netProfit: totRev - totExp
+      netProfit: totRev - totExp,
+      totalCollections: cashTot + cardTot + onlineTot,
+      clientReceivables: clients.reduce((acc, c) => acc + (c.outstandingBalance || 0), 0)
     };
-  }, [transactions, expenses, purchaseBills, todayStr]);
+  }, [transactions, expenses, purchaseBills, clients, todayStr]);
 
   if (!mounted) {
     return (
@@ -408,7 +425,7 @@ export default function DashboardPage() {
                 value={formatPKR(monthlyRevenue)}
                 trend={new Date().toLocaleString('en-US', { month: 'long' })}
                 trendDirection="up"
-                colorVariant="emerald"
+                colorVariant="blue"
                 icon={<TrendingUp className="w-5 h-5" />}
                 subtitle={`Cash: ${formatPKR(monCashTotal, { decimals: false })} • Card: ${formatPKR(monCardTotal, { decimals: false })} • Online: ${formatPKR(monOnlineTotal, { decimals: false })}`}
               />
@@ -418,7 +435,7 @@ export default function DashboardPage() {
               value={formatPKR(netProfit)}
               trend="Net after expenses"
               trendDirection={netProfit >= 0 ? 'up' : 'down'}
-              colorVariant="purple"
+              colorVariant="blue"
               icon={<Sparkles className="w-5 h-5" />}
               subtitle="revenue minus costs"
             />
@@ -439,7 +456,7 @@ export default function DashboardPage() {
               value={appointments.length}
               trend="Overall assigned"
               trendDirection="up"
-              colorVariant="emerald"
+              colorVariant="blue"
               icon={<TrendingUp className="w-5 h-5" />}
               subtitle="all-time schedule"
             />
@@ -448,7 +465,7 @@ export default function DashboardPage() {
               value={appointments.filter(a => a.status === 'Pending' || a.status === 'Confirmed').length}
               trend="Awaiting check-in"
               trendDirection="neutral"
-              colorVariant="purple"
+              colorVariant="blue"
               icon={<Sparkles className="w-5 h-5" />}
               subtitle="treatments list"
             />
@@ -461,7 +478,7 @@ export default function DashboardPage() {
               value={formatPKR(totalExpenses)}
               trend="All-time clinic costs"
               trendDirection="neutral"
-              colorVariant="rose"
+              colorVariant="blue"
               icon={<DollarSign className="w-5 h-5" />}
               subtitle="POS & operating costs"
             />
@@ -472,7 +489,7 @@ export default function DashboardPage() {
             value={lowStockCount}
             trend="Action required"
             trendDirection="down"
-            colorVariant="rose"
+            colorVariant="blue"
             icon={<AlertTriangle className="w-5 h-5" />}
             subtitle="Low stock items"
           />
@@ -483,7 +500,7 @@ export default function DashboardPage() {
       {(role === 'admin' || role === 'partner') && (
         <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs shadow-sm">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
             <span className="font-bold text-slate-900 dark:text-slate-100">
               Payment Collections by Channel:
             </span>
@@ -492,21 +509,21 @@ export default function DashboardPage() {
             </span>
           </div>
           <div className="flex items-center gap-4 flex-wrap font-semibold">
-            <span className="text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              Cash: <strong className="font-mono text-slate-900 dark:text-slate-100">{formatPKR(cashTotal)}</strong> ({totalRevenue > 0 ? ((cashTotal / totalRevenue) * 100).toFixed(1) : '0.0'}%)
+            <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-blue-400" />
+              Cash: <strong className="font-mono text-slate-900 dark:text-slate-100">{formatPKR(cashTotal)}</strong> ({totalCollections > 0 ? ((cashTotal / totalCollections) * 100).toFixed(1) : '0.0'}%)
             </span>
             <span className="text-blue-700 dark:text-blue-400 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-blue-500" />
-              Card: <strong className="font-mono text-slate-900 dark:text-slate-100">{formatPKR(cardTotal)}</strong> ({totalRevenue > 0 ? ((cardTotal / totalRevenue) * 100).toFixed(1) : '0.0'}%)
+              <span className="w-2 h-2 rounded-full bg-blue-600" />
+              Card: <strong className="font-mono text-slate-900 dark:text-slate-100">{formatPKR(cardTotal)}</strong> ({totalCollections > 0 ? ((cardTotal / totalCollections) * 100).toFixed(1) : '0.0'}%)
             </span>
-            <span className="text-purple-700 dark:text-purple-400 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-purple-500" />
-              Online: <strong className="font-mono text-slate-900 dark:text-slate-100">{formatPKR(onlineTotal)}</strong> ({totalRevenue > 0 ? ((onlineTotal / totalRevenue) * 100).toFixed(1) : '0.0'}%)
+            <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-sky-500" />
+              Online: <strong className="font-mono text-slate-900 dark:text-slate-100">{formatPKR(onlineTotal)}</strong> ({totalCollections > 0 ? ((onlineTotal / totalCollections) * 100).toFixed(1) : '0.0'}%)
             </span>
-            <span className="text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-amber-500" />
-              Receivable Dues: <strong className="font-mono text-slate-900 dark:text-slate-100">{formatPKR(Math.max(0, totalRevenue - (cashTotal + cardTotal + onlineTotal)))}</strong> ({totalRevenue > 0 ? ((Math.max(0, totalRevenue - (cashTotal + cardTotal + onlineTotal)) / totalRevenue) * 100).toFixed(1) : '0.0'}%)
+            <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-slate-400" />
+              Client Dues Owed: <strong className="font-mono text-slate-900 dark:text-slate-100">{formatPKR(clientReceivables)}</strong>
             </span>
           </div>
         </div>
@@ -565,16 +582,11 @@ export default function DashboardPage() {
                         {txn.serviceName}
                       </td>
                       <td className="py-3.5 px-4">
-                        <Badge
-                          variant={
-                            (txn.paymentMethod || '').toLowerCase() === 'cash' ? 'success' :
-                            (txn.paymentMethod || '').toLowerCase() === 'card' || (txn.paymentMethod || '').toLowerCase().includes('pos') ? 'primary' : 'purple'
-                          }
-                        >
+                        <Badge variant="primary">
                           {txn.paymentMethod}
                         </Badge>
                       </td>
-                      <td className="py-3.5 px-4 font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                      <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-slate-100">
                         {formatPKR(txn.grandTotal)}
                       </td>
                       <td className="py-3.5 px-4 text-right">

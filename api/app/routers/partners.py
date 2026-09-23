@@ -68,7 +68,8 @@ async def get_partner_equity_overview(
 
     exp_res = await db.execute(select(ExpenseItem))
     expenses = exp_res.scalars().all()
-    operational_exp = sum(e.amount for e in expenses)
+    paid_expenses = [e for e in expenses if (e.status or '').lower() == 'paid']
+    operational_exp = sum(e.amount for e in paid_expenses if e.category != 'Inventory Purchase')
 
     # Include settled purchase bills (stock & product purchases)
     from app.models.purchase import PurchaseBill
@@ -157,7 +158,8 @@ async def record_partner_drawing(
 
     exp_res = await db.execute(select(ExpenseItem))
     expenses = exp_res.scalars().all()
-    operational_exp = sum(e.amount for e in expenses)
+    paid_expenses = [e for e in expenses if (e.status or '').lower() == 'paid']
+    operational_exp = sum(e.amount for e in paid_expenses if e.category != 'Inventory Purchase')
 
     from app.models.purchase import PurchaseBill
     pb_res = await db.execute(select(PurchaseBill))

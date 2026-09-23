@@ -45,7 +45,7 @@ export default function LoginPage() {
     <div className="min-h-screen w-full flex items-center justify-center bg-[#0B0F17] text-slate-100 p-4 sm:p-6 overflow-y-auto">
       {/* Background Glow Orbs */}
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
       <motion.div
         initial={{ opacity: 0, y: 20, scale: 0.96 }}

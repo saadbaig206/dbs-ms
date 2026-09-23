@@ -99,6 +99,12 @@ async def adjust_quantity(
     if not db_item:
         raise HTTPException(status_code=404, detail="Inventory item not found")
         
+    if delta < 0 and abs(delta) > db_item.quantity:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot reduce stock by {abs(delta)}. Only {db_item.quantity} units available for '{db_item.item_name}'."
+        )
+
     db_item.quantity = max(0, db_item.quantity + delta)
     if delta > 0:
         db_item.last_restocked = datetime.now().strftime("%Y-%m-%d")

@@ -331,12 +331,12 @@ export function PurchasesTab() {
     <div className="space-y-6">
       {/* Global Action Banner */}
       {successBanner && (
-        <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs font-bold flex items-center justify-between shadow-sm">
+        <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200 text-xs font-bold flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <CheckCircle2 className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
             <span>{successBanner}</span>
           </div>
-          <button onClick={() => setSuccessBanner(null)} className="text-emerald-600 hover:text-emerald-800 text-xs font-semibold cursor-pointer">
+          <button onClick={() => setSuccessBanner(null)} className="text-blue-600 hover:text-blue-800 text-xs font-semibold cursor-pointer">
             Dismiss
           </button>
         </div>
@@ -354,21 +354,21 @@ export function PurchasesTab() {
         <StatCard
           title="Outstanding Vendor Dues"
           value={formatPKR(totalVendorDues)}
-          colorVariant="amber"
+          colorVariant="blue"
           icon={<Clock className="w-5 h-5" />}
           subtitle="Unpaid accounts payable"
         />
         <StatCard
           title="Total Settled to Vendors"
           value={formatPKR(totalPaidToVendors)}
-          colorVariant="emerald"
+          colorVariant="blue"
           icon={<CheckCircle2 className="w-5 h-5" />}
           subtitle="Cleared supplier invoices"
         />
         <StatCard
           title="Procured Line Items"
           value={totalDistinctProducts.toString()}
-          colorVariant="indigo"
+          colorVariant="blue"
           icon={<Layers className="w-5 h-5" />}
           subtitle="Individual stock batches"
         />
@@ -409,7 +409,7 @@ export function PurchasesTab() {
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
-              <RotateCcw className="w-3.5 h-3.5 text-amber-500" />
+              <RotateCcw className="w-3.5 h-3.5 text-blue-500" />
               Vendor Returns & Debit Notes ({returns.length})
             </button>
           </div>
@@ -452,7 +452,7 @@ export function PurchasesTab() {
                 }}
                 variant="outline"
                 size="sm"
-                icon={<RotateCcw className="w-4 h-4 text-amber-500" />}
+                icon={<RotateCcw className="w-4 h-4 text-blue-500" />}
               >
                 Return to Vendor (RTV)
               </Button>
@@ -555,7 +555,7 @@ export function PurchasesTab() {
           <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <FileText className="w-4 h-4 text-emerald-500" />
+                <FileText className="w-4 h-4 text-blue-500" />
                 Vendor Bills & Order Invoices
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -583,7 +583,7 @@ export function PurchasesTab() {
                 {filteredBills.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="text-center py-12 text-slate-400">
-                      <FileText className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                      <FileText className="w-8 h-8 mx-auto mb-2 opacity-40 text-blue-500" />
                       No vendor bills found.
                     </td>
                   </tr>
@@ -603,19 +603,19 @@ export function PurchasesTab() {
                       <td className="p-3.5 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
                         {formatPKR(bill.totalAmount)}
                       </td>
-                      <td className="p-3.5 text-right font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
+                      <td className="p-3.5 text-right font-mono text-slate-700 dark:text-slate-300 font-semibold">
                         {formatPKR(bill.amountPaid)}
                       </td>
-                      <td className="p-3.5 text-right font-mono font-bold text-amber-600 dark:text-amber-400">
+                      <td className="p-3.5 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
                         {formatPKR(bill.remainingDue)}
                       </td>
                       <td className="p-3.5 text-center">
                         <Badge
                           variant={
                             bill.paymentStatus === 'Paid'
-                              ? 'success'
+                              ? 'primary'
                               : bill.paymentStatus === 'Partial'
-                              ? 'warning'
+                              ? 'neutral'
                               : 'danger'
                           }
                         >
@@ -632,12 +632,12 @@ export function PurchasesTab() {
                               setPayAmount(bill.remainingDue.toString());
                               setIsPayModalOpen(true);
                             }}
-                            className="text-amber-600 border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                            className="text-blue-600 border-blue-300 hover:bg-blue-50 dark:border-blue-800 dark:hover:bg-blue-950/40"
                           >
                             Pay Due
                           </Button>
                         ) : (
-                          <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center justify-end gap-1">
+                          <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 flex items-center justify-end gap-1">
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             Cleared
                           </span>
@@ -656,14 +656,14 @@ export function PurchasesTab() {
           <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <RotateCcw className="w-4 h-4 text-amber-500" />
+                <RotateCcw className="w-4 h-4 text-blue-500" />
                 Return to Vendor (RTV) Ledger & Debit Notes
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Surplus, damaged, or near-expiry returns with official printable Debit Notes for vendor sign-off.
               </p>
             </div>
-            <Badge variant="warning">{filteredReturns.length} Debit Notes</Badge>
+            <Badge variant="primary">{filteredReturns.length} Debit Notes</Badge>
           </div>
 
           <div className="overflow-x-auto">
@@ -683,14 +683,14 @@ export function PurchasesTab() {
                 {filteredReturns.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="text-center py-12 text-slate-400">
-                      <RotateCcw className="w-8 h-8 mx-auto mb-2 opacity-40 text-amber-500" />
+                      <RotateCcw className="w-8 h-8 mx-auto mb-2 opacity-40 text-blue-500" />
                       No Return to Vendor orders or debit notes found.
                     </td>
                   </tr>
                 ) : (
                   filteredReturns.map(ret => (
                     <tr key={ret.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="p-3.5 pl-4 font-mono font-bold text-amber-600 dark:text-amber-400">
+                      <td className="p-3.5 pl-4 font-mono font-bold text-blue-600 dark:text-blue-400">
                         {ret.debitNoteNumber}
                       </td>
                       <td className="p-3.5 font-bold text-slate-900 dark:text-slate-100">

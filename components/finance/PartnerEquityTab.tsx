@@ -144,21 +144,21 @@ export function PartnerEquityTab() {
         <StatCard
           title="Current Brand Valuation"
           value={formatPKR(totalBrandValuation)}
-          colorVariant="indigo"
+          colorVariant="blue"
           icon={<Building className="w-5 h-5" />}
           subtitle="5.0x EBITDA Multiplier Valuation"
         />
         <StatCard
           title="Cumulative Withdrawn to Date"
           value={formatPKR(totalCumulativeWithdrawals)}
-          colorVariant="amber"
+          colorVariant="blue"
           icon={<ArrowDownLeft className="w-5 h-5" />}
           subtitle="Total distributions taken by partners"
         />
         <StatCard
           title="Net Capital Balance Remaining"
           value={formatPKR(totalNetCapital)}
-          colorVariant="emerald"
+          colorVariant="blue"
           icon={<Wallet className="w-5 h-5" />}
           subtitle="Initial capital + retained earnings"
         />
@@ -176,7 +176,7 @@ export function PartnerEquityTab() {
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <Users className="w-4 h-4 text-indigo-500" />
+              <Users className="w-4 h-4 text-blue-500" />
               Partners Equity, Cumulative Withdrawals & Brand Stake
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -237,7 +237,7 @@ export function PartnerEquityTab() {
                 <th className="p-3.5 text-right font-bold text-emerald-700 dark:text-emerald-400">
                   Net Capital Balance
                 </th>
-                <th className="p-3.5 text-right font-bold text-indigo-700 dark:text-indigo-400">
+                <th className="p-3.5 text-right font-bold text-blue-700 dark:text-blue-400">
                   Brand Value Stake
                 </th>
                 <th className="p-3.5 text-right pr-4">Action</th>
@@ -272,7 +272,7 @@ export function PartnerEquityTab() {
                     <td className="p-3.5 text-right font-mono font-black text-emerald-600 dark:text-emerald-400">
                       {formatPKR(p.netCapitalBalance)}
                     </td>
-                    <td className="p-3.5 text-right font-mono font-black text-indigo-600 dark:text-indigo-400">
+                    <td className="p-3.5 text-right font-mono font-black text-blue-600 dark:text-blue-400">
                       {formatPKR(p.marketBrandStake)}
                     </td>
                     <td className="p-3.5 text-right pr-4">

@@ -834,4 +834,140 @@ async def test_pos_reprint_counter_and_watermark(client: AsyncClient):
     assert reprint_res2.json()["reprintCount"] == 2
 
 
+@pytest.mark.asyncio
+async def test_inventory_reduction_negative_stock_prevention(client: AsyncClient, db: AsyncSession):
+    admin_login = await client.post("/api/v1/auth/login", json={"email": "admin@gmail.com", "password": "admin"})
+    admin_token = admin_login.json()["access_token"]
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    staff_login = await client.post("/api/v1/auth/login", json={"email": "staff@gmail.com", "password": "staff"})
+    staff_token = staff_login.json()["access_token"]
+    staff_headers = {"Authorization": f"Bearer {staff_token}"}
+
+    # Create inventory item with 10 units
+    item = InventoryItem(
+        id="INV-TEST-BOUNDS",
+        item_name="Hydro Serum Test",
+        category="Products",
+        quantity=10,
+        min_stock=3,
+        supplier="Vendor X",
+        price=1500.0,
+        last_restocked="2026-09-01"
+    )
+    db.add(item)
+    await db.commit()
+
+    # 1. Staff attempt reduction without reason -> 400
+    res_no_reason = await client.patch(
+        "/api/v1/inventory/INV-TEST-BOUNDS/quantity?delta=-2",
+        headers=staff_headers
+    )
+    assert res_no_reason.status_code == 400
+    assert "reason" in res_no_reason.json()["detail"].lower()
+
+    # 2. Reduction exceeding available quantity (15 units when only 10 available) -> 400
+    res_over_reduce = await client.patch(
+        "/api/v1/inventory/INV-TEST-BOUNDS/quantity?delta=-15&reason=Damaged+bottles",
+        headers=admin_headers
+    )
+    assert res_over_reduce.status_code == 400
+    assert "cannot reduce stock" in res_over_reduce.json()["detail"].lower()
+
+    # 3. Valid reduction (4 units) -> 200 and quantity becomes 6
+    res_valid = await client.patch(
+        "/api/v1/inventory/INV-TEST-BOUNDS/quantity?delta=-4&reason=Used+in+clinic",
+        headers=admin_headers
+    )
+    assert res_valid.status_code == 200
+    await db.refresh(item)
+    assert item.quantity == 6
+
+
+@pytest.mark.asyncio
+async def test_client_duplicate_phone_prevention(client: AsyncClient):
+    admin_login = await client.post("/api/v1/auth/login", json={"email": "admin@gmail.com", "password": "admin"})
+    admin_token = admin_login.json()["access_token"]
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    phone = "+923009998877"
+    # Create client 1
+    res1 = await client.post("/api/v1/clients", json={
+        "name": "Original Client",
+        "phone": phone,
+        "cnic": "35201-1234567-1",
+        "gender": "Female",
+        "age": 28,
+        "address": "Lahore"
+    }, headers=admin_headers)
+    assert res1.status_code == 200
+
+    # Attempt to create duplicate client with same phone -> 400
+    res2 = await client.post("/api/v1/clients", json={
+        "name": "Duplicate Client",
+        "phone": phone,
+        "cnic": "35201-9999999-9",
+        "gender": "Female",
+        "age": 30,
+        "address": "Karachi"
+    }, headers=admin_headers)
+    assert res2.status_code == 400
+    assert "already registered" in res2.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_appointment_double_booking_conflict(client: AsyncClient, db: AsyncSession):
+    staff_login = await client.post("/api/v1/auth/login", json={"email": "staff@gmail.com", "password": "staff"})
+    staff_token = staff_login.json()["access_token"]
+    staff_headers = {"Authorization": f"Bearer {staff_token}"}
+
+    from app.models.staff import Staff
+    staff_member = Staff(
+        id="STF-DR-QA",
+        name="Dr. QA Specialist",
+        role="Aesthetic Physician",
+        phone="+923005551234",
+        email="drqa@clinic.com",
+        status="Active",
+        salary=150000.0,
+        joining_date="2026-01-01"
+    )
+    db.add(staff_member)
+    await db.commit()
+
+    # Book slot 1 at 02:00 PM
+    res1 = await client.post("/api/v1/appointments", json={
+        "clientId": "CLT-QA-1",
+        "clientName": "Test Client A",
+        "phone": "+923001112233",
+        "serviceId": "SRV-TEST",
+        "serviceName": "Laser Therapy",
+        "staffId": "STF-DR-QA",
+        "staffName": "Dr. QA Specialist",
+        "date": "2026-10-15",
+        "time": "02:00 PM",
+        "status": "Confirmed",
+        "price": 10000.0
+    }, headers=staff_headers)
+    assert res1.status_code == 200
+
+    # Book conflicting slot at 02:20 PM (within 45 min slot) -> 400
+    res2 = await client.post("/api/v1/appointments", json={
+        "clientId": "CLT-QA-2",
+        "clientName": "Test Client B",
+        "phone": "+923004445566",
+        "serviceId": "SRV-TEST",
+        "serviceName": "Laser Therapy",
+        "staffId": "STF-DR-QA",
+        "staffName": "Dr. QA Specialist",
+        "date": "2026-10-15",
+        "time": "02:20 PM",
+        "status": "Confirmed",
+        "price": 10000.0
+    }, headers=staff_headers)
+    assert res2.status_code == 400
+    assert "already booked" in res2.json()["detail"].lower()
+
+
+
 

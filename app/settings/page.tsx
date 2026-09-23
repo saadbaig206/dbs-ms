@@ -149,15 +149,15 @@ export default function SettingsPage() {
           </p>
         </div>
 
-        <Badge variant="gold" size="md">
+        <Badge variant="primary" size="md">
           <Sparkles className="w-4 h-4 mr-1 inline" /> VIP Enterprise License
         </Badge>
       </div>
 
       {/* Security Advisory Banner */}
-      <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-[20px] flex items-center justify-between text-xs text-amber-900 dark:text-amber-200">
+      <div className="p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/60 rounded-[20px] flex items-center justify-between text-xs text-blue-900 dark:text-blue-200">
         <div className="flex items-center gap-3">
-          <ShieldCheck className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+          <ShieldCheck className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
           <span>
             <strong>Security Recommendation:</strong> Ensure default administrator login credentials have been updated to a strong, confidential password in production.
           </span>

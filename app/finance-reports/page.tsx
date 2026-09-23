@@ -38,7 +38,6 @@ import { Input, Select } from '../../components/ui/Input';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 import { PurchasesTab } from '../../components/finance/PurchasesTab';
 import { PartnerEquityTab } from '../../components/finance/PartnerEquityTab';
-import { TreasuryCloseTab } from '../../components/finance/TreasuryCloseTab';
 
 function FinanceDatePicker({
   label,
@@ -180,13 +179,13 @@ export default function FinanceReportsPage() {
     ? allPurchaseBills.filter((b: any) => !b.branchId || b.branchId === selectedBranchId)
     : allPurchaseBills;
 
-  const [activeTab, setActiveTab] = useState<'transactions' | 'purchases' | 'expenses' | 'equity' | 'treasury' | 'reports'>('transactions');
+  const [activeTab, setActiveTab] = useState<'transactions' | 'purchases' | 'expenses' | 'equity' | 'reports'>('transactions');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
-      if (tabParam === 'purchases' || tabParam === 'equity' || tabParam === 'expenses' || tabParam === 'treasury' || tabParam === 'reports' || tabParam === 'transactions') {
+      if (tabParam === 'purchases' || tabParam === 'equity' || tabParam === 'expenses' || tabParam === 'reports' || tabParam === 'transactions') {
         setActiveTab(tabParam as any);
       }
     }
@@ -487,11 +486,12 @@ export default function FinanceReportsPage() {
     }
 
     const uncollectedDues = Math.max(0, totalRev - (cashRev + cardRev + onlineRev));
-    const baseDenominator = totalRev > 0 ? totalRev : 1;
-    const cashPct = totalRev > 0 ? (cashRev / baseDenominator) * 100 : 0;
-    const cardPct = totalRev > 0 ? (cardRev / baseDenominator) * 100 : 0;
-    const onlinePct = totalRev > 0 ? (onlineRev / baseDenominator) * 100 : 0;
-    const duePct = totalRev > 0 ? (uncollectedDues / baseDenominator) * 100 : 0;
+    const totalCollections = cashRev + cardRev + onlineRev;
+    const baseCollDenominator = totalCollections > 0 ? totalCollections : 1;
+    const cashPct = totalCollections > 0 ? (cashRev / baseCollDenominator) * 100 : 0;
+    const cardPct = totalCollections > 0 ? (cardRev / baseCollDenominator) * 100 : 0;
+    const onlinePct = totalCollections > 0 ? (onlineRev / baseCollDenominator) * 100 : 0;
+    const duePct = totalRev > 0 ? (uncollectedDues / totalRev) * 100 : 0;
 
     let totalOpExp = 0;
     let curOpExp = 0;
@@ -499,6 +499,10 @@ export default function FinanceReportsPage() {
 
     for (let i = 0; i < expenses.length; i++) {
       const e = expenses[i];
+      // Only include settled Paid expenses, and exclude auto-logged purchase bills to avoid double-counting
+      if ((e.status || '').toLowerCase() !== 'paid') continue;
+      if (e.category === 'Inventory Purchase') continue;
+
       const amt = e.amount || 0;
       totalOpExp += amt;
 
@@ -820,15 +824,6 @@ export default function FinanceReportsPage() {
               Partner Equity
             </button>
             <button
-              onClick={() => setActiveTab('treasury')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'treasury'
-                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                }`}
-            >
-              Treasury & Close
-            </button>
-            <button
               onClick={() => setActiveTab('reports')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'reports'
                 ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
@@ -864,7 +859,7 @@ export default function FinanceReportsPage() {
                   const salesTxns = activeTxns.filter(
                     t => t.transactionType !== 'Debt_Settlement' && t.serviceName !== 'Client Debt Settlement'
                   );
-                  const filteredExps = expenses.filter(e => e.date >= reportStartDate && e.date <= reportEndDate && e.status === 'Paid');
+                  const filteredExps = expenses.filter(e => e.date >= reportStartDate && e.date <= reportEndDate && e.status === 'Paid' && e.category !== 'Inventory Purchase');
                   const filteredPurchases = purchaseBills.filter((b: any) => b.date >= reportStartDate && b.date <= reportEndDate && (b.amountPaid || 0) > 0);
 
                   const totalRev = salesTxns.reduce((acc, t) => acc + t.grandTotal, 0);
@@ -1245,7 +1240,7 @@ export default function FinanceReportsPage() {
                   value={formatPKR(totalRevenue)}
                   trend={revTrend}
                   trendDirection={revTrendDirection}
-                  colorVariant="emerald"
+                  colorVariant="blue"
                   icon={<DollarSign className="w-5 h-5" />}
                   subtitle={`${new Date().toLocaleString('en-US', { month: 'short' })} Rev: ${formatPKR(curMonthRev, { decimals: false })}`}
                 />
@@ -1254,14 +1249,14 @@ export default function FinanceReportsPage() {
                   value={formatPKR(totalDiscounts)}
                   trend={discTrend}
                   trendDirection={discTrendDirection}
-                  colorVariant="amber"
+                  colorVariant="blue"
                   icon={<CreditCard className="w-5 h-5" />}
                   subtitle={`${totalRevenue > 0 ? ((totalDiscounts / totalRevenue) * 100).toFixed(1) : '0.0'}% of gross revenue`}
                 />
                 <StatCard
                   title="Net Operating Profit Margin"
                   value={`${totalRevenue > 0 ? (((totalRevenue - totalExpenseAmount) / totalRevenue) * 100).toFixed(1) : '0.0'}%`}
-                  colorVariant="indigo"
+                  colorVariant="blue"
                   icon={<TrendingUp className="w-5 h-5" />}
                 />
               </div>
@@ -1271,7 +1266,7 @@ export default function FinanceReportsPage() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                      <Banknote className="w-4 h-4 text-emerald-500" />
+                      <Banknote className="w-4 h-4 text-blue-500" />
                       Payment Collections by Channel (Cash vs. Card vs. Online)
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -1280,26 +1275,26 @@ export default function FinanceReportsPage() {
                   </div>
                   <div className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300">
                     <span>Total Inflow:</span>
-                    <span className="font-mono text-emerald-600 dark:text-emerald-400 text-sm">{formatPKR(totalRevenue)}</span>
+                    <span className="font-mono text-blue-600 dark:text-blue-400 text-sm">{formatPKR(totalRevenue)}</span>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {/* Cash Card */}
-                  <div className="p-4 rounded-xl border border-emerald-100 dark:border-emerald-950/60 bg-emerald-50/40 dark:bg-emerald-950/20">
+                  <div className="p-4 rounded-xl border border-blue-100 dark:border-blue-950/60 bg-blue-50/40 dark:bg-blue-950/20">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                      <span className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400 flex items-center gap-1.5">
                         <Banknote className="w-4 h-4" />
                         Cash Collections
                       </span>
-                      <Badge variant="success" size="sm">{cashPct.toFixed(1)}%</Badge>
+                      <Badge variant="primary" size="sm">{cashPct.toFixed(1)}%</Badge>
                     </div>
                     <div className="mt-2 flex items-baseline justify-between">
-                      <div className="text-2xl font-black font-mono text-emerald-900 dark:text-emerald-100">
+                      <div className="text-2xl font-black font-mono text-slate-900 dark:text-slate-100">
                         {formatPKR(cashRevenue)}
                       </div>
                     </div>
-                    <div className="mt-2 flex items-center justify-between text-xs text-emerald-700/80 dark:text-emerald-400">
+                    <div className="mt-2 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                       <span>{cashCount} transaction{cashCount !== 1 ? 's' : ''}</span>
                       <span className="font-mono">Avg: {formatPKR(cashCount > 0 ? Math.round(cashRevenue / cashCount) : 0, { decimals: false })}</span>
                     </div>
@@ -1326,40 +1321,40 @@ export default function FinanceReportsPage() {
                   </div>
 
                   {/* Online Payments Card */}
-                  <div className="p-4 rounded-xl border border-purple-100 dark:border-purple-950/60 bg-purple-50/40 dark:bg-purple-950/20">
+                  <div className="p-4 rounded-xl border border-blue-100 dark:border-blue-950/60 bg-blue-50/40 dark:bg-blue-950/20">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-purple-700 dark:text-purple-400 flex items-center gap-1.5">
+                      <span className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400 flex items-center gap-1.5">
                         <Globe className="w-4 h-4" />
                         Online Payments
                       </span>
-                      <Badge variant="purple" size="sm">{onlinePct.toFixed(1)}%</Badge>
+                      <Badge variant="primary" size="sm">{onlinePct.toFixed(1)}%</Badge>
                     </div>
                     <div className="mt-2 flex items-baseline justify-between">
-                      <div className="text-2xl font-black font-mono text-purple-900 dark:text-purple-100">
+                      <div className="text-2xl font-black font-mono text-slate-900 dark:text-slate-100">
                         {formatPKR(onlineRevenue)}
                       </div>
                     </div>
-                    <div className="mt-2 flex items-center justify-between text-xs text-purple-700/80 dark:text-purple-400">
+                    <div className="mt-2 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                       <span>{onlineCount} transaction{onlineCount !== 1 ? 's' : ''}</span>
                       <span className="font-mono">Avg: {formatPKR(onlineCount > 0 ? Math.round(onlineRevenue / onlineCount) : 0, { decimals: false })}</span>
                     </div>
                   </div>
 
                   {/* Accounts Receivable / Uncollected Dues Card */}
-                  <div className="p-4 rounded-xl border border-amber-100 dark:border-amber-950/60 bg-amber-50/40 dark:bg-amber-950/20">
+                  <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                         <Clock className="w-4 h-4" />
                         Uncollected Dues
                       </span>
-                      <Badge variant="warning" size="sm">{duePct.toFixed(1)}%</Badge>
+                      <Badge variant="neutral" size="sm">{duePct.toFixed(1)}%</Badge>
                     </div>
                     <div className="mt-2 flex items-baseline justify-between">
-                      <div className="text-2xl font-black font-mono text-amber-900 dark:text-amber-100">
+                      <div className="text-2xl font-black font-mono text-slate-900 dark:text-slate-100">
                         {formatPKR(uncollectedDues)}
                       </div>
                     </div>
-                    <div className="mt-2 flex items-center justify-between text-xs text-amber-700/80 dark:text-amber-400">
+                    <div className="mt-2 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                       <span>Accounts Receivable</span>
                       <span className="font-mono">{duePct.toFixed(1)}% of Revenue</span>
                     </div>
@@ -1375,7 +1370,7 @@ export default function FinanceReportsPage() {
                   <div className="h-2.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden flex">
                     <div
                       style={{ width: `${cashPct}%` }}
-                      className="h-full bg-emerald-500 transition-all duration-500"
+                      className="h-full bg-blue-600 transition-all duration-500"
                       title={`Cash: ${cashPct.toFixed(1)}%`}
                     />
                     <div
@@ -1385,12 +1380,12 @@ export default function FinanceReportsPage() {
                     />
                     <div
                       style={{ width: `${onlinePct}%` }}
-                      className="h-full bg-purple-500 transition-all duration-500"
+                      className="h-full bg-sky-400 transition-all duration-500"
                       title={`Online: ${onlinePct.toFixed(1)}%`}
                     />
                     <div
                       style={{ width: `${duePct}%` }}
-                      className="h-full bg-amber-500 transition-all duration-500"
+                      className="h-full bg-slate-300 dark:bg-slate-600 transition-all duration-500"
                       title={`Receivable Dues: ${duePct.toFixed(1)}%`}
                     />
                   </div>
@@ -1426,7 +1421,7 @@ export default function FinanceReportsPage() {
                         onClick={() => { setTxnMethodFilter('Cash'); setTxnPage(1); }}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                           txnMethodFilter === 'Cash'
-                            ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                            ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
                             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                         }`}
                       >
@@ -1446,7 +1441,7 @@ export default function FinanceReportsPage() {
                         onClick={() => { setTxnMethodFilter('Online'); setTxnPage(1); }}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                           txnMethodFilter === 'Online'
-                            ? 'bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-sm'
+                            ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
                             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                         }`}
                       >
@@ -1497,10 +1492,7 @@ export default function FinanceReportsPage() {
                             {txn.date}
                           </td>
                           <td className="py-3.5 px-4">
-                            <Badge variant={
-                              (txn.paymentMethod || '').toLowerCase() === 'cash' ? 'success' :
-                              (txn.paymentMethod || '').toLowerCase() === 'card' || (txn.paymentMethod || '').toLowerCase().includes('pos') ? 'primary' : 'purple'
-                            }>
+                            <Badge variant="primary">
                               {txn.paymentMethod}
                             </Badge>
                           </td>
@@ -1597,10 +1589,6 @@ export default function FinanceReportsPage() {
 
           {activeTab === 'equity' && (
             <PartnerEquityTab />
-          )}
-
-          {activeTab === 'treasury' && (
-            <TreasuryCloseTab />
           )}
 
           {activeTab === 'expenses' && (
@@ -1745,7 +1733,7 @@ export default function FinanceReportsPage() {
                                       setPayNotes('');
                                       setIsPayModalOpen(true);
                                     }}
-                                    className="px-2.5 py-1 text-[10px] font-extrabold uppercase rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-sm cursor-pointer"
+                                    className="px-2.5 py-1 text-[10px] font-extrabold uppercase rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm cursor-pointer"
                                   >
                                     Pay Full / Partial
                                   </button>
@@ -1931,12 +1919,12 @@ export default function FinanceReportsPage() {
                             </tr>
                             <tr>
                               <td className="py-3 px-4 font-bold flex items-center gap-2">
-                                <span className="w-2.5 h-2.5 rounded-full bg-purple-500 shrink-0" />
+                                <span className="w-2.5 h-2.5 rounded-full bg-sky-500 shrink-0" />
                                 Online Payments
                               </td>
                               <td className="py-3 px-4 text-slate-500 text-[11px]">Digital Checkout & Gateways</td>
                               <td className="py-3 px-4 text-center font-mono">{onlineCount}</td>
-                              <td className="py-3 px-4 text-right font-mono font-bold text-purple-600 dark:text-purple-400">{formatPKR(onlineRevenue)}</td>
+                              <td className="py-3 px-4 text-right font-mono font-bold text-blue-600 dark:text-blue-400">{formatPKR(onlineRevenue)}</td>
                               <td className="py-3 px-4 text-right font-mono font-semibold">{onlinePct.toFixed(1)}%</td>
                             </tr>
                           </tbody>

@@ -110,10 +110,10 @@ export const Sidebar: React.FC = () => {
           />
           {!isCollapsed && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <h1 className="text-base font-extrabold text-white tracking-wider uppercase font-sans">
+              <h1 suppressHydrationWarning className="text-base font-extrabold text-white tracking-wider uppercase font-sans">
                 {shortName}
               </h1>
-              <p className="text-[10px] text-blue-400 font-semibold tracking-widest uppercase">
+              <p suppressHydrationWarning className="text-[10px] text-blue-400 font-semibold tracking-widest uppercase">
                 {tagline}
               </p>
             </motion.div>

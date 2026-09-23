@@ -68,9 +68,8 @@ export default function ClientsPage() {
       return;
     }
     if (amountNum > (settleClient.outstandingBalance || 0)) {
-      if (!confirm(`Amount (${formatPKR(amountNum)}) exceeds current outstanding due (${formatPKR(settleClient.outstandingBalance || 0)}). Proceed?`)) {
-        return;
-      }
+      setSettleError(`Settlement amount (${formatPKR(amountNum)}) cannot exceed current outstanding due (${formatPKR(settleClient.outstandingBalance || 0)}).`);
+      return;
     }
 
     try {
@@ -107,17 +106,30 @@ export default function ClientsPage() {
       setClientError("Full Name must be at least 3 characters long.");
       return;
     }
-    if (!/^[A-Za-z\s]+$/.test(name.trim())) {
-      setClientError("Full Name must contain only letters and spaces.");
+    if (!/^[A-Za-z\s.\-']+$/.test(name.trim())) {
+      setClientError("Full Name must contain only letters, dots, hyphens, and spaces.");
       return;
     }
-    if (!/^\+92\s?\d{9,10}$/.test(phone)) {
-      setClientError("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits).");
+    const cleanP = phone.trim().replace(/[\s\-]/g, '');
+    if (!/^(\+92\d{9,10}|03\d{9})$/.test(cleanP)) {
+      setClientError("Please enter a valid Pakistani phone number (e.g., 03001234567 or +923001234567).");
       return;
     }
     const ageNum = Number(age);
     if (isNaN(ageNum) || ageNum < 1 || ageNum > 120) {
       setClientError("Please enter a valid age between 1 and 120.");
+      return;
+    }
+
+    const normPhone = cleanP.startsWith('03') ? '+92' + cleanP.slice(1) : cleanP;
+    const existingPhoneClient = clients.find(c => {
+      if (!c.phone) return false;
+      const cClean = c.phone.trim().replace(/[\s\-]/g, '');
+      const cNorm = cClean.startsWith('03') ? '+92' + cClean.slice(1) : cClean;
+      return cNorm === normPhone;
+    });
+    if (existingPhoneClient) {
+      setClientError(`A client with phone ${phone} already exists: ${existingPhoneClient.name} (${existingPhoneClient.id}).`);
       return;
     }
 
@@ -220,7 +232,7 @@ export default function ClientsPage() {
                     <div className="text-[11px] text-slate-400 font-mono">{client.phone}</div>
                     {client.branchId && (
                       <div className="mt-1">
-                        <Badge variant="gold" size="sm">
+                        <Badge variant="primary" size="sm">
                           <MapPin className="w-2.5 h-2.5 mr-1 inline" />
                           {branches.find(b => b.id === client.branchId)?.name || 'Linked Branch'}
                         </Badge>
