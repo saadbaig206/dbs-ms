@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Users2,
   Plus,
@@ -19,64 +19,87 @@ import {
   AlertCircle,
   XCircle,
   UserCheck,
-  MapPin
-} from 'lucide-react';
-import { useClinic } from '../../lib/context/ClinicContext';
-import { formatPKR } from '../../lib/utils/currency';
-import { formatPhoneInput } from '../../lib/utils/phone';
-import { Staff, StaffRole, AttendanceStatus } from '../../lib/types/clinic';
-import { Button } from '../../components/ui/Button';
-import { Badge } from '../../components/ui/Badge';
-import { Avatar } from '../../components/ui/Avatar';
-import { Modal } from '../../components/ui/Modal';
-import { Input, Select } from '../../components/ui/Input';
-import { Breadcrumb } from '../../components/ui/Breadcrumb';
+  MapPin,
+} from "lucide-react";
+import { useClinic } from "../../lib/context/ClinicContext";
+import { formatPKR } from "../../lib/utils/currency";
+import { formatPhoneInput } from "../../lib/utils/phone";
+import { Staff, StaffRole, AttendanceStatus } from "../../lib/types/clinic";
+import { Button } from "../../components/ui/Button";
+import { Badge } from "../../components/ui/Badge";
+import { Avatar } from "../../components/ui/Avatar";
+import { Modal } from "../../components/ui/Modal";
+import { Input, Select } from "../../components/ui/Input";
+import { Breadcrumb } from "../../components/ui/Breadcrumb";
 
 export default function StaffPage() {
-  const { staff, addStaff, updateStaff, deleteStaff, attendance, markAttendance, role, branches, isLoading, partners, addPartner, deletePartner } = useClinic();
+  const {
+    staff,
+    addStaff,
+    updateStaff,
+    deleteStaff,
+    attendance,
+    markAttendance,
+    role,
+    branches,
+    isLoading,
+    partners,
+    addPartner,
+    deletePartner,
+  } = useClinic();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && role !== 'admin') {
-      router.push('/dashboard');
+    if (!isLoading && role !== "admin") {
+      router.push("/dashboard");
     }
   }, [role, isLoading, router]);
 
-  const [activeTab, setActiveTab] = useState<'directory' | 'attendance' | 'partners'>('directory');
-  const [search, setSearch] = useState('');
-  const [branchFilter, setBranchFilter] = useState('All');
+  const [activeTab, setActiveTab] = useState<
+    "directory" | "attendance" | "partners"
+  >("directory");
+  const [search, setSearch] = useState("");
+  const [branchFilter, setBranchFilter] = useState("All");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
 
   // Partners management state
   const [isAddPartnerModalOpen, setIsAddPartnerModalOpen] = useState(false);
-  const [partnerUsername, setPartnerUsername] = useState('');
-  const [partnerPassword, setPartnerPassword] = useState('');
+  const [partnerUsername, setPartnerUsername] = useState("");
+  const [partnerPassword, setPartnerPassword] = useState("");
 
   // Form State for Adding/Editing Staff
-  const [name, setName] = useState('');
-  const [staffRole, setStaffRole] = useState<StaffRole>('Aesthetic Physician');
-  const [salary, setSalary] = useState<string>('');
-  const [phone, setPhone] = useState('+92');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [staffBranchId, setStaffBranchId] = useState('');
-  const [photo, setPhoto] = useState('');
+  const [name, setName] = useState("");
+  const [staffRole, setStaffRole] = useState<StaffRole>("Aesthetic Physician");
+  const [salary, setSalary] = useState<string>("");
+  const [phone, setPhone] = useState("+92");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [staffBranchId, setStaffBranchId] = useState("");
+  const [photo, setPhoto] = useState("");
 
   // Attendance Form State
   const [isMarkModalOpen, setIsMarkModalOpen] = useState(false);
-  const [selectedStaffId, setSelectedStaffId] = useState(staff[0]?.id || '');
-  const [attStatus, setAttStatus] = useState<AttendanceStatus>('Present');
-  const [attNotes, setAttNotes] = useState('');
+  const [selectedStaffId, setSelectedStaffId] = useState(staff[0]?.id || "");
+  const [attStatus, setAttStatus] = useState<AttendanceStatus>("Present");
+  const [attNotes, setAttNotes] = useState("");
 
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
-  const [bulkList, setBulkList] = useState<Record<string, 'Present' | 'Absent' | 'Late' | 'Unmarked'>>({});
+  const [bulkList, setBulkList] = useState<
+    Record<string, "Present" | "Absent" | "Late" | "Unmarked">
+  >({});
 
   // Custom Toast State
-  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [toastMessage, setToastMessage] = useState<{
+    text: string;
+    type: "success" | "error";
+  } | null>(null);
 
-  const showToast = (text: string, type: 'success' | 'error' = 'success') => {
+  // Submission/loading state
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const showToast = (text: string, type: "success" | "error" = "success") => {
     setToastMessage({ text, type });
     setTimeout(() => {
       setToastMessage(null);
@@ -85,12 +108,15 @@ export default function StaffPage() {
 
   // Synchronize selectedStaffId when staff list finishes loading
   React.useEffect(() => {
-    if (staff.length > 0 && (!selectedStaffId || !staff.some(s => s.id === selectedStaffId))) {
+    if (
+      staff.length > 0 &&
+      (!selectedStaffId || !staff.some((s) => s.id === selectedStaffId))
+    ) {
       setSelectedStaffId(staff[0].id);
     }
   }, [staff]);
 
-  if (isLoading || role !== 'admin') {
+  if (isLoading || role !== "admin") {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-slate-500 animate-pulse font-bold">Loading...</div>
@@ -98,30 +124,31 @@ export default function StaffPage() {
     );
   }
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = new Date().toISOString().split("T")[0];
 
-  const presentCount = attendance.filter((a) => a.status === 'Present').length;
-  const lateCount = attendance.filter((a) => a.status === 'Late').length;
-  const leaveCount = attendance.filter((a) => a.status === 'Leave').length;
-  const absentCount = attendance.filter((a) => a.status === 'Absent').length;
+  const presentCount = attendance.filter((a) => a.status === "Present").length;
+  const lateCount = attendance.filter((a) => a.status === "Late").length;
+  const leaveCount = attendance.filter((a) => a.status === "Leave").length;
+  const absentCount = attendance.filter((a) => a.status === "Absent").length;
 
   const filteredStaff = staff.filter((s) => {
-    const matchesBranch = branchFilter === 'All' || s.branchId === branchFilter;
-    const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) ||
+    const matchesBranch = branchFilter === "All" || s.branchId === branchFilter;
+    const matchesSearch =
+      s.name.toLowerCase().includes(search.toLowerCase()) ||
       s.role.toLowerCase().includes(search.toLowerCase()) ||
       (s.email ? s.email.toLowerCase().includes(search.toLowerCase()) : false);
     return matchesBranch && matchesSearch;
   });
 
   const handleOpenAddModal = () => {
-    setName('');
-    setPhone('+92');
-    setEmail('');
-    setSalary('');
-    setPhoto('');
-    setStaffRole('Aesthetic Physician');
-    setStaffBranchId('');
-    setPassword('');
+    setName("");
+    setPhone("+92");
+    setEmail("");
+    setSalary("");
+    setPhoto("");
+    setStaffRole("Aesthetic Physician");
+    setStaffBranchId("");
+    setPassword("");
     setIsAddModalOpen(true);
   };
 
@@ -131,21 +158,20 @@ export default function StaffPage() {
     setStaffRole(member.role);
     setSalary(String(member.salary));
 
-    let memberPhone = member.phone || '';
-    if (!memberPhone.startsWith('+92')) {
-      if (memberPhone.startsWith('92')) memberPhone = '+' + memberPhone;
-      else if (memberPhone.startsWith('0')) memberPhone = '+92' + memberPhone.substring(1);
-      else memberPhone = '+92' + memberPhone.replace(/\D/g, '');
+    let memberPhone = member.phone || "";
+    if (!memberPhone.startsWith("+92")) {
+      if (memberPhone.startsWith("92")) memberPhone = "+" + memberPhone;
+      else if (memberPhone.startsWith("0"))
+        memberPhone = "+92" + memberPhone.substring(1);
+      else memberPhone = "+92" + memberPhone.replace(/\D/g, "");
     }
     setPhone(memberPhone);
 
-    setEmail(member.email || '');
-    setStaffBranchId(member.branchId || '');
-    setPhoto(member.photo || '');
+    setEmail(member.email || "");
+    setStaffBranchId(member.branchId || "");
+    setPhoto(member.photo || "");
     setIsEditModalOpen(true);
   };
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleEditStaff = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,10 +186,17 @@ export default function StaffPage() {
       return;
     }
     if (!/^\+92\s?\d{9,10}$/.test(phone)) {
-      showToast("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)", "error");
+      showToast(
+        "Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)",
+        "error",
+      );
       return;
     }
-    if (email && email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    if (
+      email &&
+      email.trim() &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+    ) {
       showToast("Please enter a valid email address", "error");
       return;
     }
@@ -181,20 +214,20 @@ export default function StaffPage() {
         salary: Number(salary) || 0,
         phone,
         email: email.trim() || undefined,
-        branchId: staffBranchId || undefined
+        branchId: staffBranchId || undefined,
       });
       setIsEditModalOpen(false);
       setEditingStaffId(null);
-      setName('');
-      setPhone('+92');
-      setEmail('');
-      setSalary('');
-      setPhoto('');
-      setStaffBranchId('');
-      showToast('Staff member updated successfully');
+      setName("");
+      setPhone("+92");
+      setEmail("");
+      setSalary("");
+      setPhoto("");
+      setStaffBranchId("");
+      showToast("Staff member updated successfully");
     } catch (err) {
       console.error(err);
-      showToast('Failed to update staff member', 'error');
+      showToast("Failed to update staff member", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -213,7 +246,10 @@ export default function StaffPage() {
       return;
     }
     if (!/^\+92\s?\d{9,10}$/.test(phone)) {
-      showToast("Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)", "error");
+      showToast(
+        "Please enter a valid Pakistani phone number (+92 followed by 9-10 digits)",
+        "error",
+      );
       return;
     }
     if (Number(salary) <= 0) {
@@ -230,23 +266,23 @@ export default function StaffPage() {
         phone,
         email: email.trim() || undefined,
         password: password || undefined,
-        joiningDate: new Date().toISOString().split('T')[0],
-        status: 'Active',
+        joiningDate: new Date().toISOString().split("T")[0],
+        status: "Active",
         performanceRating: 5.0,
-        assignedServices: ['Signature Treatments'],
+        assignedServices: ["Signature Treatments"],
         attendanceRate: 100,
-        branchId: staffBranchId || undefined
+        branchId: staffBranchId || undefined,
       });
 
       setIsAddModalOpen(false);
-      setName('');
-      setPhone('+92');
-      setEmail('');
-      setSalary('');
-      setPhoto('');
-      setPassword('');
-      setStaffBranchId('');
-      showToast('Staff member added successfully');
+      setName("");
+      setPhone("+92");
+      setEmail("");
+      setSalary("");
+      setPhoto("");
+      setPassword("");
+      setStaffBranchId("");
+      showToast("Staff member added successfully");
     } catch (err: any) {
       showToast("Failed to add staff member: " + (err.message || err), "error");
     } finally {
@@ -254,16 +290,22 @@ export default function StaffPage() {
     }
   };
 
-  const getCoordinates = (): Promise<{ latitude: number; longitude: number } | undefined> => {
+  const getCoordinates = (): Promise<
+    { latitude: number; longitude: number } | undefined
+  > => {
     return new Promise((resolve) => {
-      if (typeof window === 'undefined' || !navigator.geolocation) {
+      if (typeof window === "undefined" || !navigator.geolocation) {
         resolve(undefined);
         return;
       }
       navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+        (pos) =>
+          resolve({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+          }),
         () => resolve(undefined),
-        { enableHighAccuracy: true, timeout: 5000 }
+        { enableHighAccuracy: true, timeout: 5000 },
       );
     });
   };
@@ -273,11 +315,17 @@ export default function StaffPage() {
     if (isSubmitting) return;
     try {
       setIsSubmitting(true);
-      const coords = role === 'admin' ? undefined : await getCoordinates();
-      await markAttendance(selectedStaffId, attStatus, attNotes, coords?.latitude, coords?.longitude);
+      const coords = role === "admin" ? undefined : await getCoordinates();
+      await markAttendance(
+        selectedStaffId,
+        attStatus,
+        attNotes,
+        coords?.latitude,
+        coords?.longitude,
+      );
       showToast("Attendance marked successfully!");
       setIsMarkModalOpen(false);
-      setAttNotes('');
+      setAttNotes("");
     } catch (err: any) {
       showToast("Failed to mark attendance: " + err.message, "error");
     } finally {
@@ -291,36 +339,40 @@ export default function StaffPage() {
     try {
       setIsSubmitting(true);
       await addPartner(partnerUsername, partnerPassword);
-      setPartnerUsername('');
-      setPartnerPassword('');
+      setPartnerUsername("");
+      setPartnerPassword("");
       setIsAddPartnerModalOpen(false);
-      showToast('Partner added successfully');
+      showToast("Partner added successfully");
     } catch (err: any) {
       console.error(err);
-      showToast('Failed to add partner', 'error');
+      showToast("Failed to add partner", "error");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDeletePartner = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this partner?')) return;
+    if (!window.confirm("Are you sure you want to delete this partner?"))
+      return;
     try {
       await deletePartner(id);
-      showToast('Partner deleted successfully');
+      showToast("Partner deleted successfully");
     } catch (err: any) {
       console.error(err);
-      showToast('Failed to delete partner', 'error');
+      showToast("Failed to delete partner", "error");
     }
   };
 
   const handleOpenBulkModal = () => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const todayRecords = attendance.filter(a => a.date === todayStr);
-    const initialList: Record<string, 'Present' | 'Absent' | 'Late' | 'Unmarked'> = {};
-    staff.forEach(s => {
-      const todayRec = todayRecords.find(r => r.staffId === s.id);
-      initialList[s.id] = (todayRec?.status as any) || 'Present';
+    const todayStr = new Date().toISOString().split("T")[0];
+    const todayRecords = attendance.filter((a) => a.date === todayStr);
+    const initialList: Record<
+      string,
+      "Present" | "Absent" | "Late" | "Unmarked"
+    > = {};
+    staff.forEach((s) => {
+      const todayRec = todayRecords.find((r) => r.staffId === s.id);
+      initialList[s.id] = (todayRec?.status as any) || "Present";
     });
     setBulkList(initialList);
     setIsBulkModalOpen(true);
@@ -334,10 +386,14 @@ export default function StaffPage() {
       // Admins bypass GPS validation, so we pass undefined for coords
       await Promise.all(
         Object.entries(bulkList)
-          .filter(([_, status]) => status !== 'Unmarked')
+          .filter(([_, status]) => status !== "Unmarked")
           .map(([staffId, status]) =>
-            markAttendance(staffId, status as AttendanceStatus, 'Bulk Admin Mark')
-          )
+            markAttendance(
+              staffId,
+              status as AttendanceStatus,
+              "Bulk Admin Mark",
+            ),
+          ),
       );
       showToast("Bulk attendance updated successfully!");
       setIsBulkModalOpen(false);
@@ -362,56 +418,79 @@ export default function StaffPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto min-w-0">
           {/* Main Sub-Tabs Toggle */}
-          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl overflow-x-auto no-scrollbar">
+          <div className="flex w-full sm:w-auto max-w-full gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl overflow-x-auto no-scrollbar">
             <button
-              onClick={() => setActiveTab('directory')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'directory'
-                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                }`}
+              onClick={() => setActiveTab("directory")}
+              className={`flex-1 sm:flex-none whitespace-nowrap text-center px-3 py-2 sm:py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === "directory"
+                  ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+              }`}
             >
               Directory
             </button>
             <button
-              onClick={() => setActiveTab('attendance')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'attendance'
-                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                }`}
+              onClick={() => setActiveTab("attendance")}
+              className={`flex-1 sm:flex-none whitespace-nowrap text-center px-3 py-2 sm:py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === "attendance"
+                  ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+              }`}
             >
               Attendance
             </button>
             <button
-              onClick={() => setActiveTab('partners')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'partners'
-                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                }`}
+              onClick={() => setActiveTab("partners")}
+              className={`flex-1 sm:flex-none whitespace-nowrap text-center px-3 py-2 sm:py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === "partners"
+                  ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+              }`}
             >
               Partners
             </button>
           </div>
 
-          {activeTab === 'directory' && role === 'admin' && (
-            <Button onClick={handleOpenAddModal} variant="primary" icon={<Plus className="w-4 h-4" />}>
+          {activeTab === "directory" && role === "admin" && (
+            <Button
+              onClick={handleOpenAddModal}
+              variant="primary"
+              icon={<Plus className="w-4 h-4" />}
+              className="w-full sm:w-auto justify-center"
+            >
               Add Practitioner
             </Button>
           )}
 
-          {activeTab === 'partners' && role === 'admin' && (
-            <Button onClick={() => setIsAddPartnerModalOpen(true)} variant="primary" icon={<Plus className="w-4 h-4" />}>
+          {activeTab === "partners" && role === "admin" && (
+            <Button
+              onClick={() => setIsAddPartnerModalOpen(true)}
+              variant="primary"
+              icon={<Plus className="w-4 h-4" />}
+              className="w-full sm:w-auto justify-center"
+            >
               Add Partner
             </Button>
           )}
 
-          {activeTab === 'attendance' && (
-            <div className="flex gap-2">
-              <Button onClick={handleOpenBulkModal} variant="outline" icon={<UserCheck className="w-4 h-4" />}>
+          {activeTab === "attendance" && (
+            <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto">
+              <Button
+                onClick={handleOpenBulkModal}
+                variant="outline"
+                icon={<UserCheck className="w-4 h-4" />}
+                className="w-full sm:w-auto whitespace-nowrap justify-center"
+              >
                 Bulk Attendance
               </Button>
-              <Button onClick={() => setIsMarkModalOpen(true)} variant="primary" icon={<Plus className="w-4 h-4" />}>
+              <Button
+                onClick={() => setIsMarkModalOpen(true)}
+                variant="primary"
+                icon={<Plus className="w-4 h-4" />}
+                className="w-full sm:w-auto whitespace-nowrap justify-center"
+              >
                 Mark Attendance
               </Button>
             </div>
@@ -419,16 +498,18 @@ export default function StaffPage() {
         </div>
       </div>
 
-      {(role as string) === 'staff' && (
+      {(role as string) === "staff" && (
         <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-2xl flex items-center gap-3 text-xs text-amber-800 dark:text-amber-200">
           <Lock className="w-5 h-5 shrink-0 text-amber-600" />
           <span>
-            <strong>Role Restriction Active:</strong> Practitioner salary information and administrative edit permissions are locked in Staff Mode. Switch to Admin mode to unlock full controls.
+            <strong>Role Restriction Active:</strong> Practitioner salary
+            information and administrative edit permissions are locked in Staff
+            Mode. Switch to Admin mode to unlock full controls.
           </span>
         </div>
       )}
 
-      {activeTab === 'directory' && (
+      {activeTab === "directory" && (
         <>
           {/* Search & Branch Filter */}
           <div className="luxury-card p-4 flex flex-col sm:flex-row gap-4 items-center justify-between">
@@ -442,8 +523,8 @@ export default function StaffPage() {
             <div className="w-full sm:w-48">
               <Select
                 options={[
-                  { label: 'All Branches', value: 'All' },
-                  ...branches.map(b => ({ label: b.name, value: b.id }))
+                  { label: "All Branches", value: "All" },
+                  ...branches.map((b) => ({ label: b.name, value: b.id })),
                 ]}
                 value={branchFilter}
                 onChange={(e) => setBranchFilter(e.target.value)}
@@ -465,11 +546,18 @@ export default function StaffPage() {
                 <div className="p-5 space-y-4">
                   <div className="flex items-start gap-4">
                     <div className="space-y-0.5">
-                      <h4 className="font-bold text-slate-900 dark:text-slate-100">{member.name}</h4>
-                      <p className="text-xs font-semibold text-blue-600 dark:text-blue-400">{member.role}</p>
+                      <h4 className="font-bold text-slate-900 dark:text-slate-100">
+                        {member.name}
+                      </h4>
+                      <p className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                        {member.role}
+                      </p>
                       <div className="flex items-center gap-1 text-[10px] text-slate-400 font-medium">
                         <MapPin className="w-3 h-3 text-slate-400" />
-                        <span>{branches.find(b => b.id === member.branchId)?.name || 'Main Clinic'}</span>
+                        <span>
+                          {branches.find((b) => b.id === member.branchId)
+                            ?.name || "Main Clinic"}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -489,10 +577,12 @@ export default function StaffPage() {
                       <Calendar className="w-4 h-4 text-slate-400" />
                       <span>Joined {member.joiningDate}</span>
                     </div>
-                    {role === 'admin' && (
+                    {role === "admin" && (
                       <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300 pt-2 border-t border-slate-100 dark:border-slate-800">
                         <span>Monthly Salary:</span>
-                        <span className="font-mono text-emerald-600 dark:text-emerald-400">{formatPKR(member.salary, { decimals: false })}</span>
+                        <span className="font-mono text-emerald-600 dark:text-emerald-400">
+                          {formatPKR(member.salary, { decimals: false })}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -503,12 +593,18 @@ export default function StaffPage() {
                     <Star className="w-3.5 h-3.5 fill-amber-400 stroke-none" />
                     <span>{member.performanceRating.toFixed(1)}</span>
                   </div>
-                  {role === 'admin' && (
+                  {role === "admin" && (
                     <div className="flex items-center gap-1">
-                      <button onClick={() => handleOpenEditModal(member)} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-white dark:hover:bg-slate-700 transition-colors">
+                      <button
+                        onClick={() => handleOpenEditModal(member)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-white dark:hover:bg-slate-700 transition-colors"
+                      >
                         <Edit2 className="w-4 h-4" />
                       </button>
-                      <button onClick={() => deleteStaff(member.id)} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-white dark:hover:bg-slate-700 transition-colors">
+                      <button
+                        onClick={() => deleteStaff(member.id)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-white dark:hover:bg-slate-700 transition-colors"
+                      >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -520,14 +616,18 @@ export default function StaffPage() {
         </>
       )}
 
-      {activeTab === 'attendance' && (
+      {activeTab === "attendance" && (
         <>
           {/* Attendance Summary Widgets */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <div className="luxury-card p-4 flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase">Present Today</p>
-                <h3 className="text-2xl font-black text-emerald-600 font-mono mt-0.5">{presentCount}</h3>
+                <p className="text-xs font-semibold text-slate-500 uppercase">
+                  Present Today
+                </p>
+                <h3 className="text-2xl font-black text-emerald-600 font-mono mt-0.5">
+                  {presentCount}
+                </h3>
               </div>
               <div className="w-10 h-10 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
                 <CheckCircle2 className="w-5 h-5" />
@@ -536,8 +636,12 @@ export default function StaffPage() {
 
             <div className="luxury-card p-4 flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase">Late Arrivals</p>
-                <h3 className="text-2xl font-black text-amber-600 font-mono mt-0.5">{lateCount}</h3>
+                <p className="text-xs font-semibold text-slate-500 uppercase">
+                  Late Arrivals
+                </p>
+                <h3 className="text-2xl font-black text-amber-600 font-mono mt-0.5">
+                  {lateCount}
+                </h3>
               </div>
               <div className="w-10 h-10 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center">
                 <Clock className="w-5 h-5" />
@@ -546,8 +650,12 @@ export default function StaffPage() {
 
             <div className="luxury-card p-4 flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase">On Leave</p>
-                <h3 className="text-2xl font-black text-blue-600 font-mono mt-0.5">{leaveCount}</h3>
+                <p className="text-xs font-semibold text-slate-500 uppercase">
+                  On Leave
+                </p>
+                <h3 className="text-2xl font-black text-blue-600 font-mono mt-0.5">
+                  {leaveCount}
+                </h3>
               </div>
               <div className="w-10 h-10 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center">
                 <AlertCircle className="w-5 h-5" />
@@ -556,8 +664,12 @@ export default function StaffPage() {
 
             <div className="luxury-card p-4 flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase">Absent</p>
-                <h3 className="text-2xl font-black text-rose-600 font-mono mt-0.5">{absentCount}</h3>
+                <p className="text-xs font-semibold text-slate-500 uppercase">
+                  Absent
+                </p>
+                <h3 className="text-2xl font-black text-rose-600 font-mono mt-0.5">
+                  {absentCount}
+                </h3>
               </div>
               <div className="w-10 h-10 rounded-xl bg-rose-500/10 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center">
                 <XCircle className="w-5 h-5" />
@@ -589,12 +701,17 @@ export default function StaffPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
                   {attendance.map((rec) => {
-                    const member = staff.find(s => s.id === rec.staffId);
-                    const branch = member ? branches.find(b => b.id === member.branchId) : null;
-                    const branchName = branch ? branch.name : 'Unassigned';
+                    const member = staff.find((s) => s.id === rec.staffId);
+                    const branch = member
+                      ? branches.find((b) => b.id === member.branchId)
+                      : null;
+                    const branchName = branch ? branch.name : "Unassigned";
 
                     return (
-                      <tr key={rec.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                      <tr
+                        key={rec.id}
+                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                      >
                         <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-slate-100">
                           {rec.staffName}
                         </td>
@@ -605,28 +722,28 @@ export default function StaffPage() {
                           <Badge variant="neutral">{branchName}</Badge>
                         </td>
                         <td className="py-3.5 px-4 font-mono text-slate-600 dark:text-slate-300">
-                          {rec.checkInTime || '--:--'}
+                          {rec.checkInTime || "--:--"}
                         </td>
                         <td className="py-3.5 px-4 font-mono text-slate-600 dark:text-slate-300">
-                          {rec.checkOutTime || '--:--'}
+                          {rec.checkOutTime || "--:--"}
                         </td>
                         <td className="py-3.5 px-4">
                           <Badge
                             variant={
-                              rec.status === 'Present'
-                                ? 'success'
-                                : rec.status === 'Late'
-                                  ? 'warning'
-                                  : rec.status === 'Leave'
-                                    ? 'primary'
-                                    : 'danger'
+                              rec.status === "Present"
+                                ? "success"
+                                : rec.status === "Late"
+                                  ? "warning"
+                                  : rec.status === "Leave"
+                                    ? "primary"
+                                    : "danger"
                             }
                           >
                             {rec.status}
                           </Badge>
                         </td>
                         <td className="py-3.5 px-4 text-slate-500 italic">
-                          {rec.notes || 'No remarks'}
+                          {rec.notes || "No remarks"}
                         </td>
                       </tr>
                     );
@@ -638,7 +755,7 @@ export default function StaffPage() {
         </>
       )}
 
-      {activeTab === 'partners' && (
+      {activeTab === "partners" && (
         <div className="luxury-card p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
@@ -648,7 +765,9 @@ export default function StaffPage() {
           </div>
 
           {partners.length === 0 ? (
-            <p className="text-xs text-slate-400 text-center py-8">No partner accounts created yet.</p>
+            <p className="text-xs text-slate-400 text-center py-8">
+              No partner accounts created yet.
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs sm:text-sm">
@@ -656,12 +775,17 @@ export default function StaffPage() {
                   <tr>
                     <th className="py-3.5 px-4 rounded-l-xl">Username</th>
                     <th className="py-3.5 px-4">Role Permission</th>
-                    <th className="py-3.5 px-4 text-right rounded-r-xl">Actions</th>
+                    <th className="py-3.5 px-4 text-right rounded-r-xl">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
                   {partners.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                    <tr
+                      key={p.id}
+                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                    >
                       <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-slate-100">
                         {p.username}
                       </td>
@@ -708,14 +832,23 @@ export default function StaffPage() {
               <Select
                 label="Staff Role"
                 options={[
-                  { label: 'Medical Director', value: 'Medical Director' },
-                  { label: 'Senior Dermatologist', value: 'Senior Dermatologist' },
-                  { label: 'Aesthetic Physician', value: 'Aesthetic Physician' },
-                  { label: 'Hydrafacial Specialist', value: 'Hydrafacial Specialist' },
-                  { label: 'Laser Specialist', value: 'Laser Specialist' },
-                  { label: 'Cosmetic Nurse', value: 'Cosmetic Nurse' },
-                  { label: 'Clinic Manager', value: 'Clinic Manager' },
-                  { label: 'Receptionist', value: 'Receptionist' }
+                  { label: "Medical Director", value: "Medical Director" },
+                  {
+                    label: "Senior Dermatologist",
+                    value: "Senior Dermatologist",
+                  },
+                  {
+                    label: "Aesthetic Physician",
+                    value: "Aesthetic Physician",
+                  },
+                  {
+                    label: "Hydrafacial Specialist",
+                    value: "Hydrafacial Specialist",
+                  },
+                  { label: "Laser Specialist", value: "Laser Specialist" },
+                  { label: "Cosmetic Nurse", value: "Cosmetic Nurse" },
+                  { label: "Clinic Manager", value: "Clinic Manager" },
+                  { label: "Receptionist", value: "Receptionist" },
                 ]}
                 value={staffRole}
                 onChange={(e) => setStaffRole(e.target.value as any)}
@@ -724,8 +857,8 @@ export default function StaffPage() {
             <Select
               label="Assigned Branch"
               options={[
-                { label: 'Unassigned', value: '' },
-                ...branches.map(b => ({ label: b.name, value: b.id }))
+                { label: "Unassigned", value: "" },
+                ...branches.map((b) => ({ label: b.name, value: b.id })),
               ]}
               value={staffBranchId}
               onChange={(e) => setStaffBranchId(e.target.value)}
@@ -737,7 +870,7 @@ export default function StaffPage() {
               label="Monthly Salary (Rs)"
               type="text"
               value={salary}
-              onChange={(e) => setSalary(e.target.value.replace(/\D/g, ''))}
+              onChange={(e) => setSalary(e.target.value.replace(/\D/g, ""))}
               required
             />
             <Input
@@ -767,11 +900,16 @@ export default function StaffPage() {
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)} disabled={isSubmitting}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsAddModalOpen(false)}
+              disabled={isSubmitting}
+            >
               Cancel
             </Button>
             <Button type="submit" variant="primary" disabled={isSubmitting}>
-              {isSubmitting ? 'Saving...' : 'Save Staff Member'}
+              {isSubmitting ? "Saving..." : "Save Staff Member"}
             </Button>
           </div>
         </form>
@@ -802,14 +940,23 @@ export default function StaffPage() {
               <Select
                 label="Staff Role"
                 options={[
-                  { label: 'Medical Director', value: 'Medical Director' },
-                  { label: 'Senior Dermatologist', value: 'Senior Dermatologist' },
-                  { label: 'Aesthetic Physician', value: 'Aesthetic Physician' },
-                  { label: 'Hydrafacial Specialist', value: 'Hydrafacial Specialist' },
-                  { label: 'Laser Specialist', value: 'Laser Specialist' },
-                  { label: 'Cosmetic Nurse', value: 'Cosmetic Nurse' },
-                  { label: 'Clinic Manager', value: 'Clinic Manager' },
-                  { label: 'Receptionist', value: 'Receptionist' }
+                  { label: "Medical Director", value: "Medical Director" },
+                  {
+                    label: "Senior Dermatologist",
+                    value: "Senior Dermatologist",
+                  },
+                  {
+                    label: "Aesthetic Physician",
+                    value: "Aesthetic Physician",
+                  },
+                  {
+                    label: "Hydrafacial Specialist",
+                    value: "Hydrafacial Specialist",
+                  },
+                  { label: "Laser Specialist", value: "Laser Specialist" },
+                  { label: "Cosmetic Nurse", value: "Cosmetic Nurse" },
+                  { label: "Clinic Manager", value: "Clinic Manager" },
+                  { label: "Receptionist", value: "Receptionist" },
                 ]}
                 value={staffRole}
                 onChange={(e) => setStaffRole(e.target.value as any)}
@@ -818,8 +965,8 @@ export default function StaffPage() {
             <Select
               label="Assigned Branch"
               options={[
-                { label: 'Unassigned', value: '' },
-                ...branches.map(b => ({ label: b.name, value: b.id }))
+                { label: "Unassigned", value: "" },
+                ...branches.map((b) => ({ label: b.name, value: b.id })),
               ]}
               value={staffBranchId}
               onChange={(e) => setStaffBranchId(e.target.value)}
@@ -831,7 +978,7 @@ export default function StaffPage() {
               label="Monthly Salary (Rs)"
               type="text"
               value={salary}
-              onChange={(e) => setSalary(e.target.value.replace(/\D/g, ''))}
+              onChange={(e) => setSalary(e.target.value.replace(/\D/g, ""))}
               required
             />
             <Input
@@ -851,14 +998,19 @@ export default function StaffPage() {
           />
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => {
-              setIsEditModalOpen(false);
-              setEditingStaffId(null);
-            }} disabled={isSubmitting}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsEditModalOpen(false);
+                setEditingStaffId(null);
+              }}
+              disabled={isSubmitting}
+            >
               Cancel
             </Button>
             <Button type="submit" variant="primary" disabled={isSubmitting}>
-              {isSubmitting ? 'Updating...' : 'Update Staff Member'}
+              {isSubmitting ? "Updating..." : "Update Staff Member"}
             </Button>
           </div>
         </form>
@@ -875,7 +1027,10 @@ export default function StaffPage() {
         <form onSubmit={handleSaveAttendance} className="space-y-4">
           <Select
             label="Staff Practitioner"
-            options={staff.map((st) => ({ label: `${st.name} (${st.role})`, value: st.id }))}
+            options={staff.map((st) => ({
+              label: `${st.name} (${st.role})`,
+              value: st.id,
+            }))}
             value={selectedStaffId}
             onChange={(e) => setSelectedStaffId(e.target.value)}
           />
@@ -883,10 +1038,10 @@ export default function StaffPage() {
           <Select
             label="Attendance Status"
             options={[
-              { label: 'Present', value: 'Present' },
-              { label: 'Late', value: 'Late' },
-              { label: 'Approved Leave', value: 'Leave' },
-              { label: 'Absent', value: 'Absent' }
+              { label: "Present", value: "Present" },
+              { label: "Late", value: "Late" },
+              { label: "Approved Leave", value: "Leave" },
+              { label: "Absent", value: "Absent" },
             ]}
             value={attStatus}
             onChange={(e) => setAttStatus(e.target.value as any)}
@@ -900,11 +1055,16 @@ export default function StaffPage() {
           />
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsMarkModalOpen(false)} disabled={isSubmitting}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsMarkModalOpen(false)}
+              disabled={isSubmitting}
+            >
               Cancel
             </Button>
             <Button type="submit" variant="primary" disabled={isSubmitting}>
-              {isSubmitting ? 'Saving...' : 'Save Attendance Record'}
+              {isSubmitting ? "Saving..." : "Save Attendance Record"}
             </Button>
           </div>
         </form>
@@ -921,25 +1081,38 @@ export default function StaffPage() {
         <form onSubmit={handleSaveBulkAttendance} className="space-y-4">
           <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
             {staff.map((s) => (
-              <div key={s.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+              <div
+                key={s.id}
+                className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800 text-xs"
+              >
                 <div>
-                  <span className="font-bold text-slate-900 dark:text-slate-100">{s.name}</span>
-                  <span className="text-[10px] text-slate-400 block font-normal">{s.role}</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100">
+                    {s.name}
+                  </span>
+                  <span className="text-[10px] text-slate-400 block font-normal">
+                    {s.role}
+                  </span>
                 </div>
                 <div className="flex gap-1.5">
-                  {['Present', 'Late', 'Absent'].map((status) => (
+                  {["Present", "Late", "Absent"].map((status) => (
                     <button
                       key={status}
                       type="button"
-                      onClick={() => setBulkList(prev => ({ ...prev, [s.id]: status as any }))}
-                      className={`px-3 py-1.5 rounded-xl font-bold text-[10px] transition-all cursor-pointer ${bulkList[s.id] === status
-                          ? status === 'Present'
-                            ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
-                            : status === 'Absent'
-                              ? 'bg-rose-600 text-white shadow-md shadow-rose-500/20'
-                              : 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                        }`}
+                      onClick={() =>
+                        setBulkList((prev) => ({
+                          ...prev,
+                          [s.id]: status as any,
+                        }))
+                      }
+                      className={`px-3 py-1.5 rounded-xl font-bold text-[10px] transition-all cursor-pointer ${
+                        bulkList[s.id] === status
+                          ? status === "Present"
+                            ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+                            : status === "Absent"
+                              ? "bg-rose-600 text-white shadow-md shadow-rose-500/20"
+                              : "bg-amber-500 text-white shadow-md shadow-amber-500/20"
+                          : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
+                      }`}
                     >
                       {status}
                     </button>
@@ -950,11 +1123,16 @@ export default function StaffPage() {
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsBulkModalOpen(false)} disabled={isSubmitting}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsBulkModalOpen(false)}
+              disabled={isSubmitting}
+            >
               Cancel
             </Button>
             <Button type="submit" variant="primary" disabled={isSubmitting}>
-              {isSubmitting ? 'Saving...' : 'Save Bulk Attendance'}
+              {isSubmitting ? "Saving..." : "Save Bulk Attendance"}
             </Button>
           </div>
         </form>
@@ -987,11 +1165,16 @@ export default function StaffPage() {
           />
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsAddPartnerModalOpen(false)} disabled={isSubmitting}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsAddPartnerModalOpen(false)}
+              disabled={isSubmitting}
+            >
               Cancel
             </Button>
             <Button type="submit" variant="primary" disabled={isSubmitting}>
-              {isSubmitting ? 'Creating...' : 'Create Partner Account'}
+              {isSubmitting ? "Creating..." : "Create Partner Account"}
             </Button>
           </div>
         </form>
@@ -1004,12 +1187,13 @@ export default function StaffPage() {
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className={`fixed top-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl border shadow-xl ${toastMessage.type === 'success'
-                ? 'bg-emerald-50 dark:bg-emerald-950/90 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800'
-                : 'bg-rose-50 dark:bg-rose-950/90 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-800'
-              }`}
+            className={`fixed top-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl border shadow-xl ${
+              toastMessage.type === "success"
+                ? "bg-emerald-50 dark:bg-emerald-950/90 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800"
+                : "bg-rose-50 dark:bg-rose-950/90 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-800"
+            }`}
           >
-            {toastMessage.type === 'success' ? (
+            {toastMessage.type === "success" ? (
               <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 animate-pulse" />
             ) : (
               <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
