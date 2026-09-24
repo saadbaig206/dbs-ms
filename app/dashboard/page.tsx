@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import React, { useMemo } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
+import React, { useMemo } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import {
   DollarSign,
   TrendingUp,
@@ -13,15 +13,15 @@ import {
   Sparkles,
   ArrowRight,
   Plus,
-  Printer
-} from 'lucide-react';
-import { useClinic } from '../../lib/context/ClinicContext';
-import { formatPKR } from '../../lib/utils/currency';
-import { StatCard } from '../../components/cards/StatCard';
-import { Button } from '../../components/ui/Button';
-import { Badge } from '../../components/ui/Badge';
-import { Breadcrumb } from '../../components/ui/Breadcrumb';
-import { AddExpenseModal } from '../../components/ui/AddExpenseModal';
+  Printer,
+} from "lucide-react";
+import { useClinic } from "../../lib/context/ClinicContext";
+import { formatPKR } from "../../lib/utils/currency";
+import { StatCard } from "../../components/cards/StatCard";
+import { Button } from "../../components/ui/Button";
+import { Badge } from "../../components/ui/Badge";
+import { Breadcrumb } from "../../components/ui/Breadcrumb";
+import { AddExpenseModal } from "../../components/ui/AddExpenseModal";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -41,7 +41,7 @@ export default function DashboardPage() {
     staff,
     userEmail,
     markAttendance,
-    attendance
+    attendance,
   } = useClinic();
 
   const [mounted, setMounted] = React.useState(false);
@@ -55,47 +55,78 @@ export default function DashboardPage() {
   // Filter collections if a specific branch is selected
   const appointments = useMemo(() => {
     return selectedBranchId
-      ? allAppointments.filter(a => !a.branchId || a.branchId === selectedBranchId)
+      ? allAppointments.filter(
+          (a) => !a.branchId || a.branchId === selectedBranchId,
+        )
       : allAppointments;
   }, [allAppointments, selectedBranchId]);
 
   const inventory = useMemo(() => {
     return selectedBranchId
-      ? allInventory.filter(i => !i.branchId || i.branchId === selectedBranchId)
+      ? allInventory.filter(
+          (i) => !i.branchId || i.branchId === selectedBranchId,
+        )
       : allInventory;
   }, [allInventory, selectedBranchId]);
 
   const transactions = useMemo(() => {
     return selectedBranchId
-      ? allTransactions.filter(t => !t.branchId || t.branchId === selectedBranchId)
+      ? allTransactions.filter(
+          (t) => !t.branchId || t.branchId === selectedBranchId,
+        )
       : allTransactions;
   }, [allTransactions, selectedBranchId]);
 
   const expenses = useMemo(() => {
     return selectedBranchId
-      ? allExpenses.filter(e => !e.branchId || e.branchId === selectedBranchId)
+      ? allExpenses.filter(
+          (e) => !e.branchId || e.branchId === selectedBranchId,
+        )
       : allExpenses;
   }, [allExpenses, selectedBranchId]);
 
   const purchaseBills = useMemo(() => {
     return selectedBranchId
-      ? allPurchaseBills.filter(b => !b.branchId || b.branchId === selectedBranchId)
+      ? allPurchaseBills.filter(
+          (b) => !b.branchId || b.branchId === selectedBranchId,
+        )
       : allPurchaseBills;
   }, [allPurchaseBills, selectedBranchId]);
 
   const clients = useMemo(() => {
     return selectedBranchId
-      ? (allClients || []).filter(c => !c.branchId || c.branchId === selectedBranchId)
-      : (allClients || []);
+      ? (allClients || []).filter(
+          (c) => !c.branchId || c.branchId === selectedBranchId,
+        )
+      : allClients || [];
   }, [allClients, selectedBranchId]);
 
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
 
-  const todayAppointments = useMemo(() => appointments.filter(a => a.date === todayStr), [appointments, todayStr]);
-  const lowStockCount = useMemo(() => inventory.filter(i => i.status === 'Low Stock' || i.status === 'Out of Stock').length, [inventory]);
+  const todayAppointments = useMemo(
+    () => appointments.filter((a) => a.date === todayStr),
+    [appointments, todayStr],
+  );
+  const lowStockCount = useMemo(
+    () =>
+      inventory.filter(
+        (i) => i.status === "Low Stock" || i.status === "Out of Stock",
+      ).length,
+    [inventory],
+  );
 
-  const currentStaff = useMemo(() => staff.find(s => s.email?.toLowerCase() === userEmail?.toLowerCase()), [staff, userEmail]);
-  const todayRecord = useMemo(() => attendance.find(a => a.staffId === currentStaff?.id && a.date === todayStr), [attendance, currentStaff, todayStr]);
+  const currentStaff = useMemo(
+    () =>
+      staff.find((s) => s.email?.toLowerCase() === userEmail?.toLowerCase()),
+    [staff, userEmail],
+  );
+  const todayRecord = useMemo(
+    () =>
+      attendance.find(
+        (a) => a.staffId === currentStaff?.id && a.date === todayStr,
+      ),
+    [attendance, currentStaff, todayStr],
+  );
   const hasCheckedInToday = !!todayRecord;
   const hasCheckedOutToday = !!todayRecord?.checkOutTime;
 
@@ -113,29 +144,44 @@ export default function DashboardPage() {
     monthlyExpenses,
     netProfit,
     totalCollections,
-    clientReceivables
+    clientReceivables,
   } = useMemo(() => {
     const dNow = new Date();
     const curMonth = dNow.getMonth();
     const curYear = dNow.getFullYear();
 
     // Exclude debt settlements, refunded, and cancelled transactions from gross sales revenue
-    const salesTransactions = transactions.filter(t => {
-      const isDebtSettlement = t.transactionType === 'Debt_Settlement' || t.serviceName === 'Client Debt Settlement';
-      const status = (t.status || '').toLowerCase();
-      return !isDebtSettlement && status !== 'refunded' && status !== 'cancelled';
+    const salesTransactions = transactions.filter((t) => {
+      const isDebtSettlement =
+        t.transactionType === "Debt_Settlement" ||
+        t.serviceName === "Client Debt Settlement";
+      const status = (t.status || "").toLowerCase();
+      return (
+        !isDebtSettlement && status !== "refunded" && status !== "cancelled"
+      );
     });
 
-    const totRev = salesTransactions.reduce((acc, t) => acc + (t.grandTotal || 0), 0);
-    const todRev = salesTransactions.filter(t => t.date === todayStr).reduce((acc, t) => acc + (t.grandTotal || 0), 0);
+    const totRev = salesTransactions.reduce(
+      (acc, t) => acc + (t.grandTotal || 0),
+      0,
+    );
+    const todRev = salesTransactions
+      .filter((t) => t.date === todayStr)
+      .reduce((acc, t) => acc + (t.grandTotal || 0), 0);
 
-    const curMonthSalesTxns = salesTransactions.filter(t => {
+    const curMonthSalesTxns = salesTransactions.filter((t) => {
       if (!t.date) return false;
-      const parts = t.date.split('-');
+      const parts = t.date.split("-");
       if (parts.length < 2) return false;
-      return parseInt(parts[0], 10) === curYear && (parseInt(parts[1], 10) - 1) === curMonth;
+      return (
+        parseInt(parts[0], 10) === curYear &&
+        parseInt(parts[1], 10) - 1 === curMonth
+      );
     });
-    const monRev = curMonthSalesTxns.reduce((acc, t) => acc + (t.grandTotal || 0), 0);
+    const monRev = curMonthSalesTxns.reduce(
+      (acc, t) => acc + (t.grandTotal || 0),
+      0,
+    );
 
     let cashTot = 0;
     let cardTot = 0;
@@ -147,29 +193,39 @@ export default function DashboardPage() {
 
     for (let i = 0; i < transactions.length; i++) {
       const t = transactions[i];
-      const status = (t.status || '').toLowerCase();
-      if (status === 'refunded' || status === 'cancelled') continue;
+      const status = (t.status || "").toLowerCase();
+      if (status === "refunded" || status === "cancelled") continue;
 
       let isCurrentMonth = false;
       if (t.date) {
-        const parts = t.date.split('-');
+        const parts = t.date.split("-");
         if (parts.length >= 2) {
-          isCurrentMonth = parseInt(parts[0], 10) === curYear && (parseInt(parts[1], 10) - 1) === curMonth;
+          isCurrentMonth =
+            parseInt(parts[0], 10) === curYear &&
+            parseInt(parts[1], 10) - 1 === curMonth;
         }
       }
 
-      const paidAmt = t.amountPaid !== undefined && t.amountPaid !== null ? t.amountPaid : (t.grandTotal || 0);
+      const paidAmt =
+        t.amountPaid !== undefined && t.amountPaid !== null
+          ? t.amountPaid
+          : t.grandTotal || 0;
 
-      if (t.paymentSplits && Array.isArray(t.paymentSplits) && t.paymentSplits.length > 0) {
+      if (
+        t.paymentSplits &&
+        Array.isArray(t.paymentSplits) &&
+        t.paymentSplits.length > 0
+      ) {
         const origTotal = t.grandTotal || paidAmt || 1;
-        const scaleFactor = paidAmt < origTotal && origTotal > 0 ? (paidAmt / origTotal) : 1;
+        const scaleFactor =
+          paidAmt < origTotal && origTotal > 0 ? paidAmt / origTotal : 1;
         for (const s of t.paymentSplits) {
-          const sMethod = (s.method || '').toLowerCase();
+          const sMethod = (s.method || "").toLowerCase();
           const sAmt = (Number(s.amount) || 0) * scaleFactor;
-          if (sMethod === 'cash') {
+          if (sMethod === "cash") {
             cashTot += sAmt;
             if (isCurrentMonth) monCash += sAmt;
-          } else if (sMethod === 'card' || sMethod.includes('pos')) {
+          } else if (sMethod === "card" || sMethod.includes("pos")) {
             cardTot += sAmt;
             if (isCurrentMonth) monCard += sAmt;
           } else {
@@ -178,11 +234,11 @@ export default function DashboardPage() {
           }
         }
       } else {
-        const pm = (t.paymentMethod || '').toLowerCase();
-        if (pm === 'cash') {
+        const pm = (t.paymentMethod || "").toLowerCase();
+        if (pm === "cash") {
           cashTot += paidAmt;
           if (isCurrentMonth) monCash += paidAmt;
-        } else if (pm === 'card' || pm.includes('pos')) {
+        } else if (pm === "card" || pm.includes("pos")) {
           cardTot += paidAmt;
           if (isCurrentMonth) monCard += paidAmt;
         } else {
@@ -198,15 +254,18 @@ export default function DashboardPage() {
     for (let i = 0; i < expenses.length; i++) {
       const e = expenses[i];
       // Only include settled Paid expenses, and exclude auto-logged purchase bills to avoid double-counting
-      if ((e.status || '').toLowerCase() !== 'paid') continue;
-      if (e.category === 'Inventory Purchase') continue;
+      if ((e.status || "").toLowerCase() !== "paid") continue;
+      if (e.category === "Inventory Purchase") continue;
 
       const amt = e.amount || 0;
       totExp += amt;
       if (e.date) {
-        const parts = e.date.split('-');
+        const parts = e.date.split("-");
         if (parts.length >= 2) {
-          if (parseInt(parts[0], 10) === curYear && (parseInt(parts[1], 10) - 1) === curMonth) {
+          if (
+            parseInt(parts[0], 10) === curYear &&
+            parseInt(parts[1], 10) - 1 === curMonth
+          ) {
             monExp += amt;
           }
         }
@@ -216,12 +275,20 @@ export default function DashboardPage() {
     // Integrate purchase bills (products and supplier stock)
     for (let i = 0; i < purchaseBills.length; i++) {
       const b = purchaseBills[i];
-      const paid = b.amountPaid !== undefined && b.amountPaid !== null ? b.amountPaid : (b.paymentStatus === 'Paid' ? (b.totalAmount || 0) : 0);
+      const paid =
+        b.amountPaid !== undefined && b.amountPaid !== null
+          ? b.amountPaid
+          : b.paymentStatus === "Paid"
+            ? b.totalAmount || 0
+            : 0;
       totExp += paid;
       if (b.date) {
-        const parts = b.date.split('-');
+        const parts = b.date.split("-");
         if (parts.length >= 2) {
-          if (parseInt(parts[0], 10) === curYear && (parseInt(parts[1], 10) - 1) === curMonth) {
+          if (
+            parseInt(parts[0], 10) === curYear &&
+            parseInt(parts[1], 10) - 1 === curMonth
+          ) {
             monExp += paid;
           }
         }
@@ -242,14 +309,19 @@ export default function DashboardPage() {
       monthlyExpenses: monExp,
       netProfit: totRev - totExp,
       totalCollections: cashTot + cardTot + onlineTot,
-      clientReceivables: clients.reduce((acc, c) => acc + (c.outstandingBalance || 0), 0)
+      clientReceivables: clients.reduce(
+        (acc, c) => acc + (c.outstandingBalance || 0),
+        0,
+      ),
     };
   }, [transactions, expenses, purchaseBills, clients, todayStr]);
 
   if (!mounted) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-slate-500 animate-pulse font-bold">Loading dashboard...</div>
+        <div className="text-slate-500 animate-pulse font-bold">
+          Loading dashboard...
+        </div>
       </div>
     );
   }
@@ -271,7 +343,7 @@ export default function DashboardPage() {
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
           {branches.length > 0 && (
             <select
-              value={selectedBranchId || ''}
+              value={selectedBranchId || ""}
               onChange={(e) => setSelectedBranchId(e.target.value || null)}
               className="w-full sm:w-auto px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-950 dark:text-slate-50 text-sm font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-sm cursor-pointer"
             >
@@ -283,15 +355,23 @@ export default function DashboardPage() {
               ))}
             </select>
           )}
-          {role !== 'partner' && (
-            <div className="flex items-center gap-2.5 w-full sm:w-auto">
-              <Link href="/pos" className="flex-1 sm:flex-initial">
-                <Button variant="primary" icon={<CreditCard className="w-4 h-4" />} className="w-full sm:w-auto justify-center">
+          {role !== "partner" && (
+            <div className="grid grid-cols-2 gap-2.5 w-full sm:flex sm:flex-wrap sm:items-center sm:w-auto">
+              <Link href="/pos" className="col-span-2 sm:col-span-1">
+                <Button
+                  variant="primary"
+                  icon={<CreditCard className="w-4 h-4" />}
+                  className="w-full sm:w-auto whitespace-nowrap justify-center"
+                >
                   Open Billing
                 </Button>
               </Link>
-              <Link href="/appointments" className="flex-1 sm:flex-initial">
-                <Button variant="outline" icon={<Plus className="w-4 h-4" />} className="w-full sm:w-auto justify-center">
+              <Link href="/appointments">
+                <Button
+                  variant="outline"
+                  icon={<Plus className="w-4 h-4" />}
+                  className="w-full sm:w-auto whitespace-nowrap justify-center"
+                >
                   New Appointment
                 </Button>
               </Link>
@@ -299,7 +379,7 @@ export default function DashboardPage() {
                 variant="outline"
                 icon={<DollarSign className="w-4 h-4" />}
                 onClick={() => setIsAddExpenseOpen(true)}
-                className="w-full sm:w-auto justify-center"
+                className="w-full sm:w-auto whitespace-nowrap justify-center"
               >
                 Record Expense
               </Button>
@@ -309,22 +389,27 @@ export default function DashboardPage() {
       </div>
 
       {/* Low Stock Warning Banner */}
-      {role !== 'partner' && lowStockCount > 0 && (
+      {role !== "partner" && lowStockCount > 0 && (
         <div className="p-4 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60 rounded-[20px] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-rose-800 dark:text-rose-200">
           <div className="flex items-center gap-3">
             <AlertTriangle className="w-5 h-5 shrink-0 text-rose-600 dark:text-rose-400" />
             <span>
-              <strong>Inventory Alert:</strong> There are <strong>{lowStockCount}</strong> product items currently low or out of stock.
+              <strong>Inventory Alert:</strong> There are{" "}
+              <strong>{lowStockCount}</strong> product items currently low or
+              out of stock.
             </span>
           </div>
-          <Link href="/inventory" className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:underline shrink-0">
+          <Link
+            href="/inventory"
+            className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:underline shrink-0"
+          >
             View Inventory →
           </Link>
         </div>
       )}
 
       {/* Daily Practitioner Geofenced Attendance Check-In / Check-Out */}
-      {role === 'staff' && currentStaff && (
+      {role === "staff" && currentStaff && (
         <div className="p-5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/60 rounded-[20px] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-slate-800 dark:text-slate-200">
           <div className="space-y-1">
             <h4 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
@@ -332,12 +417,21 @@ export default function DashboardPage() {
               Practitioner Attendance Logging
             </h4>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Assigned branch: <strong>{branches.find(b => b.id === currentStaff.branchId)?.name || 'Main Clinic'}</strong>.
-              {hasCheckedInToday && ` Checked in at ${todayRecord?.checkInTime || 'N/A'}.`}
-              {hasCheckedOutToday && ` Checked out at ${todayRecord?.checkOutTime || 'N/A'}.`}
+              Assigned branch:{" "}
+              <strong>
+                {branches.find((b) => b.id === currentStaff.branchId)?.name ||
+                  "Main Clinic"}
+              </strong>
+              .
+              {hasCheckedInToday &&
+                ` Checked in at ${todayRecord?.checkInTime || "N/A"}.`}
+              {hasCheckedOutToday &&
+                ` Checked out at ${todayRecord?.checkOutTime || "N/A"}.`}
             </p>
             {attendanceMsg && (
-              <p className="text-xs font-bold text-blue-600 dark:text-blue-400 mt-1">{attendanceMsg}</p>
+              <p className="text-xs font-bold text-blue-600 dark:text-blue-400 mt-1">
+                {attendanceMsg}
+              </p>
             )}
           </div>
           <div className="shrink-0 flex items-center gap-2">
@@ -345,24 +439,34 @@ export default function DashboardPage() {
               <Button
                 variant="primary"
                 onClick={async () => {
-                  if (typeof window === 'undefined' || !navigator.geolocation) {
-                    setAttendanceMsg('Geolocation is not supported by your browser.');
+                  if (typeof window === "undefined" || !navigator.geolocation) {
+                    setAttendanceMsg(
+                      "Geolocation is not supported by your browser.",
+                    );
                     return;
                   }
-                  setAttendanceMsg('Requesting location & logging check-in...');
+                  setAttendanceMsg("Requesting location & logging check-in...");
                   navigator.geolocation.getCurrentPosition(
                     async (pos) => {
                       try {
-                        await markAttendance(currentStaff.id, 'Present', 'Self Check-in', pos.coords.latitude, pos.coords.longitude);
-                        setAttendanceMsg('Checked in successfully!');
+                        await markAttendance(
+                          currentStaff.id,
+                          "Present",
+                          "Self Check-in",
+                          pos.coords.latitude,
+                          pos.coords.longitude,
+                        );
+                        setAttendanceMsg("Checked in successfully!");
                       } catch (e: any) {
-                        setAttendanceMsg('Check-in failed: ' + e.message);
+                        setAttendanceMsg("Check-in failed: " + e.message);
                       }
                     },
                     (err) => {
-                      setAttendanceMsg('GPS Location access is required to mark attendance.');
+                      setAttendanceMsg(
+                        "GPS Location access is required to mark attendance.",
+                      );
                     },
-                    { enableHighAccuracy: true, timeout: 5000 }
+                    { enableHighAccuracy: true, timeout: 5000 },
                   );
                 }}
               >
@@ -373,24 +477,30 @@ export default function DashboardPage() {
               <Button
                 variant="outline"
                 onClick={async () => {
-                  if (typeof window === 'undefined' || !navigator.geolocation) {
-                    alert('Geolocation is not supported by your browser.');
+                  if (typeof window === "undefined" || !navigator.geolocation) {
+                    alert("Geolocation is not supported by your browser.");
                     return;
                   }
                   navigator.geolocation.getCurrentPosition(
                     async (pos) => {
                       try {
-                        await markAttendance(currentStaff.id, 'Checked Out', 'Self Check-out', pos.coords.latitude, pos.coords.longitude);
-                        alert('Checked out successfully!');
+                        await markAttendance(
+                          currentStaff.id,
+                          "Checked Out",
+                          "Self Check-out",
+                          pos.coords.latitude,
+                          pos.coords.longitude,
+                        );
+                        alert("Checked out successfully!");
                         window.location.reload();
                       } catch (e: any) {
-                        alert('Check-out failed: ' + e.message);
+                        alert("Check-out failed: " + e.message);
                       }
                     },
                     (err) => {
-                      alert('GPS Location access is required to check-out.');
+                      alert("GPS Location access is required to check-out.");
                     },
-                    { enableHighAccuracy: true, timeout: 5000 }
+                    { enableHighAccuracy: true, timeout: 5000 },
                   );
                 }}
               >
@@ -398,7 +508,9 @@ export default function DashboardPage() {
               </Button>
             )}
             {hasCheckedInToday && hasCheckedOutToday && (
-              <Badge variant="success" size="md">Shift Completed</Badge>
+              <Badge variant="success" size="md">
+                Shift Completed
+              </Badge>
             )}
           </div>
         </div>
@@ -406,9 +518,12 @@ export default function DashboardPage() {
 
       {/* Streamlined 4 KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {role === 'admin' || role === 'partner' ? (
+        {role === "admin" || role === "partner" ? (
           <>
-            <Link href="/finance-reports" className="cursor-pointer block transition hover:-translate-y-0.5">
+            <Link
+              href="/finance-reports"
+              className="cursor-pointer block transition hover:-translate-y-0.5"
+            >
               <StatCard
                 title="Today's Revenue"
                 value={formatPKR(todayRevenue)}
@@ -419,11 +534,14 @@ export default function DashboardPage() {
                 subtitle="from POS & bookings"
               />
             </Link>
-            <Link href="/finance-reports" className="cursor-pointer block transition hover:-translate-y-0.5">
+            <Link
+              href="/finance-reports"
+              className="cursor-pointer block transition hover:-translate-y-0.5"
+            >
               <StatCard
                 title="Monthly Revenue"
                 value={formatPKR(monthlyRevenue)}
-                trend={new Date().toLocaleString('en-US', { month: 'long' })}
+                trend={new Date().toLocaleString("en-US", { month: "long" })}
                 trendDirection="up"
                 colorVariant="blue"
                 icon={<TrendingUp className="w-5 h-5" />}
@@ -434,7 +552,7 @@ export default function DashboardPage() {
               title="Total Profit"
               value={formatPKR(netProfit)}
               trend="Net after expenses"
-              trendDirection={netProfit >= 0 ? 'up' : 'down'}
+              trendDirection={netProfit >= 0 ? "up" : "down"}
               colorVariant="blue"
               icon={<Sparkles className="w-5 h-5" />}
               subtitle="revenue minus costs"
@@ -462,7 +580,11 @@ export default function DashboardPage() {
             />
             <StatCard
               title="Pending Requests"
-              value={appointments.filter(a => a.status === 'Pending' || a.status === 'Confirmed').length}
+              value={
+                appointments.filter(
+                  (a) => a.status === "Pending" || a.status === "Confirmed",
+                ).length
+              }
               trend="Awaiting check-in"
               trendDirection="neutral"
               colorVariant="blue"
@@ -471,8 +593,11 @@ export default function DashboardPage() {
             />
           </>
         )}
-        {role === 'partner' ? (
-          <Link href="/finance-reports" className="cursor-pointer block transition hover:-translate-y-0.5">
+        {role === "partner" ? (
+          <Link
+            href="/finance-reports"
+            className="cursor-pointer block transition hover:-translate-y-0.5"
+          >
             <StatCard
               title="Total Expense"
               value={formatPKR(totalExpenses)}
@@ -497,7 +622,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Payment Channel Overview Banner */}
-      {(role === 'admin' || role === 'partner') && (
+      {(role === "admin" || role === "partner") && (
         <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs shadow-sm">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
@@ -511,36 +636,69 @@ export default function DashboardPage() {
           <div className="flex items-center gap-4 flex-wrap font-semibold">
             <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-blue-400" />
-              Cash: <strong className="font-mono text-slate-900 dark:text-slate-100">{formatPKR(cashTotal)}</strong> ({totalCollections > 0 ? ((cashTotal / totalCollections) * 100).toFixed(1) : '0.0'}%)
+              Cash:{" "}
+              <strong className="font-mono text-slate-900 dark:text-slate-100">
+                {formatPKR(cashTotal)}
+              </strong>{" "}
+              (
+              {totalCollections > 0
+                ? ((cashTotal / totalCollections) * 100).toFixed(1)
+                : "0.0"}
+              %)
             </span>
             <span className="text-blue-700 dark:text-blue-400 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-blue-600" />
-              Card: <strong className="font-mono text-slate-900 dark:text-slate-100">{formatPKR(cardTotal)}</strong> ({totalCollections > 0 ? ((cardTotal / totalCollections) * 100).toFixed(1) : '0.0'}%)
+              Card:{" "}
+              <strong className="font-mono text-slate-900 dark:text-slate-100">
+                {formatPKR(cardTotal)}
+              </strong>{" "}
+              (
+              {totalCollections > 0
+                ? ((cardTotal / totalCollections) * 100).toFixed(1)
+                : "0.0"}
+              %)
             </span>
             <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-sky-500" />
-              Online: <strong className="font-mono text-slate-900 dark:text-slate-100">{formatPKR(onlineTotal)}</strong> ({totalCollections > 0 ? ((onlineTotal / totalCollections) * 100).toFixed(1) : '0.0'}%)
+              Online:{" "}
+              <strong className="font-mono text-slate-900 dark:text-slate-100">
+                {formatPKR(onlineTotal)}
+              </strong>{" "}
+              (
+              {totalCollections > 0
+                ? ((onlineTotal / totalCollections) * 100).toFixed(1)
+                : "0.0"}
+              %)
             </span>
             <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-slate-400" />
-              Client Dues Owed: <strong className="font-mono text-slate-900 dark:text-slate-100">{formatPKR(clientReceivables)}</strong>
+              Client Dues Owed:{" "}
+              <strong className="font-mono text-slate-900 dark:text-slate-100">
+                {formatPKR(clientReceivables)}
+              </strong>
             </span>
           </div>
         </div>
       )}
 
       {/* Conditional Dashboard Table: Recent Transactions for Partner role, Live Treatment Schedule for Admin/Staff */}
-      {role === 'partner' ? (
+      {role === "partner" ? (
         <div className="luxury-card p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
             <div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">
                 Recent Payment Transactions
               </h3>
-              <p className="text-xs text-slate-500">Latest POS checkout receipts and payment transactions</p>
+              <p className="text-xs text-slate-500">
+                Latest POS checkout receipts and payment transactions
+              </p>
             </div>
             <Link href="/finance-reports">
-              <Button variant="ghost" size="sm" icon={<ArrowRight className="w-4 h-4" />}>
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<ArrowRight className="w-4 h-4" />}
+              >
                 View Financial Reports
               </Button>
             </Link>
@@ -562,13 +720,19 @@ export default function DashboardPage() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
                 {transactions.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-xs text-slate-400">
+                    <td
+                      colSpan={7}
+                      className="py-8 text-center text-xs text-slate-400"
+                    >
                       No payment transactions recorded yet.
                     </td>
                   </tr>
                 ) : (
                   transactions.slice(0, 8).map((txn) => (
-                    <tr key={txn.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                    <tr
+                      key={txn.id}
+                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                    >
                       <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-slate-100">
                         {txn.invoiceId || txn.id}
                       </td>
@@ -582,16 +746,20 @@ export default function DashboardPage() {
                         {txn.serviceName}
                       </td>
                       <td className="py-3.5 px-4">
-                        <Badge variant="primary">
-                          {txn.paymentMethod}
-                        </Badge>
+                        <Badge variant="primary">{txn.paymentMethod}</Badge>
                       </td>
                       <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-slate-100">
                         {formatPKR(txn.grandTotal)}
                       </td>
                       <td className="py-3.5 px-4 text-right">
                         <button
-                          onClick={() => setPrintData({ title: `Invoice ${txn.invoiceId}`, type: 'invoice', data: txn })}
+                          onClick={() =>
+                            setPrintData({
+                              title: `Invoice ${txn.invoiceId}`,
+                              type: "invoice",
+                              data: txn,
+                            })
+                          }
                           className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors"
                           title="Print Official Invoice Receipt"
                         >
@@ -613,10 +781,16 @@ export default function DashboardPage() {
               <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">
                 Today's Live Treatment Schedule
               </h3>
-              <p className="text-xs text-slate-500">Active client bookings and specialist assignments</p>
+              <p className="text-xs text-slate-500">
+                Active client bookings and specialist assignments
+              </p>
             </div>
             <Link href="/appointments">
-              <Button variant="ghost" size="sm" icon={<ArrowRight className="w-4 h-4" />}>
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<ArrowRight className="w-4 h-4" />}
+              >
                 View All Bookings
               </Button>
             </Link>
@@ -636,7 +810,10 @@ export default function DashboardPage() {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
                 {todayAppointments.slice(0, 5).map((apt) => (
-                  <tr key={apt.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                  <tr
+                    key={apt.id}
+                    className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                  >
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-slate-100">
                       {apt.time}
                     </td>
@@ -652,13 +829,13 @@ export default function DashboardPage() {
                     <td className="py-3.5 px-4">
                       <Badge
                         variant={
-                          apt.status === 'Completed'
-                            ? 'success'
-                            : apt.status === 'In-Progress'
-                              ? 'warning'
-                              : apt.status === 'Confirmed'
-                                ? 'primary'
-                                : 'neutral'
+                          apt.status === "Completed"
+                            ? "success"
+                            : apt.status === "In-Progress"
+                              ? "warning"
+                              : apt.status === "Confirmed"
+                                ? "primary"
+                                : "neutral"
                         }
                       >
                         {apt.status}
@@ -667,10 +844,18 @@ export default function DashboardPage() {
                     <td className="py-3.5 px-4 text-right">
                       <button
                         onClick={() => {
-                          const clientParam = encodeURIComponent(apt.clientName || '');
-                          const serviceIdParam = encodeURIComponent(apt.serviceId || '');
-                          const serviceNameParam = encodeURIComponent(apt.serviceName || '');
-                          router.push(`/pos?client=${clientParam}&serviceId=${serviceIdParam}&serviceName=${serviceNameParam}`);
+                          const clientParam = encodeURIComponent(
+                            apt.clientName || "",
+                          );
+                          const serviceIdParam = encodeURIComponent(
+                            apt.serviceId || "",
+                          );
+                          const serviceNameParam = encodeURIComponent(
+                            apt.serviceName || "",
+                          );
+                          router.push(
+                            `/pos?client=${clientParam}&serviceId=${serviceIdParam}&serviceName=${serviceNameParam}`,
+                          );
                         }}
                         className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 shadow-md hover:shadow-blue-500/20 active:scale-95 transition-all flex items-center gap-1.5 ml-auto"
                         title="Go to Billing & Checkout"
