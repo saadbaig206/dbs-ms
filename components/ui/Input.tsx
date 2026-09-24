@@ -3,6 +3,7 @@ import { clsx } from 'clsx';
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
+  labelClassName?: string;
   error?: string;
   icon?: React.ReactNode;
   rightIcon?: React.ReactNode;
@@ -10,6 +11,7 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(({
   label,
+  labelClassName,
   error,
   icon,
   rightIcon,
@@ -19,7 +21,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(({
   return (
     <div className="w-full space-y-1.5">
       {label && (
-        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+        <label className={clsx("block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider", labelClassName)}>
           {label}
         </label>
       )}
@@ -57,6 +59,7 @@ Input.displayName = 'Input';
 
 export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
+  labelClassName?: string;
   error?: string;
   options?: { label: string; value: string }[];
   children?: React.ReactNode;
@@ -64,6 +67,7 @@ export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElemen
 
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(({
   label,
+  labelClassName,
   error,
   options = [],
   children,
@@ -73,7 +77,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(({
   return (
     <div className="w-full space-y-1.5">
       {label && (
-        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+        <label className={clsx("block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider", labelClassName)}>
           {label}
         </label>
       )}

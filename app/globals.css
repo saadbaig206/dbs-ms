@@ -85,20 +85,35 @@
   border-color: rgba(30, 41, 59, 0.7);
 }
 
-/* Custom Scrollbar */
+/* Custom Scrollbar - Hidden visually across all browsers while retaining scrolling functionality */
+*,
+html,
+body,
+div,
+aside,
+main,
+section,
+table {
+  -ms-overflow-style: none !important; /* IE and Edge */
+  scrollbar-width: none !important; /* Firefox */
+}
+
+*::-webkit-scrollbar,
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+  background: transparent !important;
 }
-::-webkit-scrollbar-track {
-  background: transparent;
+
+/* Hide native browser up/down stepper spin buttons for number inputs */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
 }
-::-webkit-scrollbar-thumb {
-  background: #94A3B8;
-  border-radius: 9999px;
-}
-.dark ::-webkit-scrollbar-thumb {
-  background: #334155;
+input[type="number"] {
+  -moz-appearance: textfield !important;
 }
 
 /* Print styles — only show the dedicated print portal.

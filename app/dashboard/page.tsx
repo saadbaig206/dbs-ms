@@ -340,52 +340,63 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
-          {branches.length > 0 && (
-            <select
-              value={selectedBranchId || ""}
-              onChange={(e) => setSelectedBranchId(e.target.value || null)}
-              className="w-full sm:w-auto px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-950 dark:text-slate-50 text-sm font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-sm cursor-pointer"
-            >
-              <option value="">All Branches</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          )}
-          {role !== "partner" && (
-            <div className="grid grid-cols-2 gap-2.5 w-full sm:flex sm:flex-wrap sm:items-center sm:w-auto">
-              <Link href="/pos" className="col-span-2 sm:col-span-1">
-                <Button
-                  variant="primary"
-                  icon={<CreditCard className="w-4 h-4" />}
-                  className="w-full sm:w-auto whitespace-nowrap justify-center"
-                >
-                  Open Billing
-                </Button>
-              </Link>
-              <Link href="/appointments">
-                <Button
-                  variant="outline"
-                  icon={<Plus className="w-4 h-4" />}
-                  className="w-full sm:w-auto whitespace-nowrap justify-center"
-                >
-                  New Appointment
-                </Button>
-              </Link>
-              <Button
-                variant="outline"
-                icon={<DollarSign className="w-4 h-4" />}
-                onClick={() => setIsAddExpenseOpen(true)}
-                className="w-full sm:w-auto whitespace-nowrap justify-center"
-              >
-                Record Expense
-              </Button>
-            </div>
-          )}
-        </div>
+       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 w-full">
+  
+  {/* Branch Selector */}
+  {branches.length > 0 && (
+    <select
+      value={selectedBranchId || ""}
+      onChange={(e) => setSelectedBranchId(e.target.value || null)}
+      className="w-full lg:w-auto shrink-0 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-950 dark:text-slate-50 text-sm font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-sm cursor-pointer"
+    >
+      <option value="">All Branches</option>
+      {branches.map((b) => (
+        <option key={b.id} value={b.id}>
+          {b.name}
+        </option>
+      ))}
+    </select>
+  )}
+
+  {/* Action Buttons Grid */}
+  {role !== "partner" && (
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 w-full lg:w-auto">
+      
+      <Link href="/pos" className="w-full">
+        <Button
+          variant="primary"
+        
+          // Added text-xs sm:text-sm to decrease text size
+          className="w-full whitespace-nowrap justify-center h-full text-xs sm:text-sm"
+        >
+          Open Billing
+        </Button>
+      </Link>
+      
+      <Link href="/appointments" className="w-full">
+        <Button
+          variant="outline"
+       
+          // Added text-xs sm:text-sm to decrease text size
+          className="w-full whitespace-nowrap justify-center h-full text-xs sm:text-sm"
+        >
+          New Appointment
+        </Button>
+      </Link>
+      
+      <Button
+        variant="outline"
+       
+        onClick={() => setIsAddExpenseOpen(true)}
+        // Added text-xs sm:text-sm to decrease text size
+        className="w-full whitespace-nowrap justify-center h-full col-span-2 sm:col-span-1 text-xs sm:text-sm"
+      >
+        Record Expense
+      </Button>
+      
+    </div>
+  )}
+</div>
       </div>
 
       {/* Low Stock Warning Banner */}

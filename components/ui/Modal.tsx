@@ -106,7 +106,7 @@ export const Modal: React.FC<ModalProps> = ({
             )}
 
             {/* Body */}
-            <div className="p-4 sm:p-7 max-h-[82vh] sm:max-h-[86vh] overflow-y-auto custom-scrollbar">
+            <div className="p-4 sm:p-7 max-h-[82vh] sm:max-h-[86vh] overflow-y-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {children}
             </div>
           </motion.div>

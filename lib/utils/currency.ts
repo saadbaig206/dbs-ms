@@ -1,7 +1,8 @@
 /** Format amount in Pakistani Rupees */
-export function formatPKR(amount: number, options?: { decimals?: boolean }): string {
+export function formatPKR(amount?: number | null, options?: { decimals?: boolean }): string {
   const showDecimals = options?.decimals ?? true;
-  const formatted = amount.toLocaleString('en-PK', {
+  const num = (typeof amount === 'number' && !isNaN(amount)) ? amount : (Number(amount) || 0);
+  const formatted = num.toLocaleString('en-PK', {
     minimumFractionDigits: showDecimals ? 2 : 0,
     maximumFractionDigits: showDecimals ? 2 : 0,
   });

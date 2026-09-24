@@ -655,6 +655,7 @@ export default function InventoryPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Select
               label="Category"
+              labelClassName="min-h-[2.25rem] flex items-end pb-0.5"
               options={[
                 { label: 'Injectables & Toxins', value: 'Injectables & Toxins' },
                 { label: 'Dermal Fillers', value: 'Dermal Fillers' },
@@ -670,6 +671,7 @@ export default function InventoryPage() {
             />
             <Input
               label="Quantity Purchased"
+              labelClassName="min-h-[2.25rem] flex items-end pb-0.5"
               type="text"
               placeholder="10"
               value={quantity}
@@ -678,6 +680,7 @@ export default function InventoryPage() {
             />
             <Input
               label="Retail Selling Price (PKR)"
+              labelClassName="min-h-[2.25rem] flex items-end pb-0.5"
               type="number"
               min="0"
               placeholder="e.g. 8500 (POS Price)"
@@ -730,6 +733,7 @@ export default function InventoryPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
             <Input
               label="Actual Amount (Rs)"
+              labelClassName="min-h-[1.5rem] flex items-end pb-0.5"
               type="text"
               value={actualAmount}
               onChange={(e) => {
@@ -743,6 +747,7 @@ export default function InventoryPage() {
             />
             <Input
               label={paymentType === 'Debit' ? "Amount Paid (Full Payment)" : "Initial Amount Paid (Rs)"}
+              labelClassName="min-h-[1.5rem] flex items-end pb-0.5"
               type="text"
               value={paymentType === 'Debit' ? actualAmount : amountPaid}
               disabled={paymentType === 'Debit'}
@@ -860,6 +865,7 @@ export default function InventoryPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Input
               label="Restock Quantity (+Units)"
+              labelClassName="min-h-[2.25rem] flex items-end pb-0.5"
               type="text"
               value={renewQty}
               onChange={(e) => {
@@ -874,6 +880,7 @@ export default function InventoryPage() {
 
             <Input
               label="Total Order Cost (PKR)"
+              labelClassName="min-h-[2.25rem] flex items-end pb-0.5"
               type="text"
               value={renewActualAmount}
               onChange={(e) => setRenewActualAmount(e.target.value.replace(/\D/g, ''))}
@@ -882,6 +889,7 @@ export default function InventoryPage() {
 
             <Input
               label="Retail Price (Optional Update)"
+              labelClassName="min-h-[2.25rem] flex items-end pb-0.5"
               type="number"
               min="0"
               placeholder={selectedRenewItem ? `Current: ${selectedRenewItem.price}` : 'e.g. 5000'}

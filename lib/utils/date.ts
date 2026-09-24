@@ -18,10 +18,13 @@ export function getLocalTimeString(d: Date = new Date()): string {
 /**
  * Formats YYYY-MM-DD string to a readable date (e.g. 16 Sep 2026).
  */
-export function formatDateDisplay(dateStr: string): string {
-  if (!dateStr) return '';
-  const [year, month, day] = dateStr.split('-').map(Number);
-  if (!year || !month || !day) return dateStr;
+export function formatDateDisplay(dateStr?: string | null): string {
+  if (!dateStr || typeof dateStr !== 'string') return 'N/A';
+  const parts = dateStr.split('-').map(Number);
+  if (parts.length < 3) return dateStr || 'N/A';
+  const [year, month, day] = parts;
+  if (!year || !month || !day || isNaN(year) || isNaN(month) || isNaN(day)) return dateStr;
   const date = new Date(year, month - 1, day);
+  if (isNaN(date.getTime())) return dateStr;
   return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }

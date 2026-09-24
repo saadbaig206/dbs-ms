@@ -177,6 +177,7 @@ export default function FinanceReportsPage() {
     transactions: allTransactions,
     expenses: allExpenses,
     purchaseBills: allPurchaseBills = [],
+    clients: allClients = [],
     addExpense,
     updateExpense,
     deleteExpense,
@@ -215,6 +216,12 @@ export default function FinanceReportsPage() {
         (b: any) => !b.branchId || b.branchId === selectedBranchId,
       )
     : allPurchaseBills;
+
+  const clients = selectedBranchId
+    ? allClients.filter(
+        (c: any) => !c.branchId || c.branchId === selectedBranchId,
+      )
+    : allClients;
 
   const [activeTab, setActiveTab] = useState<
     "transactions" | "purchases" | "expenses" | "equity" | "reports"
@@ -491,6 +498,7 @@ export default function FinanceReportsPage() {
     let cardCount = 0;
     let onlineRev = 0;
     let onlineCount = 0;
+    let txnRemainingDues = 0;
 
     for (let i = 0; i < transactions.length; i++) {
       const t = transactions[i];
@@ -503,15 +511,30 @@ export default function FinanceReportsPage() {
         t.serviceName === "Client Debt Settlement";
       const gTotal = t.grandTotal || 0;
       const disc = t.discount || 0;
+      
+      const isPartialOrPending =
+        t.paymentStatus === "Partial" ||
+        t.paymentStatus === "Unpaid" ||
+        t.status === "Pending" ||
+        (t.remainingDue !== undefined && t.remainingDue !== null && t.remainingDue > 0);
+
       const paidAmt =
         t.amountPaid !== undefined && t.amountPaid !== null
           ? t.amountPaid
-          : gTotal;
+          : (isPartialOrPending && t.remainingDue !== undefined && t.remainingDue !== null
+              ? Math.max(0, gTotal - t.remainingDue)
+              : (isPartialOrPending ? 0 : gTotal));
+
+      const remDue =
+        t.remainingDue !== undefined && t.remainingDue !== null
+          ? t.remainingDue
+          : (isPartialOrPending ? Math.max(0, gTotal - paidAmt) : 0);
 
       // Exclude debt settlements from sales revenue to avoid double counting receivables
       if (!isDebtSettlement) {
         totalRev += gTotal;
         totalDisc += disc;
+        txnRemainingDues += Math.max(0, remDue);
       }
 
       // Handle split payment tender vs single method
@@ -561,9 +584,17 @@ export default function FinanceReportsPage() {
       }
     }
 
+    const clientDuesSum = (clients || []).reduce(
+      (acc: number, c: any) => acc + (c.outstandingBalance || 0),
+      0,
+    );
+
+    const calculatedDiffDue = Math.max(0, totalRev - (cashRev + cardRev + onlineRev));
     const uncollectedDues = Math.max(
       0,
-      totalRev - (cashRev + cardRev + onlineRev),
+      clientDuesSum > 0
+        ? clientDuesSum
+        : (txnRemainingDues > 0 ? txnRemainingDues : calculatedDiffDue),
     );
     const totalCollections = cashRev + cardRev + onlineRev;
     const baseCollDenominator = totalCollections > 0 ? totalCollections : 1;
@@ -890,12 +921,12 @@ export default function FinanceReportsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap w-full sm:w-auto min-w-0">
+        <div className="flex flex-wrap items-center justify-start lg:justify-end gap-3 w-full lg:w-auto min-w-0">
           {branches.length > 0 && (
             <select
               value={selectedBranchId || ""}
               onChange={(e) => setSelectedBranchId(e.target.value || null)}
-              className="w-full sm:w-auto px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-950 dark:text-slate-50 text-sm font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-sm cursor-pointer"
+              className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-950 dark:text-slate-50 text-sm font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-sm cursor-pointer shrink-0"
             >
               <option value="">All Branches</option>
               {branches.map((b) => (
@@ -907,10 +938,10 @@ export default function FinanceReportsPage() {
           )}
 
           {/* Main Sub-Tabs Toggle */}
-          <div className="flex w-full sm:w-auto max-w-full gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="inline-flex shrink-0 max-w-full gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <button
               onClick={() => setActiveTab("transactions")}
-              className={`shrink-0 whitespace-nowrap px-3 py-2 sm:py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 activeTab === "transactions"
                   ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
@@ -920,7 +951,7 @@ export default function FinanceReportsPage() {
             </button>
             <button
               onClick={() => setActiveTab("purchases")}
-              className={`shrink-0 whitespace-nowrap px-3 py-2 sm:py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 activeTab === "purchases"
                   ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
@@ -930,7 +961,7 @@ export default function FinanceReportsPage() {
             </button>
             <button
               onClick={() => setActiveTab("expenses")}
-              className={`shrink-0 whitespace-nowrap px-3 py-2 sm:py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 activeTab === "expenses"
                   ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
@@ -940,7 +971,7 @@ export default function FinanceReportsPage() {
             </button>
             <button
               onClick={() => setActiveTab("equity")}
-              className={`shrink-0 whitespace-nowrap px-3 py-2 sm:py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 activeTab === "equity"
                   ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
@@ -950,7 +981,7 @@ export default function FinanceReportsPage() {
             </button>
             <button
               onClick={() => setActiveTab("reports")}
-              className={`shrink-0 whitespace-nowrap px-3 py-2 sm:py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 activeTab === "reports"
                   ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
@@ -966,15 +997,16 @@ export default function FinanceReportsPage() {
                 onClick={() => setIsAddExpenseModalOpen(true)}
                 variant="primary"
                 icon={<Plus className="w-4 h-4" />}
+                className="shrink-0"
               >
                 Add Expense
               </Button>
             )}
 
           {activeTab === "reports" && (
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+            <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
                   From:
                 </span>
                 <FinanceDatePicker
@@ -983,8 +1015,8 @@ export default function FinanceReportsPage() {
                   onChange={setReportStartDate}
                 />
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
                   To:
                 </span>
                 <FinanceDatePicker

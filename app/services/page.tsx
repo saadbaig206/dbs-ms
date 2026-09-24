@@ -155,31 +155,31 @@ export default function ServicesPage() {
       </div>
 
       {/* Filter Tabs & Search */}
-      <div className="luxury-card p-4 space-y-3">
-        <Input
-          placeholder="Search treatments..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          icon={<Search className="w-4 h-4" />}
-          className="max-w-md"
-        />
+     <div className="luxury-card p-4 space-y-3">
+  <Input
+    placeholder="Search treatments..."
+    value={search}
+    onChange={(e) => setSearch(e.target.value)}
+    icon={<Search className="w-4 h-4" />}
+    className="max-w-md"
+  />
 
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                selectedCategory === cat
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-      </div>
+  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+    {categories.map((cat) => (
+      <button
+        key={cat}
+        onClick={() => setSelectedCategory(cat)}
+        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
+          selectedCategory === cat
+            ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+        }`}
+      >
+        {cat}
+      </button>
+    ))}
+  </div>
+</div>
 
       {/* Services Table View */}
       <div className="luxury-card p-6">
