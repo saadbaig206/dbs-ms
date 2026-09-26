@@ -57,14 +57,7 @@ async def pos_checkout(
                 detail="Card payments require POS terminal reference / Bank Transaction ID (Slip No) to prevent unverified card tender."
             )
 
-        # 2. Staff discount limit: non-admin cashiers cannot apply >20% discount without admin supervisor
         user_role = getattr(current_user, "role", "")
-        if payload.discount_percent > 20.0 and user_role != "admin":
-            raise HTTPException(
-                status_code=403,
-                detail="Discounts exceeding 20% require Admin supervisor override."
-            )
-
         active_branch = user_branch_id or payload.branch_id
         is_admin_user = (user_role == "admin")
 

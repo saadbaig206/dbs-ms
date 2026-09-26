@@ -449,8 +449,8 @@ function POSContent() {
       return;
     }
 
-    if (role !== 'admin' && (Number(discountPercent) || 0) > 20) {
-      showToast("Staff discounts are capped at 20%. Discounts above 20% require Admin supervisor override.", "error");
+    if ((Number(discountPercent) || 0) > 100 || (Number(discountPercent) || 0) < 0) {
+      showToast("Discount percentage must be between 0% and 100%.", "error");
       return;
     }
 
@@ -1005,23 +1005,15 @@ function POSContent() {
 
               <div className="flex flex-col gap-1.5 py-1 border-b border-slate-100 dark:border-slate-800/60">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-slate-600 dark:text-slate-400">Discount (%)</span>
-                    {role !== 'admin' && (
-                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold bg-amber-50 dark:bg-amber-950/50 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-900/50">
-                        Max 20%
-                      </span>
-                    )}
-                  </div>
+                  <span className="text-slate-600 dark:text-slate-400">Discount (%)</span>
                   <input
                     type="text"
                     value={discountPercent}
                     onChange={(e) => {
                       const val = e.target.value.replace(/\D/g, '');
                       const num = Number(val);
-                      if (role !== 'admin' && num > 20) {
-                        showToast("Staff discount capped at 20%. Higher discount requires Admin supervisor.", "error");
-                        setDiscountPercent('20');
+                      if (num > 100) {
+                        setDiscountPercent('100');
                       } else {
                         setDiscountPercent(val);
                       }
@@ -1030,7 +1022,7 @@ function POSContent() {
                   />
                 </div>
                 <div className="flex justify-end gap-1">
-                  {[0, 5, 10, 15, 20].map((pct) => (
+                  {[0, 5, 10, 15, 20, 25, 50].map((pct) => (
                     <button
                       key={pct}
                       type="button"

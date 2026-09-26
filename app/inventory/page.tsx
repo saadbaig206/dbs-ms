@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { Package, Plus, Search, Minus, UserCheck, DollarSign, RotateCw } from 'lucide-react';
+import { Package, Plus, Search, Minus, DollarSign, RotateCw, ShoppingBag } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { InventoryCategory } from '../../lib/types/clinic';
 import { formatPKR } from '../../lib/utils/currency';
@@ -19,13 +18,10 @@ export default function InventoryPage() {
     addInventoryItem,
     updateInventoryQuantity,
     updateInventoryItem,
-    addExpense,
     branches,
     selectedBranchId,
-    setSelectedBranchId,
     userBranchId,
     role,
-    userEmail,
     isLoading,
     refreshInventory
   } = useClinic();
@@ -62,7 +58,38 @@ export default function InventoryPage() {
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
-  const [isAddVendorModalOpen, setIsAddVendorModalOpen] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  // Add Product Modal State
+  const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
+  const [productName, setProductName] = useState('');
+  const [category, setCategory] = useState<InventoryCategory | 'custom'>('Injectables & Toxins');
+  const [customCategory, setCustomCategory] = useState('');
+  const [supplier, setSupplier] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [minStock, setMinStock] = useState('5');
+  const [sellingPrice, setSellingPrice] = useState('');
+  const [productBranchId, setProductBranchId] = useState('');
+
+  // Auto-sync product branch default
+  useEffect(() => {
+    if (!productBranchId && branches.length > 0) {
+      setProductBranchId(filterBranchId || selectedBranchId || userBranchId || branches[0].id);
+    }
+  }, [filterBranchId, selectedBranchId, userBranchId, branches, productBranchId]);
+
+  // Adjust / Add Stock Modal State
+  const [adjustStockItem, setAdjustStockItem] = useState<any>(null);
+  const [adjustQuantity, setAdjustQuantity] = useState('1');
+  const [adjustReason, setAdjustReason] = useState('Stock count adjustment / replenishment');
+
+  // Reduce Stock Modal State
   const [reduceModalItemId, setReduceModalItemId] = useState<string | null>(null);
   const [reduceAmount, setReduceAmount] = useState<string>('1');
   const [reduceReason, setReduceReason] = useState<string>('Treatment consumption / Clinic usage');
@@ -96,92 +123,12 @@ export default function InventoryPage() {
     }
   };
 
-  // Vendor Form State
-  const [vendorName, setVendorName] = useState('');
-  const [productName, setProductName] = useState('');
-  const [category, setCategory] = useState<InventoryCategory | 'custom'>('Injectables & Toxins');
-  const [customCategory, setCustomCategory] = useState('');
-  const [vendorBranchId, setVendorBranchId] = useState<string>('');
-  const [quantity, setQuantity] = useState<string>('');
-  const [sellingPrice, setSellingPrice] = useState<string>('');
-  const [paymentType, setPaymentType] = useState<'Debit' | 'Credit'>('Debit');
-  const [actualAmount, setActualAmount] = useState<string>('');
-  const [amountPaid, setAmountPaid] = useState<string>('');
-
-  // Auto-sync vendor branch default
-  useEffect(() => {
-    if (!vendorBranchId && branches.length > 0) {
-      setVendorBranchId(filterBranchId || selectedBranchId || userBranchId || branches[0].id);
-    }
-  }, [filterBranchId, selectedBranchId, userBranchId, branches, vendorBranchId]);
-
-  // Auto-sync amountPaid when Debit is selected or actualAmount changes under Debit
-  useEffect(() => {
-    if (paymentType === 'Debit') {
-      setAmountPaid(actualAmount);
-    }
-  }, [paymentType, actualAmount]);
-
-  const calcActual = Number(actualAmount) || 0;
-  const calcPaid = paymentType === 'Debit' ? calcActual : (Number(amountPaid) || 0);
-  const remainingAmount = Math.max(0, calcActual - calcPaid);
-
-  // Renew Vendor Form State
-  const [isRenewVendorModalOpen, setIsRenewVendorModalOpen] = useState(false);
-  const [renewItemId, setRenewItemId] = useState<string>('');
-  const [renewQty, setRenewQty] = useState<string>('');
-  const [renewActualAmount, setRenewActualAmount] = useState<string>('');
-  const [renewSellingPrice, setRenewSellingPrice] = useState<string>('');
-  const [renewPaymentType, setRenewPaymentType] = useState<'Debit' | 'Credit'>('Debit');
-  const [renewAmountPaid, setRenewAmountPaid] = useState<string>('');
-
-  const selectedRenewItem = inventory.find(i => i.id === renewItemId) || inventory[0];
-
-  useEffect(() => {
-    if (renewPaymentType === 'Debit') {
-      setRenewAmountPaid(renewActualAmount);
-    }
-  }, [renewPaymentType, renewActualAmount]);
-
-  const renewCalcActual = Number(renewActualAmount) || 0;
-  const renewCalcPaid = renewPaymentType === 'Debit' ? renewCalcActual : (Number(renewAmountPaid) || 0);
-  const renewRemainingAmount = Math.max(0, renewCalcActual - renewCalcPaid);
-
-  const handleOpenRenewModal = (itemId?: string) => {
-    const item = itemId ? inventory.find(i => i.id === itemId) : (inventory[0] || null);
-    if (item) {
-      setRenewItemId(item.id);
-      setRenewQty('');
-      setRenewActualAmount('');
-      setRenewAmountPaid('');
-      setRenewPaymentType('Debit');
-    }
-    setIsRenewVendorModalOpen(true);
-  };
-
-  const filteredInventory = inventory.filter((item) => {
-    const matchesSearch =
-      item.itemName.toLowerCase().includes(search.toLowerCase()) ||
-      item.supplier.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === 'All' || item.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-
-  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
-  };
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleAddVendor = async (e: React.FormEvent) => {
+  const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
 
-    if (!vendorName.trim() || !productName.trim()) {
-      showToast("Vendor Name and Product Name are required", "error");
+    if (!productName.trim()) {
+      showToast("Product name is required", "error");
       return;
     }
 
@@ -190,185 +137,59 @@ export default function InventoryPage() {
       return;
     }
 
-    setIsSubmitting(true);
-    // 1. Immediately close modal to confirm action
-    setIsAddVendorModalOpen(false);
-
-    const qtyNum = Number(quantity) || 1;
-    const actAmtNum = Number(actualAmount) || 0;
-    const pdAmtNum = paymentType === 'Debit' ? actAmtNum : (Number(amountPaid) || 0);
-    const remAmtNum = Math.max(0, actAmtNum - pdAmtNum);
-    const isFullyPaid = remAmtNum === 0;
-
-    const activeUser = userEmail || role || 'Admin/Partner';
-    const unitPrice = actAmtNum > 0 ? Math.round(actAmtNum / qtyNum) : 0;
-    const sellPriceNum = Number(sellingPrice);
-    const finalSellingPrice = (!isNaN(sellPriceNum) && sellPriceNum > 0) ? sellPriceNum : unitPrice;
-    const todayStr = new Date().toISOString().split('T')[0];
-    const nowFormatStr = new Date().toLocaleString('en-US', {
-      dateStyle: 'medium',
-      timeStyle: 'short'
-    });
-
-    const vName = vendorName;
-    const pName = productName;
-    const pCat = category === 'custom' ? (customCategory.trim() || 'General') : category;
-    const pType = paymentType;
-    const targetBranchId = vendorBranchId || filterBranchId || selectedBranchId || userBranchId || (branches.length > 0 ? branches[0].id : undefined);
-
-    // Reset Form State
-    setVendorName('');
-    setProductName('');
-    setCustomCategory('');
-    setQuantity('');
-    setSellingPrice('');
-    setActualAmount('');
-    setAmountPaid('');
-    setPaymentType('Debit');
-
-    showToast(`Vendor '${vName}' added successfully!`);
-
     try {
-      // Check if item with same product name and vendor supplier already exists
-      const existingItem = allInventory.find(i => 
-        i.itemName.toLowerCase().trim() === pName.toLowerCase().trim() &&
-        i.supplier.toLowerCase().trim() === vName.toLowerCase().trim()
-      );
+      setIsSubmitting(true);
+      const qtyNum = Number(quantity) || 0;
+      const minStockNum = Number(minStock) || 5;
+      const priceNum = Number(sellingPrice) || 0;
+      const finalCategory = category === 'custom' ? (customCategory.trim() || 'General') : category;
+      const todayStr = new Date().toISOString().split('T')[0];
+      const targetBranchId = productBranchId || filterBranchId || selectedBranchId || userBranchId || (branches.length > 0 ? branches[0].id : undefined);
 
-      if (existingItem) {
-        await updateInventoryQuantity(existingItem.id, qtyNum);
-        if (!isNaN(sellPriceNum) && sellPriceNum > 0) {
-          await updateInventoryItem(existingItem.id, { price: sellPriceNum });
-        }
-      } else {
-        await addInventoryItem({
-          itemName: pName,
-          category: pCat,
-          quantity: qtyNum,
-          minStock: 10,
-          supplier: vName,
-          price: finalSellingPrice,
-          lastRestocked: todayStr,
-          branchId: targetBranchId
-        });
-      }
-
-      // Log vendor purchase into Expenses / Vendor Dues
-      await addExpense({
-        title: `Vendor Purchase: ${pName} (${vName})`,
-        category: 'Products',
-        amount: actAmtNum,
-        actualAmount: actAmtNum,
-        amountPaid: pdAmtNum,
-        remainingAmount: remAmtNum,
-        paymentType: pType,
-        vendorName: vName,
-        productName: pName,
-        date: todayStr,
-        status: isFullyPaid ? 'Paid' : 'Pending',
-        paymentMethod: 'Cash',
-        notes: `Vendor: ${vName} | Product: ${pName} | Qty: ${qtyNum} | Payment: ${pType}`,
-        addedBy: activeUser,
-        paidBy: activeUser,
-        branchId: targetBranchId,
-        paymentLogs: pdAmtNum > 0 ? [
-          {
-            id: `PAYLOG-${Date.now()}`,
-            amount: pdAmtNum,
-            paidBy: activeUser,
-            date: nowFormatStr,
-            paymentMethod: 'Cash',
-            notes: pType === 'Debit' ? 'Full Debit Payment' : 'Initial Credit Advance'
-          }
-        ] : []
+      await addInventoryItem({
+        itemName: productName.trim(),
+        category: finalCategory as any,
+        quantity: qtyNum,
+        minStock: minStockNum,
+        supplier: supplier.trim() || 'In-House / Direct',
+        price: priceNum,
+        lastRestocked: todayStr,
+        branchId: targetBranchId
       });
+
+      showToast(`Product '${productName.trim()}' added to inventory successfully!`);
+      setIsAddProductModalOpen(false);
+      setProductName('');
+      setCategory('Injectables & Toxins');
+      setCustomCategory('');
+      setSupplier('');
+      setQuantity('');
+      setMinStock('5');
+      setSellingPrice('');
     } catch (err: any) {
-      console.error("Failed to persist vendor purchase:", err);
-      showToast("Error persisting vendor purchase", "error");
+      showToast("Failed to add product: " + (err.message || err), "error");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleRenewVendor = async (e: React.FormEvent) => {
+  const handleAdjustStock = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmitting) return;
-
-    const targetItem = inventory.find(i => i.id === renewItemId);
-    if (!targetItem) {
-      showToast("Please select an item / vendor to renew", "error");
+    if (isSubmitting || !adjustStockItem) return;
+    const amount = Number(adjustQuantity) || 0;
+    if (amount <= 0) {
+      showToast("Quantity must be greater than zero", "error");
       return;
     }
-
-    setIsSubmitting(true);
-    setIsRenewVendorModalOpen(false);
-
-    const qtyNum = Number(renewQty) || 1;
-    const actAmtNum = Number(renewActualAmount) || 0;
-    const pdAmtNum = renewPaymentType === 'Debit' ? actAmtNum : (Number(renewAmountPaid) || 0);
-    const remAmtNum = Math.max(0, actAmtNum - pdAmtNum);
-    const isFullyPaid = remAmtNum === 0;
-
-    const activeUser = userEmail || role || 'Admin/Partner';
-    const todayStr = new Date().toISOString().split('T')[0];
-    const nowFormatStr = new Date().toLocaleString('en-US', {
-      dateStyle: 'medium',
-      timeStyle: 'short'
-    });
-
-    const vName = targetItem.supplier;
-    const pName = targetItem.itemName;
-    const targetBranchId = targetItem.branchId || filterBranchId || selectedBranchId || userBranchId || (branches.length > 0 ? branches[0].id : undefined);
-
-    showToast(`Renewing vendor order for '${vName}'...`);
-
     try {
-      await updateInventoryQuantity(targetItem.id, qtyNum);
-      const renewSellNum = Number(renewSellingPrice);
-      if (!isNaN(renewSellNum) && renewSellNum > 0) {
-        await updateInventoryItem(targetItem.id, { price: renewSellNum });
-      }
-      setRenewSellingPrice('');
-
-      await addExpense({
-        title: `Vendor Renewal: ${pName} (${vName})`,
-        category: 'Products',
-        amount: actAmtNum,
-        actualAmount: actAmtNum,
-        amountPaid: pdAmtNum,
-        remainingAmount: remAmtNum,
-        paymentType: renewPaymentType,
-        vendorName: vName,
-        productName: pName,
-        date: todayStr,
-        status: isFullyPaid ? 'Paid' : 'Pending',
-        paymentMethod: 'Cash',
-        notes: `Vendor Renewal | Supplier: ${vName} | Product: ${pName} | Restocked Qty: +${qtyNum} | Payment: ${renewPaymentType}`,
-        addedBy: activeUser,
-        paidBy: activeUser,
-        branchId: targetBranchId,
-        paymentLogs: pdAmtNum > 0 ? [
-          {
-            id: `PAYLOG-${Date.now()}`,
-            amount: pdAmtNum,
-            paidBy: activeUser,
-            date: nowFormatStr,
-            paymentMethod: 'Cash',
-            notes: renewPaymentType === 'Debit' ? 'Full Debit Payment on Renewal' : 'Credit Advance on Renewal'
-          }
-        ] : []
-      });
-
-      setRenewItemId('');
-      setRenewQty('');
-      setRenewActualAmount('');
-      setRenewAmountPaid('');
-      setRenewPaymentType('Debit');
-
-      showToast(`Vendor order for '${vName}' (${pName}) renewed successfully with +${qtyNum} units!`);
+      setIsSubmitting(true);
+      await updateInventoryQuantity(adjustStockItem.id, amount, adjustReason.trim() || 'Manual stock adjustment');
+      showToast(`Added ${amount} unit(s) to '${adjustStockItem.itemName}'`);
+      setAdjustStockItem(null);
+      setAdjustQuantity('1');
+      setAdjustReason('Stock count adjustment / replenishment');
     } catch (err: any) {
-      console.error("Failed to renew vendor order:", err);
-      showToast("Error renewing vendor order", "error");
+      showToast("Failed to adjust stock: " + (err.message || err), "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -399,6 +220,14 @@ export default function InventoryPage() {
     }
   };
 
+  const filteredInventory = inventory.filter((item) => {
+    const matchesSearch =
+      item.itemName.toLowerCase().includes(search.toLowerCase()) ||
+      item.supplier.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === 'All' || item.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
   const reduceItem = inventory.find(i => i.id === reduceModalItemId);
 
   if (isLoading) {
@@ -424,10 +253,10 @@ export default function InventoryPage() {
         <div>
           <Breadcrumb />
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-            Inventory & Vendor Purchasing
+            Inventory Management
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Manage vendor shipments, stock inventory, and credit/debit vendor dues.
+            Track stock levels, retail pricing, and clinic usage. For vendor bills and supplier orders, visit Purchases.
           </p>
         </div>
 
@@ -454,11 +283,19 @@ export default function InventoryPage() {
           >
             {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
-          <Button onClick={() => handleOpenRenewModal()} variant="outline" icon={<RotateCw className="w-4 h-4" />}>
-            Renew Vendor
+          <Button 
+            onClick={() => router.push('/purchases')} 
+            variant="outline" 
+            icon={<ShoppingBag className="w-4 h-4 text-blue-600 dark:text-blue-400" />}
+          >
+            Purchases & Orders
           </Button>
-          <Button onClick={() => setIsAddVendorModalOpen(true)} variant="primary" icon={<Plus className="w-4 h-4" />}>
-            Add Vendor
+          <Button 
+            onClick={() => setIsAddProductModalOpen(true)} 
+            variant="primary" 
+            icon={<Plus className="w-4 h-4" />}
+          >
+            Add Product
           </Button>
         </div>
       </div>
@@ -466,7 +303,7 @@ export default function InventoryPage() {
       {/* Filter & Search Bar */}
       <div className="luxury-card p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <Input
-          placeholder="Search by item name or vendor supplier..."
+          placeholder="Search by product name or supplier..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           icon={<Search className="w-4 h-4" />}
@@ -497,11 +334,11 @@ export default function InventoryPage() {
                 <th className="py-3.5 px-4 rounded-l-xl">Product Name</th>
                 <th className="py-3.5 px-4">Category</th>
                 <th className="py-3.5 px-4">Stock Level</th>
-                <th className="py-3.5 px-4">Vendor Supplier</th>
-                <th className="py-3.5 px-4">Unit Cost</th>
+                <th className="py-3.5 px-4">Supplier / Brand</th>
+                <th className="py-3.5 px-4">Retail Price</th>
                 <th className={`py-3.5 px-4 ${role === 'partner' ? 'text-right rounded-r-xl' : ''}`}>Status</th>
                 {role !== 'partner' && (
-                  <th className="py-3.5 px-4 text-right rounded-r-xl">Stock Actions</th>
+                  <th className="py-3.5 px-4 text-right rounded-r-xl">Actions</th>
                 )}
               </tr>
             </thead>
@@ -532,123 +369,130 @@ export default function InventoryPage() {
                 </tr>
               ) : (
                 filteredInventory.map((item) => {
-                const percent = Math.min(100, Math.round((item.quantity / (item.minStock * 2)) * 100));
+                  const percent = Math.min(100, Math.round((item.quantity / (item.minStock * 2)) * 100));
 
-                return (
-                  <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3.5 px-4">
-                      <div className="font-bold text-slate-900 dark:text-slate-100">{item.itemName}</div>
-                      <div className="text-[11px] text-slate-400 font-mono">ID: {item.id} • Restocked: {item.lastRestocked}</div>
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
-                      {item.category}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
-                          {item.quantity} / {item.minStock} min
-                        </span>
-                      </div>
-                      <div className="w-32 bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${
-                            item.status === 'Low Stock'
-                              ? 'bg-amber-500'
-                              : item.status === 'Out of Stock'
-                              ? 'bg-rose-500'
-                              : 'bg-emerald-500'
-                          }`}
-                          style={{ width: `${percent}%` }}
-                        />
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 font-semibold">
-                      {item.supplier}
-                    </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-slate-100">
-                      {formatPKR(item.price, { decimals: false })}
-                    </td>
-                    <td className={`py-3.5 px-4 ${role === 'partner' ? 'text-right' : ''}`}>
-                      <Badge
-                        variant={
-                          item.status === 'In Stock'
-                            ? 'success'
-                            : item.status === 'Low Stock'
-                            ? 'warning'
-                            : 'danger'
-                        }
-                      >
-                        {item.status}
-                      </Badge>
-                    </td>
-                    {role !== 'partner' && (
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                          <button
-                            onClick={() => handleOpenEditPriceModal(item)}
-                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 hover:bg-blue-100 transition-colors flex items-center gap-1"
-                            title="Set or Edit Retail Selling Price"
-                          >
-                            <DollarSign className="w-3 h-3" />
-                            Set Price
-                          </button>
-                          <button
-                            onClick={() => handleOpenRenewModal(item.id)}
-                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 hover:bg-blue-100 transition-colors flex items-center gap-1"
-                          >
-                            <RotateCw className="w-3 h-3" />
-                            Renew Vendor
-                          </button>
-                          <button
-                            onClick={() => { setReduceModalItemId(item.id); setReduceAmount('1'); }}
-                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 hover:bg-rose-100 transition-colors"
-                          >
-                            − Reduce Stock
-                          </button>
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3.5 px-4">
+                        <div className="font-bold text-slate-900 dark:text-slate-100">{item.itemName}</div>
+                        <div className="text-[11px] text-slate-400 font-mono">ID: {item.id} • Restocked: {item.lastRestocked}</div>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
+                        {item.category}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
+                            {item.quantity} / {item.minStock} min
+                          </span>
+                        </div>
+                        <div className="w-32 bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              item.status === 'Low Stock'
+                                ? 'bg-amber-500'
+                                : item.status === 'Out of Stock'
+                                ? 'bg-rose-500'
+                                : 'bg-emerald-500'
+                            }`}
+                            style={{ width: `${percent}%` }}
+                          />
                         </div>
                       </td>
-                    )}
-                  </tr>
-                );
-              }))}
+                      <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 font-semibold">
+                        {item.supplier}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-slate-900 dark:text-slate-100">
+                        {formatPKR(item.price, { decimals: false })}
+                      </td>
+                      <td className={`py-3.5 px-4 ${role === 'partner' ? 'text-right' : ''}`}>
+                        <Badge
+                          variant={
+                            item.status === 'In Stock'
+                              ? 'success'
+                              : item.status === 'Low Stock'
+                              ? 'warning'
+                              : 'danger'
+                          }
+                        >
+                          {item.status}
+                        </Badge>
+                      </td>
+                      {role !== 'partner' && (
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                            <button
+                              onClick={() => handleOpenEditPriceModal(item)}
+                              className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 hover:bg-blue-100 transition-colors flex items-center gap-1"
+                              title="Set or Edit Retail Selling Price"
+                            >
+                              <DollarSign className="w-3 h-3" />
+                              Set Price
+                            </button>
+                            <button
+                              onClick={() => {
+                                setAdjustStockItem(item);
+                                setAdjustQuantity('1');
+                                setAdjustReason('Stock count adjustment / replenishment');
+                              }}
+                              className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 hover:bg-emerald-100 transition-colors flex items-center gap-1"
+                              title="Add or Adjust Stock Quantity"
+                            >
+                              <Plus className="w-3 h-3" />
+                              + Add Stock
+                            </button>
+                            <button
+                              onClick={() => { setReduceModalItemId(item.id); setReduceAmount('1'); }}
+                              className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 hover:bg-rose-100 transition-colors flex items-center gap-1"
+                              title="Reduce Stock for Treatment / Consumption"
+                            >
+                              <Minus className="w-3 h-3" />
+                              − Reduce Stock
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Add Vendor Purchase Modal */}
+      {/* Add Inventory Product Modal */}
       <Modal
-        isOpen={isAddVendorModalOpen}
-        onClose={() => setIsAddVendorModalOpen(false)}
-        title="Add Vendor & Stock Purchase"
-        description="Record vendor details, purchased stock, and credit/debit payments"
+        isOpen={isAddProductModalOpen}
+        onClose={() => setIsAddProductModalOpen(false)}
+        title="Add Inventory Product"
+        description="Register a new product in the inventory catalog. To log vendor purchase orders with bills, use the Purchases tab."
         maxWidth="lg"
       >
-        <form onSubmit={handleAddVendor} className="space-y-4">
+        <form onSubmit={handleAddProduct} className="space-y-4">
           {branches.length > 0 && (
             <Select
               label="Branch"
               options={branches.map((b) => ({ label: b.name, value: b.id }))}
-              value={vendorBranchId || filterBranchId || selectedBranchId || branches[0]?.id || ''}
-              onChange={(e) => setVendorBranchId(e.target.value)}
+              value={productBranchId || filterBranchId || selectedBranchId || branches[0]?.id || ''}
+              onChange={(e) => setProductBranchId(e.target.value)}
               required
             />
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
-              label="Vendor Name"
-              placeholder="e.g. Allergan Aesthetics / Medispa Supplies"
-              value={vendorName}
-              onChange={(e) => setVendorName(e.target.value)}
-              required
-            />
-            <Input
-              label="Product Purchased"
+              label="Product Name"
               placeholder="e.g. Juvederm Ultra 3 (2x1ml)"
               value={productName}
               onChange={(e) => setProductName(e.target.value)}
               required
+            />
+            <Input
+              label="Supplier / Brand"
+              placeholder="e.g. Allergan Aesthetics / Medispa"
+              value={supplier}
+              onChange={(e) => setSupplier(e.target.value)}
             />
           </div>
 
@@ -670,7 +514,7 @@ export default function InventoryPage() {
               onChange={(e) => setCategory(e.target.value as any)}
             />
             <Input
-              label="Quantity Purchased"
+              label="Initial Stock Quantity"
               labelClassName="min-h-[2.25rem] flex items-end pb-0.5"
               type="text"
               placeholder="10"
@@ -679,13 +523,12 @@ export default function InventoryPage() {
               required
             />
             <Input
-              label="Retail Selling Price (PKR)"
+              label="Min Stock Alert Level"
               labelClassName="min-h-[2.25rem] flex items-end pb-0.5"
-              type="number"
-              min="0"
-              placeholder="e.g. 8500 (POS Price)"
-              value={sellingPrice}
-              onChange={(e) => setSellingPrice(e.target.value)}
+              type="text"
+              placeholder="5"
+              value={minStock}
+              onChange={(e) => setMinStock(e.target.value.replace(/\D/g, ''))}
             />
           </div>
 
@@ -699,81 +542,58 @@ export default function InventoryPage() {
             />
           )}
 
-          {/* Payment Type Selection: Credit or Debit? */}
-          <div className="space-y-2 pt-2">
-            <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">
-              Payment Terms (Credit or Debit?)
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setPaymentType('Debit')}
-                className={`py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
-                  paymentType === 'Debit'
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/30'
-                    : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                }`}
-              >
-                Debit (Instant Full Payment)
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaymentType('Credit')}
-                className={`py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
-                  paymentType === 'Credit'
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/30'
-                    : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                }`}
-              >
-                Credit (Deferred / Installments)
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-            <Input
-              label="Actual Amount (Rs)"
-              labelClassName="min-h-[1.5rem] flex items-end pb-0.5"
-              type="text"
-              value={actualAmount}
-              onChange={(e) => {
-                const val = e.target.value.replace(/\D/g, '');
-                setActualAmount(val);
-                if (paymentType === 'Debit') {
-                  setAmountPaid(val);
-                }
-              }}
-              required
-            />
-            <Input
-              label={paymentType === 'Debit' ? "Amount Paid (Full Payment)" : "Initial Amount Paid (Rs)"}
-              labelClassName="min-h-[1.5rem] flex items-end pb-0.5"
-              type="text"
-              value={paymentType === 'Debit' ? actualAmount : amountPaid}
-              disabled={paymentType === 'Debit'}
-              onChange={(e) => setAmountPaid(e.target.value.replace(/\D/g, ''))}
-              required={paymentType === 'Credit'}
-            />
-          </div>
-
-          {/* Balance calculation banner */}
-          <div className={`p-4 rounded-xl text-xs flex justify-between items-center ${
-            remainingAmount > 0
-              ? 'bg-blue-50/70 dark:bg-blue-950/40 text-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-900/60'
-              : 'bg-slate-50 dark:bg-slate-800/60 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
-          }`}>
-            <div>
-              <span className="font-bold">Remaining Balance Due to Vendor: </span>
-              <span className="font-mono font-black text-sm">{formatPKR(remainingAmount)}</span>
-            </div>
-          </div>
+          <Input
+            label="Retail Selling Price (PKR)"
+            type="number"
+            min="0"
+            placeholder="e.g. 8500 (POS checkout price)"
+            value={sellingPrice}
+            onChange={(e) => setSellingPrice(e.target.value)}
+          />
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsAddVendorModalOpen(false)} disabled={isSubmitting}>
+            <Button type="button" variant="outline" onClick={() => setIsAddProductModalOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
             <Button type="submit" variant="primary" disabled={isSubmitting}>
-              {isSubmitting ? 'Saving...' : 'Save Vendor & Record Purchase'}
+              {isSubmitting ? 'Saving...' : 'Add Product to Inventory'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Adjust / Add Stock Modal */}
+      <Modal
+        isOpen={!!adjustStockItem}
+        onClose={() => setAdjustStockItem(null)}
+        title="Add / Adjust Stock"
+        description={adjustStockItem ? `Current stock: ${adjustStockItem.quantity} units — ${adjustStockItem.itemName}` : ''}
+        maxWidth="sm"
+      >
+        <form onSubmit={handleAdjustStock} className="space-y-4">
+          <Input
+            label="Quantity to Add"
+            type="text"
+            value={adjustQuantity}
+            onChange={(e) => setAdjustQuantity(e.target.value.replace(/\D/g, ''))}
+            required
+          />
+          <Input
+            label="Reason / Note"
+            placeholder="e.g. Stock recount, bonus sample, replenishment"
+            value={adjustReason}
+            onChange={(e) => setAdjustReason(e.target.value)}
+            required
+          />
+          <p className="text-xs text-slate-500">
+            For regular vendor supplier orders and invoices, use the <strong>Purchases</strong> tab to keep billing and dues synchronized.
+          </p>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <Button type="button" variant="outline" onClick={() => setAdjustStockItem(null)} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" icon={<Plus className="w-4 h-4" />} disabled={isSubmitting}>
+              {isSubmitting ? 'Adding...' : 'Confirm Stock Addition'}
             </Button>
           </div>
         </form>
@@ -803,7 +623,7 @@ export default function InventoryPage() {
             required
           />
           <p className="text-xs text-slate-500">
-            Use this when stock is used during treatments or disposed. Stock cannot go below zero.
+            Use this when stock is used during treatments, damaged, or disposed. Stock cannot go below zero.
           </p>
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
             <Button type="button" variant="outline" onClick={() => setReduceModalItemId(null)} disabled={isSubmitting}>
@@ -816,164 +636,12 @@ export default function InventoryPage() {
         </form>
       </Modal>
 
-      {/* Renew Vendor Order Modal */}
-      <Modal
-        isOpen={isRenewVendorModalOpen}
-        onClose={() => setIsRenewVendorModalOpen(false)}
-        title="Renew Vendor Order & Restock"
-        description="Select an existing vendor supplier/product to restock inventory and log financial payments"
-        maxWidth="lg"
-      >
-        <form onSubmit={handleRenewVendor} className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
-              Select Item / Vendor Supplier
-            </label>
-            <select
-              value={renewItemId}
-              onChange={(e) => {
-                const id = e.target.value;
-                setRenewItemId(id);
-                const item = inventory.find(i => i.id === id);
-                if (item) {
-                  setRenewActualAmount(String(item.price * Number(renewQty || 10)));
-                }
-              }}
-              className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-950 dark:text-slate-50 text-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
-            >
-              {inventory.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.itemName} — Supplier: {item.supplier} (Current Stock: {item.quantity} units)
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {selectedRenewItem && (
-            <div className="p-3 bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 rounded-xl text-xs flex justify-between items-center">
-              <div>
-                <span className="font-bold text-slate-800 dark:text-slate-200">Current Vendor: </span>
-                <span className="font-semibold text-blue-600 dark:text-blue-400">{selectedRenewItem.supplier}</span>
-              </div>
-              <div>
-                <span className="font-bold text-slate-800 dark:text-slate-200">Current Stock: </span>
-                <span className="font-mono font-bold text-slate-900 dark:text-slate-100">{selectedRenewItem.quantity} units</span>
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Input
-              label="Restock Quantity (+Units)"
-              labelClassName="min-h-[2.25rem] flex items-end pb-0.5"
-              type="text"
-              value={renewQty}
-              onChange={(e) => {
-                const q = e.target.value.replace(/\D/g, '');
-                setRenewQty(q);
-                if (selectedRenewItem) {
-                  setRenewActualAmount(String(selectedRenewItem.price * (Number(q) || 0)));
-                }
-              }}
-              required
-            />
-
-            <Input
-              label="Total Order Cost (PKR)"
-              labelClassName="min-h-[2.25rem] flex items-end pb-0.5"
-              type="text"
-              value={renewActualAmount}
-              onChange={(e) => setRenewActualAmount(e.target.value.replace(/\D/g, ''))}
-              required
-            />
-
-            <Input
-              label="Retail Price (Optional Update)"
-              labelClassName="min-h-[2.25rem] flex items-end pb-0.5"
-              type="number"
-              min="0"
-              placeholder={selectedRenewItem ? `Current: ${selectedRenewItem.price}` : 'e.g. 5000'}
-              value={renewSellingPrice}
-              onChange={(e) => setRenewSellingPrice(e.target.value)}
-            />
-          </div>
-
-          {/* Payment Type Selection */}
-          <div className="space-y-2 pt-2">
-            <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">
-              Vendor Payment Terms
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setRenewPaymentType('Debit')}
-                className={`py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
-                  renewPaymentType === 'Debit'
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/30'
-                    : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                }`}
-              >
-                Debit (Instant Full Payment)
-              </button>
-              <button
-                type="button"
-                onClick={() => setRenewPaymentType('Credit')}
-                className={`py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
-                  renewPaymentType === 'Credit'
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/30'
-                    : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                }`}
-              >
-                Credit (Deferred / Installments)
-              </button>
-            </div>
-          </div>
-
-          {renewPaymentType === 'Credit' && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className="space-y-3 pt-2"
-            >
-              <Input
-                label="Initial Amount Paid Now (PKR)"
-                type="text"
-                value={renewAmountPaid}
-                onChange={(e) => setRenewAmountPaid(e.target.value.replace(/\D/g, ''))}
-                required
-              />
-            </motion.div>
-          )}
-
-          {/* Dues summary */}
-          <div className={`p-4 rounded-xl text-xs flex justify-between items-center ${
-            renewRemainingAmount > 0
-              ? 'bg-blue-50/70 dark:bg-blue-950/40 text-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-900/60'
-              : 'bg-slate-50 dark:bg-slate-800/60 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
-          }`}>
-            <div>
-              <span className="font-bold">Remaining Dues to Vendor: </span>
-              <span className="font-mono font-black text-sm">{formatPKR(renewRemainingAmount)}</span>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button type="button" variant="outline" onClick={() => setIsRenewVendorModalOpen(false)} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" icon={<RotateCw className="w-4 h-4" />} disabled={isSubmitting}>
-              {isSubmitting ? 'Renewing...' : 'Confirm Vendor Renewal'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
       {/* Edit Selling Price Modal */}
       <Modal
         isOpen={!!editPriceModalItem}
         onClose={() => setEditPriceModalItem(null)}
         title="Set Product Selling Price"
-        description={`Configure standard retail selling price for client checkout`}
+        description="Configure standard retail selling price for client checkout"
         maxWidth="md"
       >
         {editPriceModalItem && (

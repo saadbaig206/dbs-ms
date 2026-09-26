@@ -670,17 +670,12 @@ async def test_pos_discount_limit_enforced(client: AsyncClient):
     payload = {
         "clientName": "Discount Customer",
         "paymentMethod": "Cash",
-        "discountPercent": 25.0, # > 20% limit for staff
+        "discountPercent": 25.0, # 25% discount now allowed without 20% cap
         "cartItems": [{"serviceId": "SRV-1", "name": "Basic Consultation", "price": 1000.0, "quantity": 1}]
     }
     res = await client.post("/api/v1/pos/checkout", json=payload, headers=staff_headers)
-    assert res.status_code == 403
-    assert "Discounts exceeding 20%" in res.json()["detail"]
-
-    # Staff with <= 20% succeeds
-    payload["discountPercent"] = 15.0
-    res_ok = await client.post("/api/v1/pos/checkout", json=payload, headers=staff_headers)
-    assert res_ok.status_code == 200
+    assert res.status_code == 200
+    assert res.json()["discount"] == 250.0
 
     # Admin with > 20% succeeds
     admin_login = await client.post("/api/v1/auth/login", json={"email": "admin@gmail.com", "password": "admin"})
