@@ -84,23 +84,62 @@ async def get_partner_equity_overview(
     drw_res = await db.execute(select(PartnerDrawing).order_by(PartnerDrawing.date.desc(), PartnerDrawing.id.desc()))
     all_drawings = drw_res.scalars().all()
 
-    # 4. Brand Valuation: 5x Net Operating Profit Multiple + Total Tangible Capital Baseline
-    total_initial_invested = sum(p.initial_investment for p in profiles)
-    estimated_brand_valuation = (net_profit * 5.0) + total_initial_invested
+    def is_payer_match(payer: Optional[str], partner_name: str) -> bool:
+        if not payer:
+            return False
+        pay_clean = payer.lower().strip()
+        part_clean = partner_name.lower().strip()
+        if "zaini" in part_clean:
+            if any(alias in pay_clean for alias in ["zaini", "drzaini", "dr.zaini", "dr. zaini"]):
+                return True
+        if "sheraz" in part_clean:
+            if "sheraz" in pay_clean:
+                return True
+        return part_clean in pay_clean or pay_clean in part_clean
+
+    def get_partner_invested_amount(partner_name: str) -> float:
+        total = 0.0
+        for e in paid_expenses:
+            # Exclude partner drawings from investment
+            if e.category == "Partner Drawing" or "Partner Drawing" in (e.title or ""):
+                continue
+
+            # If expense has payment logs, aggregate any payment logs matching this partner
+            if e.payment_logs and isinstance(e.payment_logs, list) and len(e.payment_logs) > 0:
+                has_matching_log = False
+                for log in e.payment_logs:
+                    if isinstance(log, dict) and is_payer_match(log.get("paidBy") or log.get("paid_by"), partner_name):
+                        total += float(log.get("amount", 0.0))
+                        has_matching_log = True
+                if has_matching_log:
+                    continue
+
+            # Fallback to direct paid_by field on the expense
+            if is_payer_match(e.paid_by, partner_name):
+                amt = float(e.amount_paid if e.amount_paid is not None else e.amount)
+                total += amt
+        return round(total, 2)
+
+    # 4. Total dynamic invested across all partners drives tangible capital baseline
+    partner_investments = {p.id: get_partner_invested_amount(p.partner_name) for p in profiles}
+    total_dynamic_invested = sum(partner_investments.values())
+    estimated_brand_valuation = (net_profit * 5.0) + total_dynamic_invested
 
     partner_reports: List[PartnerEquityReportItem] = []
     for p in profiles:
         partner_draws = [d for d in all_drawings if d.partner_id == p.id]
         total_withdrawn = sum(d.amount for d in partner_draws)
         profit_share = net_profit * (p.equity_percentage / 100.0)
-        net_capital = (p.initial_investment + profit_share) - total_withdrawn
+        partner_inv = partner_investments.get(p.id, 0.0)
+        net_capital = (partner_inv + profit_share) - total_withdrawn
         brand_stake = estimated_brand_valuation * (p.equity_percentage / 100.0)
 
         partner_reports.append(PartnerEquityReportItem(
             id=p.id,
             partner_name=p.partner_name,
             equity_percentage=p.equity_percentage,
-            initial_investment=p.initial_investment,
+            total_invested=partner_inv,
+            initial_investment=partner_inv,
             profit_share=profit_share,
             total_withdrawn=total_withdrawn,
             net_capital_balance=net_capital,
@@ -173,7 +212,25 @@ async def record_partner_drawing(
     partner_draws = drw_res.scalars().all()
     total_withdrawn = sum(d.amount for d in partner_draws)
     profit_share = net_profit * (profile.equity_percentage / 100.0)
-    net_capital = (profile.initial_investment + profit_share) - total_withdrawn
+
+    # Dynamic invested calculation for this partner
+    partner_inv = 0.0
+    p_name = profile.partner_name
+    for e in paid_expenses:
+        if e.category == "Partner Drawing" or "Partner Drawing" in (e.title or ""):
+            continue
+        if e.payment_logs and isinstance(e.payment_logs, list) and len(e.payment_logs) > 0:
+            has_matching_log = False
+            for log in e.payment_logs:
+                if isinstance(log, dict) and is_payer_match(log.get("paidBy") or log.get("paid_by"), p_name):
+                    partner_inv += float(log.get("amount", 0.0))
+                    has_matching_log = True
+            if has_matching_log:
+                continue
+        if is_payer_match(e.paid_by, p_name):
+            partner_inv += float(e.amount_paid if e.amount_paid is not None else e.amount)
+
+    net_capital = (partner_inv + profit_share) - total_withdrawn
 
     if drawing_in.amount > net_capital:
         raise HTTPException(
@@ -257,7 +314,8 @@ async def upsert_partner_profile(
 
     if profile:
         profile.equity_percentage = profile_in.equity_percentage
-        profile.initial_investment = profile_in.initial_investment
+        if profile_in.initial_investment is not None and profile_in.initial_investment > 0:
+            profile.initial_investment = profile_in.initial_investment
         profile.notes = profile_in.notes
     else:
         p_id = f"PRT-{secrets.token_hex(2).upper()}"
@@ -265,7 +323,7 @@ async def upsert_partner_profile(
             id=p_id,
             partner_name=profile_in.partner_name,
             equity_percentage=profile_in.equity_percentage,
-            initial_investment=profile_in.initial_investment,
+            initial_investment=profile_in.initial_investment or 0.0,
             notes=profile_in.notes
         )
         db.add(profile)

@@ -24,6 +24,7 @@ import {
   Building2,
   Globe,
   Clock,
+  RotateCcw,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useClinic } from "../../lib/context/ClinicContext";
@@ -38,6 +39,7 @@ import { Input, Select } from "../../components/ui/Input";
 import { Breadcrumb } from "../../components/ui/Breadcrumb";
 import { PurchasesTab } from "../../components/finance/PurchasesTab";
 import { PartnerEquityTab } from "../../components/finance/PartnerEquityTab";
+import { PartnerExpensesTab } from "../../components/finance/PartnerExpensesTab";
 
 function FinanceDatePicker({
   label,
@@ -182,6 +184,7 @@ export default function FinanceReportsPage() {
     updateExpense,
     deleteExpense,
     updateTransaction,
+    refundTransaction,
     role,
     userEmail,
     partners,
@@ -224,8 +227,56 @@ export default function FinanceReportsPage() {
     : allClients;
 
   const [activeTab, setActiveTab] = useState<
-    "transactions" | "purchases" | "expenses" | "equity" | "reports"
+    "transactions" | "purchases" | "expenses" | "equity" | "partner-expenses" | "reports"
   >("transactions");
+
+  // Refund / Sales Return Modal State
+  const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
+  const [selectedRefundTxn, setSelectedRefundTxn] = useState<any | null>(null);
+  const [refundReason, setRefundReason] = useState("");
+  const [refundRestock, setRefundRestock] = useState(true);
+  const [isRefunding, setIsRefunding] = useState(false);
+  const [selectedRefundItems, setSelectedRefundItems] = useState<{ [index: number]: boolean }>({});
+  const [refundError, setRefundError] = useState<string | null>(null);
+
+  const handleOpenRefundModal = (txn: any) => {
+    setSelectedRefundTxn(txn);
+    setRefundReason("");
+    setRefundRestock(true);
+    setRefundError(null);
+    const initialSelected: { [index: number]: boolean } = {};
+    (txn.items || []).forEach((_: any, idx: number) => {
+      initialSelected[idx] = true;
+    });
+    setSelectedRefundItems(initialSelected);
+    setIsRefundModalOpen(true);
+  };
+
+  const handleConfirmRefund = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedRefundTxn || !refundReason.trim()) return;
+    try {
+      setIsRefunding(true);
+      setRefundError(null);
+      const itemsList = selectedRefundTxn.items || [];
+      const hasSomeSelected = itemsList.some((_: any, idx: number) => selectedRefundItems[idx]);
+      if (itemsList.length > 0 && !hasSomeSelected) {
+        setRefundError("Please select at least one line item to refund.");
+        setIsRefunding(false);
+        return;
+      }
+      const isPartial = itemsList.length > 0 && itemsList.some((_: any, idx: number) => !selectedRefundItems[idx]);
+      const itemsToRefund = isPartial ? itemsList.filter((_: any, idx: number) => selectedRefundItems[idx]) : undefined;
+
+      await refundTransaction(selectedRefundTxn.id, refundReason.trim(), refundRestock, itemsToRefund);
+      setIsRefundModalOpen(false);
+      setSelectedRefundTxn(null);
+    } catch (err: any) {
+      setRefundError(err.message || "Failed to process refund.");
+    } finally {
+      setIsRefunding(false);
+    }
+  };
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -234,6 +285,7 @@ export default function FinanceReportsPage() {
       if (
         tabParam === "purchases" ||
         tabParam === "equity" ||
+        tabParam === "partner-expenses" ||
         tabParam === "expenses" ||
         tabParam === "reports" ||
         tabParam === "transactions"
@@ -281,6 +333,7 @@ export default function FinanceReportsPage() {
   const [expPaymentMethod, setExpPaymentMethod] = useState<
     "Bank Transfer" | "Cash" | "Card" | "Cheque"
   >("Bank Transfer");
+  const [expPaidBy, setExpPaidBy] = useState<string>("Dr. Zaini");
   const [expNotes, setExpNotes] = useState("");
 
   // Edit Transaction State
@@ -829,6 +882,7 @@ export default function FinanceReportsPage() {
         date: new Date().toISOString().split("T")[0],
         status: "Paid",
         paymentMethod: expPaymentMethod,
+        paidBy: expPaidBy,
         notes: expNotes,
       });
 
@@ -978,6 +1032,16 @@ export default function FinanceReportsPage() {
               }`}
             >
               Partner Equity
+            </button>
+            <button
+              onClick={() => setActiveTab("partner-expenses")}
+              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === "partner-expenses"
+                  ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+              }`}
+            >
+              Partner & Admin Expenses
             </button>
             <button
               onClick={() => setActiveTab("reports")}
@@ -1822,6 +1886,16 @@ export default function FinanceReportsPage() {
                                   <Edit className="w-4 h-4" />
                                 </button>
                               )}
+                              {(role === "admin" || role === "partner") &&
+                                (txn.status || "").toLowerCase() !== "refunded" && (
+                                  <button
+                                    onClick={() => handleOpenRefundModal(txn)}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors"
+                                    title="Process Sales Return / Refund"
+                                  >
+                                    <RotateCcw className="w-4 h-4" />
+                                  </button>
+                                )}
                               <button
                                 onClick={() =>
                                   setPrintData({
@@ -1898,6 +1972,8 @@ export default function FinanceReportsPage() {
           {activeTab === "purchases" && <PurchasesTab />}
 
           {activeTab === "equity" && <PartnerEquityTab />}
+
+          {activeTab === "partner-expenses" && <PartnerExpensesTab />}
 
           {activeTab === "expenses" && (
             <div className="space-y-6">
@@ -2430,17 +2506,31 @@ export default function FinanceReportsPage() {
             />
           </div>
 
-          <Select
-            label="Payment Method"
-            options={[
-              { label: "Bank Transfer", value: "Bank Transfer" },
-              { label: "Card", value: "Card" },
-              { label: "Cash", value: "Cash" },
-              { label: "Cheque", value: "Cheque" },
-            ]}
-            value={expPaymentMethod}
-            onChange={(e) => setExpPaymentMethod(e.target.value as any)}
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Select
+              label="Paid By (Partner / Admin)"
+              options={[
+                { label: "Dr. Zaini", value: "Dr. Zaini" },
+                { label: "Sheraz", value: "Sheraz" },
+                { label: "Clinic Treasury / Drawer", value: "Clinic Treasury" },
+                { label: "Admin", value: "Admin" },
+              ]}
+              value={expPaidBy}
+              onChange={(e) => setExpPaidBy(e.target.value)}
+            />
+
+            <Select
+              label="Payment Method"
+              options={[
+                { label: "Bank Transfer", value: "Bank Transfer" },
+                { label: "Card", value: "Card" },
+                { label: "Cash", value: "Cash" },
+                { label: "Cheque", value: "Cheque" },
+              ]}
+              value={expPaymentMethod}
+              onChange={(e) => setExpPaymentMethod(e.target.value as any)}
+            />
+          </div>
 
           <Input
             label="Notes / Vendor Details"
@@ -3057,6 +3147,119 @@ export default function FinanceReportsPage() {
             })}
           </div>
         </div>
+      </Modal>
+
+      {/* Sales Return / Refund Modal */}
+      <Modal
+        isOpen={isRefundModalOpen}
+        onClose={() => {
+          setIsRefundModalOpen(false);
+          setSelectedRefundTxn(null);
+        }}
+        title="Sales Return & Refund"
+        description={
+          selectedRefundTxn
+            ? `Refund invoice ${selectedRefundTxn.invoiceId} • ${selectedRefundTxn.clientName} (${formatPKR(selectedRefundTxn.grandTotal)})`
+            : undefined
+        }
+        maxWidth="md"
+      >
+        {selectedRefundTxn && (
+          <form onSubmit={handleConfirmRefund} className="space-y-4 pt-2">
+            {refundError && (
+              <div className="p-3 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200">
+                {refundError}
+              </div>
+            )}
+
+            <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 rounded-xl space-y-1">
+              <div className="text-[10px] text-red-700 dark:text-red-400 font-bold uppercase tracking-wider">
+                Return / Refund Action
+              </div>
+              <p className="text-xs text-red-800 dark:text-red-300">
+                This will mark the selected items as refunded, reverse client spend and dues, and restock products back into inventory.
+              </p>
+            </div>
+
+            {selectedRefundTxn.items && selectedRefundTxn.items.length > 0 && (
+              <div className="space-y-1.5 pt-1">
+                <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex justify-between items-center">
+                  <span>Select Items to Return / Refund</span>
+                  <span className="text-[10px] text-slate-400 font-normal">
+                    {selectedRefundTxn.items.filter((_: any, i: number) => selectedRefundItems[i]).length} of {selectedRefundTxn.items.length} selected
+                  </span>
+                </div>
+                <div className="max-h-48 overflow-y-auto space-y-1 p-2 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
+                  {selectedRefundTxn.items.map((item: any, idx: number) => (
+                    <label key={idx} className="flex items-center justify-between py-2 px-1 cursor-pointer text-xs hover:bg-slate-100/50 dark:hover:bg-slate-800/50 rounded">
+                      <div className="flex items-center gap-2.5">
+                        <input
+                          type="checkbox"
+                          checked={!!selectedRefundItems[idx]}
+                          onChange={(e) => {
+                            setSelectedRefundItems((prev) => ({ ...prev, [idx]: e.target.checked }));
+                          }}
+                          className="rounded text-red-600 focus:ring-red-500 w-4 h-4 cursor-pointer"
+                        />
+                        <div>
+                          <span className="text-slate-800 dark:text-slate-200 font-semibold block">{item.name}</span>
+                          {item.isProduct && (
+                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Physical Product</span>
+                          )}
+                        </div>
+                      </div>
+                      <span className="font-mono text-slate-600 dark:text-slate-300 font-bold">
+                        {item.quantity} × {formatPKR(item.price)}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <Input
+              label="Return / Refund Reason"
+              value={refundReason}
+              onChange={(e) => setRefundReason(e.target.value)}
+              placeholder="e.g. Client requested return, defective product, service rescheduled"
+              required
+            />
+
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer pt-1">
+              <input
+                type="checkbox"
+                checked={refundRestock}
+                onChange={(e) => setRefundRestock(e.target.checked)}
+                className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+              />
+              <span>Restock returned inventory / products into stock</span>
+            </label>
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsRefundModalOpen(false);
+                  setSelectedRefundTxn(null);
+                }}
+                disabled={isRefunding}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                className="bg-red-600 hover:bg-red-700 text-white"
+                disabled={isRefunding || !refundReason.trim()}
+              >
+                {isRefunding ? "Processing Refund..." : "Confirm Return & Refund"}
+              </Button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   );

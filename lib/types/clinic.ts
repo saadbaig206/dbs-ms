@@ -283,6 +283,16 @@ export interface PurchaseItem {
   branchId?: string;
 }
 
+export interface PurchaseBillPaymentLog {
+  id: string;
+  date: string;
+  time?: string;
+  amount: number;
+  paidBy: string;
+  paymentMethod: string;
+  notes?: string;
+}
+
 export interface PurchaseBill {
   id: string;
   vendorName: string;
@@ -296,12 +306,15 @@ export interface PurchaseBill {
   notes?: string;
   branchId?: string;
   createdBy?: string;
+  paidBy?: string;
+  paymentLogs?: PurchaseBillPaymentLog[];
 }
 
 export interface PartnerEquityReportItem {
   id: string;
   partnerName: string;
   equityPercentage: number;
+  totalInvested?: number;
   initialInvestment: number;
   profitShare: number;
   totalWithdrawn: number;

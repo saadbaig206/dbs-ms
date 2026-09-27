@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, Integer, ForeignKey
+from sqlalchemy import Column, String, Float, Integer, ForeignKey, JSON
 from app.models.base import Base
 
 class PurchaseBill(Base):
@@ -16,6 +16,7 @@ class PurchaseBill(Base):
     notes = Column(String, nullable=True)
     branch_id = Column(String, ForeignKey("branches.id"), nullable=True)
     created_by = Column(String, nullable=True)
+    payment_logs = Column(JSON, nullable=True)
 
 
 class PurchaseItem(Base):

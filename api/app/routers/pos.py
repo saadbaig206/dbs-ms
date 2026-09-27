@@ -6,7 +6,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm.attributes import flag_modified
 from pydantic import Field
 
-from app.core.deps import get_db, get_staff_user, get_admin_user, get_user_branch_id
+from app.core.deps import get_db, get_staff_user, get_admin_user, get_admin_or_partner_user, get_user_branch_id
 from app.services.pos import checkout
 from app.models.transaction import FinancialTransaction
 from app.models.client import Client
@@ -102,7 +102,7 @@ async def refund_pos_transaction(
     transaction_id: str,
     payload: TransactionRefundInput,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_admin_user)
+    current_user = Depends(get_admin_or_partner_user)
 ):
     stmt = select(FinancialTransaction).where(FinancialTransaction.id == transaction_id)
     res = await db.execute(stmt)

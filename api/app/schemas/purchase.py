@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Any, Dict
 from pydantic import Field
 from app.schemas.base import CamelModel
 
@@ -18,6 +18,7 @@ class PurchaseCreate(CamelModel):
     payment_method: str = "Bank Transfer"
     payment_status: str = "Paid" # Paid, Pending, Partial
     amount_paid: Optional[float] = None
+    paid_by: Optional[str] = None
     notes: Optional[str] = None
     branch_id: Optional[str] = None
     items: List[PurchaseItemInput]
@@ -49,8 +50,11 @@ class PurchaseBillResponse(CamelModel):
     notes: Optional[str] = None
     branch_id: Optional[str] = None
     created_by: Optional[str] = None
+    paid_by: Optional[str] = None
+    payment_logs: Optional[List[Dict[str, Any]]] = None
 
 class PurchasePaymentInput(CamelModel):
     amount: float = Field(gt=0)
     payment_method: str = "Bank Transfer"
+    paid_by: Optional[str] = None
     notes: Optional[str] = None

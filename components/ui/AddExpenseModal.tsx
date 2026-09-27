@@ -25,6 +25,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   const [category, setCategory] = useState<ExpenseCategory>('Other');
   const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Card' | 'Bank Transfer' | 'Cheque'>('Cash');
+  const [paidBy, setPaidBy] = useState<string>('Dr. Zaini');
   const [notes, setNotes] = useState('');
   const [vendorName, setVendorName] = useState('');
   const [branchId, setBranchId] = useState<string>(defaultBranchId || selectedBranchId || userBranchId || '');
@@ -77,7 +78,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
         vendorName: vendorName.trim() || undefined,
         branchId: activeBranch,
         addedBy: activeUser,
-        paidBy: activeUser
+        paidBy: paidBy.trim() || activeUser
       });
 
       setSuccessMsg(`Expense of Rs ${parsedAmount.toLocaleString()} recorded successfully!`);
@@ -151,7 +152,19 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Select
+              label="Paid By (Partner / Payer)"
+              options={[
+                { label: 'Dr. Zaini', value: 'Dr. Zaini' },
+                { label: 'Sheraz', value: 'Sheraz' },
+                { label: 'Clinic Treasury / Drawer', value: 'Clinic Treasury' },
+                { label: 'Admin', value: 'Admin' }
+              ]}
+              value={paidBy}
+              onChange={(e) => setPaidBy(e.target.value)}
+            />
+
             <Select
               label="Payment Method"
               options={[

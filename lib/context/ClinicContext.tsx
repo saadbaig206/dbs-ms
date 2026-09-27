@@ -156,16 +156,17 @@ interface ClinicContextType {
   purchaseBills: PurchaseBill[];
   refreshPurchases: () => Promise<void>;
   addPurchase: (data: any) => Promise<void>;
-  payPurchaseBill: (id: string, amount: number, paymentMethod: string, notes?: string) => Promise<void>;
+  payPurchaseBill: (id: string, amount: number, paymentMethod: string, notes?: string, paidBy?: string) => Promise<void>;
   returns: PurchaseReturn[];
   refreshReturns: () => Promise<void>;
   createPurchaseReturn: (data: any) => Promise<PurchaseReturn>;
+  refundTransaction: (id: string, reason: string, restockInventory?: boolean, itemsToRefund?: any[]) => Promise<any>;
 
   // Partner Equity
   partnerEquity: PartnerEquityOverview | null;
   refreshPartnerEquity: () => Promise<void>;
   recordPartnerDrawing: (data: any) => Promise<void>;
-  updatePartnerProfile: (data: { partnerName: string; equityPercentage: number; initialInvestment: number; notes?: string }) => Promise<void>;
+  updatePartnerProfile: (data: { partnerName: string; equityPercentage: number; initialInvestment?: number; notes?: string }) => Promise<void>;
 
   // Packages & Prepaid Sessions
   packages: ClientPackage[];
@@ -1280,18 +1281,42 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  const payPurchaseBill = async (id: string, amount: number, paymentMethod: string, notes?: string) => {
+  const payPurchaseBill = async (id: string, amount: number, paymentMethod: string, notes?: string, paidBy?: string) => {
     try {
       await apiFetch(`/purchases/bills/${id}/pay`, {
         method: 'POST',
-        body: JSON.stringify({ amount, paymentMethod, notes })
+        body: JSON.stringify({ amount, paymentMethod, notes, paidBy })
       });
       await Promise.all([
         refreshPurchases(),
-        refreshExpenses()
+        refreshExpenses(),
+        refreshPartnerEquity()
       ]);
     } catch (e) {
       console.error('Failed to pay purchase bill:', e);
+      throw e;
+    }
+  };
+
+  const refundTransaction = async (id: string, reason: string, restockInventory: boolean = true, itemsToRefund?: any[]) => {
+    try {
+      const res = await apiFetch(`/pos/transactions/${id}/refund`, {
+        method: 'POST',
+        body: JSON.stringify({
+          reason,
+          restockInventory,
+          itemsToRefund: itemsToRefund && itemsToRefund.length > 0 ? itemsToRefund : undefined
+        })
+      });
+      await Promise.all([
+        refreshTransactions(),
+        refreshInventory(),
+        refreshClients(),
+        refreshPartnerEquity()
+      ]);
+      return res;
+    } catch (e) {
+      console.error('Failed to refund transaction:', e);
       throw e;
     }
   };
@@ -1317,7 +1342,8 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         refreshReturns(),
         refreshPurchases(),
         refreshInventory(),
-        refreshTransactions()
+        refreshTransactions(),
+        refreshPartnerEquity()
       ]);
       return res;
     } catch (e) {
@@ -1354,7 +1380,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  const updatePartnerProfile = async (data: { partnerName: string; equityPercentage: number; initialInvestment: number; notes?: string }) => {
+  const updatePartnerProfile = async (data: { partnerName: string; equityPercentage: number; initialInvestment?: number; notes?: string }) => {
     try {
       await apiFetch('/partners/profiles', {
         method: 'POST',
@@ -1502,6 +1528,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         returns: Array.isArray(returns) ? returns : [],
         refreshReturns,
         createPurchaseReturn,
+        refundTransaction,
 
         partnerEquity,
         refreshPartnerEquity,

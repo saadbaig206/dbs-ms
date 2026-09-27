@@ -78,6 +78,7 @@ export function PurchasesTab() {
   const [purchaseDate, setPurchaseDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [paymentStatus, setPaymentStatus] = useState<'Paid' | 'Pending' | 'Partial'>('Paid');
   const [paymentMethod, setPaymentMethod] = useState('Online');
+  const [billPaidBy, setBillPaidBy] = useState('Dr. Zaini');
   const [amountPaidInput, setAmountPaidInput] = useState('');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -93,8 +94,13 @@ export function PurchasesTab() {
   const [selectedBill, setSelectedBill] = useState<any>(null);
   const [payAmount, setPayAmount] = useState('');
   const [payMethod, setPayMethod] = useState('Online');
+  const [payPaidBy, setPayPaidBy] = useState('Dr. Zaini');
   const [payNotes, setPayNotes] = useState('');
   const [payError, setPayError] = useState<string | null>(null);
+
+  // Bill Payment Logs Modal State
+  const [isBillLogsModalOpen, setIsBillLogsModalOpen] = useState(false);
+  const [selectedBillForLogs, setSelectedBillForLogs] = useState<any>(null);
 
   // Global success notification banner
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
@@ -220,6 +226,7 @@ export function PurchasesTab() {
         paymentStatus,
         paymentMethod,
         amountPaid: paidAmount,
+        paidBy: paidAmount > 0 ? billPaidBy : undefined,
         notes: notes.trim() || undefined,
         branchId: selectedBranchId || undefined,
         items: validItems.map(i => ({
@@ -257,12 +264,12 @@ export function PurchasesTab() {
     try {
       setIsSubmitting(true);
       setPayError(null);
-      await payPurchaseBill(selectedBill.id, amount, payMethod, payNotes.trim() || undefined);
+      await payPurchaseBill(selectedBill.id, amount, payMethod, payNotes.trim() || undefined, payPaidBy);
       setIsPayModalOpen(false);
       setSelectedBill(null);
       setPayAmount('');
       setPayNotes('');
-      setSuccessBanner(`Vendor payment of ${formatPKR(amount)} successfully recorded.`);
+      setSuccessBanner(`Vendor payment of ${formatPKR(amount)} by ${payPaidBy} successfully recorded.`);
       setTimeout(() => setSuccessBanner(null), 5000);
     } catch (err: any) {
       setPayError(err.message || 'Payment recording failed.');
@@ -630,25 +637,39 @@ export function PurchasesTab() {
                         </Badge>
                       </td>
                       <td className="p-3.5 text-right pr-4">
-                        {(bill?.remainingDue ?? 0) > 0 ? (
+                        <div className="flex items-center justify-end gap-1.5">
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => {
-                              setSelectedBill(bill);
-                              setPayAmount((bill?.remainingDue ?? 0).toString());
-                              setIsPayModalOpen(true);
+                              setSelectedBillForLogs(bill);
+                              setIsBillLogsModalOpen(true);
                             }}
-                            className="text-blue-600 border-blue-300 hover:bg-blue-50 dark:border-blue-800 dark:hover:bg-blue-950/40"
+                            className="text-xs px-2.5 py-1 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
+                            icon={<Clock className="w-3 h-3 text-slate-500" />}
                           >
-                            Pay Due
+                            Logs
                           </Button>
-                        ) : (
-                          <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 flex items-center justify-end gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            Cleared
-                          </span>
-                        )}
+                          {(bill?.remainingDue ?? 0) > 0 ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedBill(bill);
+                                setPayAmount((bill?.remainingDue ?? 0).toString());
+                                setIsPayModalOpen(true);
+                              }}
+                              className="text-blue-600 border-blue-300 hover:bg-blue-50 dark:border-blue-800 dark:hover:bg-blue-950/40 text-xs px-2.5 py-1"
+                            >
+                              Pay Due
+                            </Button>
+                          ) : (
+                            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Cleared
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -1005,7 +1026,7 @@ export function PurchasesTab() {
           </div>
 
           {/* Payment Details */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 p-4 bg-slate-50/80 dark:bg-slate-800/40 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 p-4 bg-slate-50/80 dark:bg-slate-800/40 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
             <Select
               label="Payment Terms"
               value={paymentStatus}
@@ -1027,6 +1048,20 @@ export function PurchasesTab() {
                 { label: 'Credit / Debit Card', value: 'Card' }
               ]}
             />
+
+            {paymentStatus !== 'Pending' && (
+              <Select
+                label="Paid By (Partner / Admin)"
+                value={billPaidBy}
+                onChange={e => setBillPaidBy(e.target.value)}
+                options={[
+                  { label: 'Dr. Zaini', value: 'Dr. Zaini' },
+                  { label: 'Sheraz', value: 'Sheraz' },
+                  { label: 'Clinic Treasury / Drawer', value: 'Clinic Treasury' },
+                  { label: 'Admin', value: 'Admin' }
+                ]}
+              />
+            )}
 
             {paymentStatus === 'Partial' ? (
               <div className="space-y-1">
@@ -1168,16 +1203,30 @@ export function PurchasesTab() {
               )}
             </div>
 
-            <Select
-              label="Payment Method"
-              value={payMethod}
-              onChange={e => setPayMethod(e.target.value)}
-              options={[
-                { label: 'Online / Bank Transfer', value: 'Online' },
-                { label: 'Cash (Drawer / Safe)', value: 'Cash' },
-                { label: 'Credit / Debit Card', value: 'Card' }
-              ]}
-            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Select
+                label="Paid By (Partner / Admin)"
+                value={payPaidBy}
+                onChange={e => setPayPaidBy(e.target.value)}
+                options={[
+                  { label: 'Dr. Zaini', value: 'Dr. Zaini' },
+                  { label: 'Sheraz', value: 'Sheraz' },
+                  { label: 'Clinic Treasury / Drawer', value: 'Clinic Treasury' },
+                  { label: 'Admin', value: 'Admin' }
+                ]}
+              />
+
+              <Select
+                label="Payment Method"
+                value={payMethod}
+                onChange={e => setPayMethod(e.target.value)}
+                options={[
+                  { label: 'Online / Bank Transfer', value: 'Online' },
+                  { label: 'Cash (Drawer / Safe)', value: 'Cash' },
+                  { label: 'Credit / Debit Card', value: 'Card' }
+                ]}
+              />
+            </div>
 
             <Input
               label="Payment Reference / Notes"
@@ -1203,6 +1252,123 @@ export function PurchasesTab() {
               </Button>
             </div>
           </form>
+        )}
+      </Modal>
+
+      {/* MODAL: Bill Payment History & Audit Logs */}
+      <Modal
+        isOpen={isBillLogsModalOpen}
+        onClose={() => {
+          setIsBillLogsModalOpen(false);
+          setSelectedBillForLogs(null);
+        }}
+        title={`Payment Audit Logs: ${selectedBillForLogs?.billNumber || selectedBillForLogs?.id || ''}`}
+        description={`Audit history of all settlements and who paid for vendor "${selectedBillForLogs?.vendorName || ''}"`}
+        maxWidth="2xl"
+      >
+        {selectedBillForLogs && (
+          <div className="space-y-4">
+            {/* Quick Summary Cards */}
+            <div className="grid grid-cols-3 gap-3 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Bill Amount</span>
+                <span className="font-mono font-bold text-slate-900 dark:text-slate-100">{formatPKR(selectedBillForLogs.totalAmount)}</span>
+              </div>
+              <div className="text-center">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Settled</span>
+                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{formatPKR(selectedBillForLogs.amountPaid)}</span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Remaining Due</span>
+                <span className="font-mono font-bold text-amber-600 dark:text-amber-400">{formatPKR(selectedBillForLogs.remainingDue)}</span>
+              </div>
+            </div>
+
+            {/* Payment Logs Table */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+              <div className="p-3 bg-slate-100/70 dark:bg-slate-800/80 font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-blue-500" />
+                  Recorded Payments (Who Paid How Much)
+                </span>
+                <span className="text-[11px] font-normal text-slate-500">
+                  {((selectedBillForLogs.paymentLogs || []).length || (selectedBillForLogs.amountPaid > 0 ? 1 : 0))} record(s)
+                </span>
+              </div>
+
+              {((selectedBillForLogs.paymentLogs && selectedBillForLogs.paymentLogs.length > 0) || selectedBillForLogs.amountPaid > 0) ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase font-bold text-slate-400">
+                        <th className="p-2.5 pl-3">Date & Time</th>
+                        <th className="p-2.5">Paid By (Payer)</th>
+                        <th className="p-2.5 text-right">Amount Paid</th>
+                        <th className="p-2.5">Method</th>
+                        <th className="p-2.5 pr-3">Notes / Ref</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {selectedBillForLogs.paymentLogs && selectedBillForLogs.paymentLogs.length > 0 ? (
+                        selectedBillForLogs.paymentLogs.map((log: any, idx: number) => (
+                          <tr key={log.id || idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
+                            <td className="p-2.5 pl-3 font-mono text-slate-500">
+                              {log.date} {log.time ? `• ${log.time}` : ''}
+                            </td>
+                            <td className="p-2.5">
+                              <span className="px-2 py-0.5 rounded-full font-bold text-[11px] bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
+                                {log.paidBy || log.paid_by || 'Admin'}
+                              </span>
+                            </td>
+                            <td className="p-2.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                              {formatPKR(log.amount)}
+                            </td>
+                            <td className="p-2.5 text-slate-600 dark:text-slate-300">
+                              {log.paymentMethod || log.payment_method || 'Online'}
+                            </td>
+                            <td className="p-2.5 pr-3 text-slate-500 italic">
+                              {log.notes || '—'}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td className="p-2.5 pl-3 font-mono text-slate-500">{selectedBillForLogs.date}</td>
+                          <td className="p-2.5">
+                            <span className="px-2 py-0.5 rounded-full font-bold text-[11px] bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
+                              {selectedBillForLogs.paidBy || selectedBillForLogs.createdBy || 'Dr. Zaini'}
+                            </span>
+                          </td>
+                          <td className="p-2.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                            {formatPKR(selectedBillForLogs.amountPaid)}
+                          </td>
+                          <td className="p-2.5 text-slate-600 dark:text-slate-300">{selectedBillForLogs.paymentMethod}</td>
+                          <td className="p-2.5 pr-3 text-slate-500 italic">{selectedBillForLogs.notes || 'Initial payment on procurement'}</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-6 text-center text-slate-400 text-xs">
+                  No payments have been logged for this purchase bill yet.
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsBillLogsModalOpen(false);
+                  setSelectedBillForLogs(null);
+                }}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
         )}
       </Modal>
 

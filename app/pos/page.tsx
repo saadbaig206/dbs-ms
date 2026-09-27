@@ -19,7 +19,8 @@ import {
   AlertCircle,
   Edit2,
   Package,
-  Tag
+  Tag,
+  RotateCcw
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { ServiceItem, InventoryItem, PaymentMethod } from '../../lib/types/clinic';
@@ -226,16 +227,22 @@ function POSContent() {
   const [refundRestock, setRefundRestock] = useState(true);
   const [isRefunding, setIsRefunding] = useState(false);
   const [selectedRefundItems, setSelectedRefundItems] = useState<{ [index: number]: boolean }>({});
+  const [returnSearchQuery, setReturnSearchQuery] = useState('');
 
-  const handleOpenRefundModal = (txn: any) => {
+  const handleOpenRefundModal = (txn: any = null) => {
     setRefundingTxn(txn);
     setRefundReason('');
     setRefundRestock(true);
-    const initialSelected: { [index: number]: boolean } = {};
-    (txn.items || []).forEach((_: any, idx: number) => {
-      initialSelected[idx] = true;
-    });
-    setSelectedRefundItems(initialSelected);
+    setReturnSearchQuery('');
+    if (txn) {
+      const initialSelected: { [index: number]: boolean } = {};
+      (txn.items || []).forEach((_: any, idx: number) => {
+        initialSelected[idx] = true;
+      });
+      setSelectedRefundItems(initialSelected);
+    } else {
+      setSelectedRefundItems({});
+    }
     setIsRefundModalOpen(true);
   };
 
@@ -537,6 +544,16 @@ function POSContent() {
         </div>
 
         <div className="flex items-center gap-2.5">
+          {(role === 'admin' || role === 'partner') && (
+            <Button
+              variant="outline"
+              icon={<RotateCcw className="w-4 h-4 text-rose-500" />}
+              onClick={() => handleOpenRefundModal(null)}
+              className="border-rose-200 dark:border-rose-900/60 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-700 dark:text-rose-300 font-bold text-xs"
+            >
+              Sales Return / Refund
+            </Button>
+          )}
           <Button
             variant="outline"
             icon={<DollarSign className="w-4 h-4" />}
@@ -1490,16 +1507,18 @@ function POSContent() {
                           >
                             {txn.reprintCount && txn.reprintCount > 0 ? `Reprint (${txn.reprintCount})` : 'Reprint'}
                           </Button>
-                          {role === 'admin' && (
+                          {(role === 'admin' || role === 'partner') && (
                             <>
-                              <Button
-                                onClick={() => handleOpenEditTxnModal(txn)}
-                                variant="secondary"
-                                size="sm"
-                                icon={<Edit2 className="w-3.5 h-3.5" />}
-                              >
-                                Edit
-                              </Button>
+                              {role === 'admin' && (
+                                <Button
+                                  onClick={() => handleOpenEditTxnModal(txn)}
+                                  variant="secondary"
+                                  size="sm"
+                                  icon={<Edit2 className="w-3.5 h-3.5" />}
+                                >
+                                  Edit
+                                </Button>
+                              )}
                               {txn.status !== 'Refunded' && (
                                 <Button
                                   onClick={() => handleOpenRefundModal(txn)}
@@ -1665,42 +1684,158 @@ function POSContent() {
           setIsRefundModalOpen(false);
           setRefundingTxn(null);
         }}
-        title="Process Transaction Refund"
-        description={refundingTxn ? `Refund invoice ${refundingTxn.invoiceId} (${formatPKR(refundingTxn.grandTotal)})` : undefined}
-        maxWidth="sm"
+        title="Sales Return & Refund"
+        description={
+          refundingTxn
+            ? `Invoice ${refundingTxn.invoiceId} • ${refundingTxn.clientName} (${formatPKR(refundingTxn.grandTotal)})`
+            : "Search and select a transaction to process a product return or refund"
+        }
+        maxWidth="md"
       >
-        {refundingTxn && (
+        {!refundingTxn ? (
+          <div className="space-y-4 pt-2">
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-xl space-y-1">
+              <div className="text-[10px] text-amber-700 dark:text-amber-400 font-bold uppercase tracking-wider">
+                Select Transaction for Return / Refund
+              </div>
+              <p className="text-xs text-amber-800 dark:text-amber-300">
+                Search by invoice ID (e.g. INV-1002) or client name. Selecting a transaction allows line-item returns and automatic inventory restock.
+              </p>
+            </div>
+
+            <Input
+              label="Search Invoices"
+              placeholder="e.g. INV-1002, Sarah, or Ali..."
+              value={returnSearchQuery}
+              onChange={(e) => setReturnSearchQuery(e.target.value)}
+              autoFocus
+            />
+
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              {transactions
+                .filter((t) => {
+                  const isRefunded = (t.status || "").toLowerCase() === "refunded";
+                  if (isRefunded) return false;
+                  if (!returnSearchQuery.trim()) return true;
+                  const q = returnSearchQuery.toLowerCase();
+                  return (
+                    (t.invoiceId || "").toLowerCase().includes(q) ||
+                    (t.clientName || "").toLowerCase().includes(q)
+                  );
+                })
+                .slice(0, 10)
+                .map((t) => (
+                  <div
+                    key={t.id}
+                    onClick={() => {
+                      setRefundingTxn(t);
+                      const initialSelected: { [index: number]: boolean } = {};
+                      (t.items || []).forEach((_: any, idx: number) => {
+                        initialSelected[idx] = true;
+                      });
+                      setSelectedRefundItems(initialSelected);
+                    }}
+                    className="p-3 bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl hover:border-blue-500 dark:hover:border-blue-500 cursor-pointer transition flex items-center justify-between group shadow-sm hover:shadow"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-slate-800 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                          {t.invoiceId}
+                        </span>
+                        <Badge variant="neutral">{t.paymentMethod}</Badge>
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5">
+                        {t.clientName} • {t.date}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-mono font-bold text-sm text-blue-600 dark:text-blue-400">
+                        {formatPKR(t.grandTotal)}
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        {t.items?.length || 0} line item(s)
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+              {transactions.filter((t) => {
+                const isRefunded = (t.status || "").toLowerCase() === "refunded";
+                if (isRefunded) return false;
+                if (!returnSearchQuery.trim()) return true;
+                const q = returnSearchQuery.toLowerCase();
+                return (
+                  (t.invoiceId || "").toLowerCase().includes(q) ||
+                  (t.clientName || "").toLowerCase().includes(q)
+                );
+              }).length === 0 && (
+                <div className="text-center py-8 text-xs text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+                  No active transactions found matching &ldquo;{returnSearchQuery}&rdquo;
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-slate-100 dark:border-slate-800">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsRefundModalOpen(false)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        ) : (
           <form onSubmit={handleRefundSubmit} className="space-y-4 pt-2">
+            <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+              <div className="text-xs text-slate-600 dark:text-slate-300">
+                Processing invoice: <strong className="font-mono text-blue-600 dark:text-blue-400">{refundingTxn.invoiceId}</strong> for <strong>{refundingTxn.clientName}</strong>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRefundingTxn(null)}
+                className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+              >
+                ← Choose Another Invoice
+              </button>
+            </div>
+
             <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 rounded-xl space-y-1">
-              <div className="text-[10px] text-red-700 dark:text-red-400 font-bold uppercase tracking-wider">Refund Action</div>
+              <div className="text-[10px] text-red-700 dark:text-red-400 font-bold uppercase tracking-wider">Return / Refund Action</div>
               <p className="text-xs text-red-800 dark:text-red-300">
-                This will mark the selected items as refunded, reverse client spend and dues, and restock inventory.
+                This will mark the selected items as refunded, reverse client spend and dues, and restock products back into inventory.
               </p>
             </div>
 
             {refundingTxn.items && refundingTxn.items.length > 0 && (
               <div className="space-y-1.5 pt-1">
                 <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex justify-between items-center">
-                  <span>Select Line Items to Refund</span>
+                  <span>Select Items to Return / Refund</span>
                   <span className="text-[10px] text-slate-400 font-normal">
                     {refundingTxn.items.filter((_: any, i: number) => selectedRefundItems[i]).length} of {refundingTxn.items.length} selected
                   </span>
                 </div>
-                <div className="max-h-36 overflow-y-auto space-y-1 p-2 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
+                <div className="max-h-48 overflow-y-auto space-y-1 p-2 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
                   {refundingTxn.items.map((item: any, idx: number) => (
-                    <label key={idx} className="flex items-center justify-between py-1 px-1 cursor-pointer text-xs">
-                      <div className="flex items-center gap-2">
+                    <label key={idx} className="flex items-center justify-between py-2 px-1 cursor-pointer text-xs hover:bg-slate-100/50 dark:hover:bg-slate-800/50 rounded">
+                      <div className="flex items-center gap-2.5">
                         <input
                           type="checkbox"
                           checked={!!selectedRefundItems[idx]}
                           onChange={(e) => {
                             setSelectedRefundItems(prev => ({ ...prev, [idx]: e.target.checked }));
                           }}
-                          className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 cursor-pointer"
+                          className="rounded text-red-600 focus:ring-red-500 w-4 h-4 cursor-pointer"
                         />
-                        <span className="text-slate-800 dark:text-slate-200 font-medium">{item.name}</span>
+                        <div>
+                          <span className="text-slate-800 dark:text-slate-200 font-semibold block">{item.name}</span>
+                          {item.isProduct && (
+                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Physical Product</span>
+                          )}
+                        </div>
                       </div>
-                      <span className="font-mono text-slate-500">
+                      <span className="font-mono text-slate-600 dark:text-slate-300 font-bold">
                         {item.quantity} × {formatPKR(item.price)}
                       </span>
                     </label>
@@ -1710,10 +1845,10 @@ function POSContent() {
             )}
 
             <Input
-              label="Refund Reason"
+              label="Return / Refund Reason"
               value={refundReason}
               onChange={(e) => setRefundReason(e.target.value)}
-              placeholder="e.g. Client requested return, incorrect service selected"
+              placeholder="e.g. Client requested product return, allergic reaction, defective batch"
               required
             />
 
@@ -1724,7 +1859,7 @@ function POSContent() {
                 onChange={(e) => setRefundRestock(e.target.checked)}
                 className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
               />
-              <span>Restock returned inventory / products</span>
+              <span>Restock returned inventory / products into stock</span>
             </label>
 
             <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -1747,7 +1882,7 @@ function POSContent() {
                 className="bg-red-600 hover:bg-red-700 text-white"
                 disabled={isRefunding || !refundReason.trim()}
               >
-                {isRefunding ? 'Refunding...' : 'Confirm Refund'}
+                {isRefunding ? 'Processing Refund...' : 'Confirm Return & Refund'}
               </Button>
             </div>
           </form>

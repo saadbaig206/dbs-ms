@@ -61,7 +61,7 @@ export function PartnerEquityTab() {
   const handleOpenEditProfile = (p: any) => {
     setEditingPartner(p);
     setEditEquityPercent(String(p.equityPercentage || 0));
-    setEditInitialInvestment(String(p.initialInvestment || 0));
+    setEditInitialInvestment(String(p.totalInvested ?? p.initialInvestment ?? 0));
     setEditProfileNotes('');
     setErrorMsg(null);
     setIsEditProfileModalOpen(true);
@@ -71,13 +71,8 @@ export function PartnerEquityTab() {
     e.preventDefault();
     if (!editingPartner) return;
     const eqNum = Number(editEquityPercent);
-    const invNum = Number(editInitialInvestment);
     if (isNaN(eqNum) || eqNum < 0 || eqNum > 100) {
       setErrorMsg('Equity percentage must be between 0% and 100%.');
-      return;
-    }
-    if (isNaN(invNum) || invNum < 0) {
-      setErrorMsg('Initial capital investment cannot be negative.');
       return;
     }
     try {
@@ -86,7 +81,7 @@ export function PartnerEquityTab() {
       await updatePartnerProfile({
         partnerName: editingPartner.partnerName,
         equityPercentage: eqNum,
-        initialInvestment: invNum,
+        initialInvestment: editingPartner.initialInvestment || 0,
         notes: editProfileNotes.trim() || undefined
       });
       setIsEditProfileModalOpen(false);
@@ -160,7 +155,7 @@ export function PartnerEquityTab() {
           value={formatPKR(totalNetCapital)}
           colorVariant="blue"
           icon={<Wallet className="w-5 h-5" />}
-          subtitle="Initial capital + retained earnings"
+          subtitle="Total invested + retained earnings"
         />
         <StatCard
           title="Net Operating Profit"
@@ -229,7 +224,7 @@ export function PartnerEquityTab() {
               <tr className="bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                 <th className="p-3.5 pl-4">Partner Name</th>
                 <th className="p-3.5 text-center">Equity Ownership</th>
-                <th className="p-3.5 text-right">Initial Capital</th>
+                <th className="p-3.5 text-right">Total Invested</th>
                 <th className="p-3.5 text-right">Profit Share</th>
                 <th className="p-3.5 text-right bg-amber-50/40 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 font-extrabold">
                   Withdrawn to Date
@@ -261,7 +256,8 @@ export function PartnerEquityTab() {
                       <Badge variant="primary">{p.equityPercentage}% Stake</Badge>
                     </td>
                     <td className="p-3.5 text-right font-mono text-slate-700 dark:text-slate-300">
-                      {formatPKR(p.initialInvestment)}
+                      <div className="font-bold text-slate-900 dark:text-slate-100">{formatPKR(p.totalInvested ?? p.initialInvestment)}</div>
+                      <div className="text-[9px] text-slate-400 font-normal">Expenses & Bills Paid</div>
                     </td>
                     <td className="p-3.5 text-right font-mono font-semibold text-blue-600 dark:text-blue-400">
                       {formatPKR(p.profitShare)}
@@ -480,8 +476,11 @@ export function PartnerEquityTab() {
             </div>
           )}
 
-          <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 text-xs text-slate-500">
-            Configure this partner's real equity ownership percentage and initial capital contribution.
+          <div className="p-3 bg-blue-50/70 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-900 text-xs text-blue-900 dark:text-blue-200 space-y-1">
+            <span className="font-bold block">Dynamic Capital Accounting</span>
+            <p className="text-slate-600 dark:text-slate-400">
+              Partner invested amount is automatically aggregated in real-time from all clinic expenses and vendor bills paid by this partner. You only need to configure their equity ownership stake (%) here.
+            </p>
           </div>
 
           <Input
@@ -493,16 +492,6 @@ export function PartnerEquityTab() {
             max="100"
             value={editEquityPercent}
             onChange={e => setEditEquityPercent(e.target.value)}
-          />
-
-          <Input
-            label="Initial Capital Investment (PKR)"
-            type="number"
-            required
-            min="0"
-            placeholder="0"
-            value={editInitialInvestment}
-            onChange={e => setEditInitialInvestment(e.target.value)}
           />
 
           <Input

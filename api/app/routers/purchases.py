@@ -108,7 +108,20 @@ async def create_purchase(
         amount_paid = min(total_amount, purchase_in.amount_paid or 0.0)
         remaining_due = max(0.0, total_amount - amount_paid)
 
-    creator_identifier = getattr(current_user, 'email', 'Admin/Partner')
+    creator_identifier = getattr(current_user, 'name', None) or getattr(current_user, 'email', 'Admin/Partner')
+    actual_payer = purchase_in.paid_by or creator_identifier
+
+    initial_logs = []
+    if amount_paid > 0:
+        initial_logs.append({
+            "id": f"PAY-{secrets.token_hex(3).upper()}",
+            "date": purchase_in.date or datetime.now().strftime("%Y-%m-%d"),
+            "time": datetime.now().strftime("%Y-%m-%d %I:%M %p"),
+            "amount": amount_paid,
+            "paid_by": actual_payer,
+            "payment_method": purchase_in.payment_method or "Bank Transfer",
+            "notes": purchase_in.notes or "Initial payment on Bill creation"
+        })
 
     # 1. Create Purchase Bill
     db_bill = PurchaseBill(
@@ -123,7 +136,8 @@ async def create_purchase(
         payment_status=purchase_in.payment_status,
         notes=purchase_in.notes,
         branch_id=active_branch,
-        created_by=creator_identifier
+        created_by=creator_identifier,
+        payment_logs=initial_logs
     )
     db.add(db_bill)
 
@@ -201,8 +215,8 @@ async def create_purchase(
             vendor_name=purchase_in.vendor_name,
             branch_id=active_branch,
             added_by=creator_identifier,
-            paid_by=creator_identifier,
-            notes=f"Initial payment on Purchase Bill {bill_id}."
+            paid_by=actual_payer,
+            notes=f"Initial payment on Purchase Bill {bill_id}. Paid by {actual_payer}."
         )
         db.add(exp_item)
 
@@ -219,6 +233,7 @@ async def pay_vendor_bill(
     current_user = Depends(get_admin_or_partner_user)
 ):
     """Settle full or partial outstanding due on a vendor purchase bill with expense tracking."""
+    from sqlalchemy.orm.attributes import flag_modified
     res = await db.execute(select(PurchaseBill).where(PurchaseBill.id == bill_id))
     bill = res.scalars().first()
     if not bill:
@@ -237,6 +252,9 @@ async def pay_vendor_bill(
             detail=f"Payment amount (Rs. {payment_in.amount}) cannot exceed outstanding due (Rs. {current_due})"
         )
 
+    user_identifier = getattr(current_user, "name", None) or getattr(current_user, "email", "Admin")
+    actual_payer = payment_in.paid_by or user_identifier
+
     new_paid = (bill.amount_paid or 0.0) + payment_in.amount
     new_due = max(0.0, bill.total_amount - new_paid)
     bill.amount_paid = new_paid
@@ -246,13 +264,27 @@ async def pay_vendor_bill(
 
     today_str = datetime.now().strftime("%Y-%m-%d")
     now_str = datetime.now().strftime("%Y-%m-%d %I:%M %p")
-    note_line = f"Paid Rs. {payment_in.amount} via {payment_in.payment_method} on {now_str}"
+    note_line = f"Paid Rs. {payment_in.amount} by {actual_payer} via {payment_in.payment_method} on {now_str}"
     if payment_in.notes:
         note_line += f" ({payment_in.notes})"
     bill.notes = f"{bill.notes or ''} | {note_line}".strip(" |")
+
+    # Record in bill payment logs
+    bill_logs = list(bill.payment_logs or [])
+    bill_logs.append({
+        "id": f"PAY-{secrets.token_hex(3).upper()}",
+        "date": today_str,
+        "time": now_str,
+        "amount": payment_in.amount,
+        "paid_by": actual_payer,
+        "payment_method": payment_in.payment_method,
+        "notes": payment_in.notes or ""
+    })
+    bill.payment_logs = bill_logs
+    flag_modified(bill, "payment_logs")
     db.add(bill)
 
-    # Log ExpenseItem to ensure Treasury cash flow & P&L reflect inventory cash-out
+    # Log ExpenseItem to ensure Treasury cash flow & P&L reflect inventory cash-out with paid_by
     from app.models.expense import ExpenseItem
     exp_id = f"EXP-PUR-{secrets.token_hex(3).upper()}"
     exp_item = ExpenseItem(
@@ -268,9 +300,9 @@ async def pay_vendor_bill(
         payment_method=payment_in.payment_method or "Cash",
         vendor_name=bill.vendor_name,
         branch_id=bill.branch_id,
-        added_by=getattr(current_user, "name", None) or getattr(current_user, "email", "Admin"),
-        paid_by=getattr(current_user, "name", None) or getattr(current_user, "email", "Admin"),
-        notes=f"Settlement payment for Purchase Bill {bill.id}. {payment_in.notes or ''}".strip()
+        added_by=user_identifier,
+        paid_by=actual_payer,
+        notes=f"Settlement payment for Purchase Bill {bill.id}. Paid by {actual_payer}. {payment_in.notes or ''}".strip()
     )
     db.add(exp_item)
 
