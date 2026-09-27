@@ -194,9 +194,27 @@ export default function FinanceReportsPage() {
     selectedBranchId,
     setSelectedBranchId,
     isLoading,
+    partnerEquity,
+    refreshPartnerEquity,
   } = useClinic();
 
   const router = useRouter();
+
+  useEffect(() => {
+    if (!partnerEquity?.partners || partnerEquity.partners.length === 0) {
+      refreshPartnerEquity();
+    }
+  }, [partnerEquity?.partners, refreshPartnerEquity]);
+
+  const partnerOptions = useMemo(() => {
+    if (partnerEquity?.partners && partnerEquity.partners.length > 0) {
+      return partnerEquity.partners.map((p) => ({
+        label: p.partnerName,
+        value: p.partnerName,
+      }));
+    }
+    return [];
+  }, [partnerEquity?.partners]);
 
   useEffect(() => {
     if (!isLoading && role !== "admin" && role !== "partner") {
@@ -333,8 +351,20 @@ export default function FinanceReportsPage() {
   const [expPaymentMethod, setExpPaymentMethod] = useState<
     "Bank Transfer" | "Cash" | "Card" | "Cheque"
   >("Bank Transfer");
-  const [expPaidBy, setExpPaidBy] = useState<string>("Dr. Zaini");
+  const [expPaidBy, setExpPaidBy] = useState<string>("");
   const [expNotes, setExpNotes] = useState("");
+
+  useEffect(() => {
+    if (partnerOptions.length > 0 && !expPaidBy) {
+      const matched = partnerOptions.find((o) =>
+        userEmail && (
+          o.value.toLowerCase().includes(userEmail.split('@')[0].toLowerCase()) ||
+          userEmail.toLowerCase().includes(o.value.toLowerCase().replace(/[^a-z0-9]/g, ''))
+        )
+      );
+      setExpPaidBy(matched ? matched.value : partnerOptions[0].value);
+    }
+  }, [partnerOptions, expPaidBy, userEmail]);
 
   // Edit Transaction State
   const [isEditTxnModalOpen, setIsEditTxnModalOpen] = useState(false);
@@ -359,6 +389,7 @@ export default function FinanceReportsPage() {
   const [editExpPaymentMethod, setEditExpPaymentMethod] = useState<
     "Bank Transfer" | "Cash" | "Card" | "Cheque"
   >("Bank Transfer");
+  const [editExpPaidBy, setEditExpPaidBy] = useState("");
   const [editExpNotes, setEditExpNotes] = useState("");
   const [editExpDate, setEditExpDate] = useState("");
   const [editExpStatus, setEditExpStatus] = useState<"Paid" | "Pending">(
@@ -882,7 +913,7 @@ export default function FinanceReportsPage() {
         date: new Date().toISOString().split("T")[0],
         status: "Paid",
         paymentMethod: expPaymentMethod,
-        paidBy: expPaidBy,
+        paidBy: expPaidBy || partnerOptions[0]?.value || userEmail || "Admin",
         notes: expNotes,
       });
 
@@ -938,6 +969,7 @@ export default function FinanceReportsPage() {
         category: editExpCategory,
         amount: Number(editExpAmount) || 0,
         paymentMethod: editExpPaymentMethod,
+        paidBy: editExpPaidBy || undefined,
         notes: editExpNotes,
         date: editExpDate,
         status: editExpStatus,
@@ -2221,6 +2253,7 @@ export default function FinanceReportsPage() {
                                         setEditExpNotes(exp.notes || "");
                                         setEditExpDate(exp.date);
                                         setEditExpStatus(exp.status);
+                                        setEditExpPaidBy(exp.paidBy || "");
                                         setIsEditExpModalOpen(true);
                                       }}
                                       className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-slate-800 transition-colors"
@@ -2509,12 +2542,11 @@ export default function FinanceReportsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
               label="Paid By (Partner / Admin)"
-              options={[
-                { label: "Dr. Zaini", value: "Dr. Zaini" },
-                { label: "Sheraz", value: "Sheraz" },
-                { label: "Clinic Treasury / Drawer", value: "Clinic Treasury" },
-                { label: "Admin", value: "Admin" },
-              ]}
+              options={
+                partnerOptions.length > 0
+                  ? partnerOptions
+                  : [{ label: "Loading Partners...", value: "" }]
+              }
               value={expPaidBy}
               onChange={(e) => setExpPaidBy(e.target.value)}
             />
@@ -2622,13 +2654,25 @@ export default function FinanceReportsPage() {
             />
           </div>
 
-          <Input
-            label="Date"
-            type="date"
-            value={editExpDate}
-            onChange={(e) => setEditExpDate(e.target.value)}
-            required
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Select
+              label="Paid By (Partner / Admin)"
+              options={
+                partnerOptions.length > 0
+                  ? partnerOptions
+                  : [{ label: "Loading Partners...", value: "" }]
+              }
+              value={editExpPaidBy}
+              onChange={(e) => setEditExpPaidBy(e.target.value)}
+            />
+            <Input
+              label="Date"
+              type="date"
+              value={editExpDate}
+              onChange={(e) => setEditExpDate(e.target.value)}
+              required
+            />
+          </div>
 
           <Input
             label="Notes / Vendor Details"

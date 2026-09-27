@@ -16,6 +16,7 @@ class PurchaseBill(Base):
     notes = Column(String, nullable=True)
     branch_id = Column(String, ForeignKey("branches.id"), nullable=True)
     created_by = Column(String, nullable=True)
+    paid_by = Column(String, nullable=True)
     payment_logs = Column(JSON, nullable=True)
 
 

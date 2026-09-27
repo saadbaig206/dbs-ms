@@ -19,6 +19,74 @@ from app.schemas.partner import (
 )
 from app.routers.bootstrap import invalidate_bootstrap_cache
 
+EXCLUDED_EMAILS = {"admin@gmail.com", "staff@gmail.com"}
+
+def format_partner_name(email_or_username: str) -> str:
+    raw = email_or_username.split('@')[0]
+    cleaned = raw.replace('.', ' ').replace('_', ' ').replace('-', ' ').strip()
+    if cleaned.lower().startswith("dr") and len(cleaned) > 2 and not cleaned[2].isspace():
+        cleaned = "Dr " + cleaned[2:]
+    return cleaned.title()
+
+def is_payer_match(payer: Optional[str], partner_name: str, user_email: Optional[str] = None) -> bool:
+    if not payer:
+        return False
+    p_clean = "".join(c for c in payer.lower() if c.isalnum())
+    if not p_clean:
+        return False
+    name_clean = "".join(c for c in partner_name.lower() if c.isalnum())
+    if name_clean and (p_clean == name_clean or name_clean in p_clean or p_clean in name_clean):
+        return True
+    if user_email:
+        u_clean = "".join(c for c in user_email.lower().split('@')[0] if c.isalnum())
+        if u_clean and (p_clean == u_clean or u_clean in p_clean or p_clean in u_clean):
+            return True
+    return False
+
+def calculate_partner_investments(profiles: list, paid_expenses: list) -> dict:
+    """
+    Calculates dynamic invested capital for each active partner.
+    Direct partner payments are attributed 100% to that partner.
+    Common / staff expenses are settled across the partners in proportion to equity.
+    Ensures 100% of expenses are settled between partners without any orphaned clinic accounts.
+    """
+    direct_investments = {p.id: 0.0 for p in profiles}
+    common_expenses = 0.0
+
+    for e in paid_expenses:
+        if e.category == "Partner Drawing" or "Partner Drawing" in (e.title or ""):
+            continue
+
+        if e.payment_logs and isinstance(e.payment_logs, list) and len(e.payment_logs) > 0:
+            for log in e.payment_logs:
+                if not isinstance(log, dict):
+                    continue
+                log_amt = float(log.get("amount", 0.0))
+                log_payer = log.get("paidBy") or log.get("paid_by")
+                matched_p = next((p for p in profiles if is_payer_match(log_payer, p.partner_name, getattr(p, "user_email", None))), None)
+                if matched_p:
+                    direct_investments[matched_p.id] += log_amt
+                else:
+                    common_expenses += log_amt
+            continue
+
+        amt = float(e.amount_paid if e.amount_paid is not None else e.amount)
+        matched_p = next((p for p in profiles if is_payer_match(e.paid_by, p.partner_name, getattr(p, "user_email", None))), None)
+        if matched_p:
+            direct_investments[matched_p.id] += amt
+        else:
+            common_expenses += amt
+
+    total_equity = sum(p.equity_percentage for p in profiles) or 100.0
+    total_investments = {}
+    for p in profiles:
+        share_ratio = (p.equity_percentage / total_equity) if total_equity > 0 else (1.0 / max(1, len(profiles)))
+        settled_share = common_expenses * share_ratio
+        total_investments[p.id] = round(direct_investments[p.id] + settled_share, 2)
+
+    return total_investments
+
+
 router = APIRouter()
 
 @router.get("/equity", response_model=PartnerEquityOverviewResponse)
@@ -27,33 +95,66 @@ async def get_partner_equity_overview(
     current_user = Depends(get_admin_or_partner_user)
 ):
     """Retrieve full partner equity balances, cumulative withdrawals to date, and market brand valuation."""
-    # 1. Ensure profiles exist for partner/admin users if none exist
-    p_res = await db.execute(select(PartnerProfile))
-    profiles = p_res.scalars().all()
+    # 1. Dynamically sync all eligible admin & partner users (excluding admin@gmail.com and staff@gmail.com)
+    users_res = await db.execute(
+        select(User).where(
+            User.role.in_(["admin", "partner"]),
+            ~User.email.ilike("admin@gmail.com"),
+            ~User.email.ilike("staff@gmail.com"),
+        )
+    )
+    eligible_users = users_res.scalars().all()
+    eligible_user_map = {u.id: u for u in eligible_users}
 
-    if not profiles:
-        # Auto-seed from existing partners/admins
-        users_res = await db.execute(select(User).where(User.role.in_(["admin", "partner"])))
-        users = users_res.scalars().all()
-        created_profiles = []
-        default_shares = [60.0, 40.0] if len(users) == 2 else [round(100.0 / max(1, len(users)), 1) for _ in users]
-        
-        for idx, u in enumerate(users):
-            clean_name = u.email.split('@')[0].replace('.', ' ').title()
-            p_id = f"PRT-{secrets.token_hex(2).upper()}"
-            prof = PartnerProfile(
-                id=p_id,
-                user_id=u.id,
-                partner_name=clean_name,
-                equity_percentage=default_shares[idx] if idx < len(default_shares) else round(100.0 / max(1, len(users)), 1),
-                initial_investment=0.0,
-                notes="Partner capital account"
-            )
-            db.add(prof)
-            created_profiles.append(prof)
-        
-        await db.commit()
-        profiles = created_profiles
+    p_res = await db.execute(select(PartnerProfile))
+    all_profiles = p_res.scalars().all()
+
+    # Clean up any partner profiles belonging to excluded accounts
+    valid_profiles = []
+    for prof in all_profiles:
+        prof_name_lower = (prof.partner_name or "").lower()
+        if "admin@gmail" in prof_name_lower or "staff@gmail" in prof_name_lower:
+            await db.delete(prof)
+            continue
+        valid_profiles.append(prof)
+
+    # Ensure every eligible user has an active partner profile
+    existing_user_ids = {p.user_id for p in valid_profiles if p.user_id}
+    default_share = round(100.0 / max(1, len(eligible_users)), 1)
+
+    for u in eligible_users:
+        if u.id not in existing_user_ids:
+            # Check by name matching if user_id wasn't set previously
+            clean_name = format_partner_name(u.email)
+            existing_by_name = next((p for p in valid_profiles if is_payer_match(clean_name, p.partner_name)), None)
+            if existing_by_name:
+                existing_by_name.user_id = u.id
+                existing_user_ids.add(u.id)
+            else:
+                p_id = f"PRT-{secrets.token_hex(2).upper()}"
+                new_prof = PartnerProfile(
+                    id=p_id,
+                    user_id=u.id,
+                    partner_name=clean_name,
+                    equity_percentage=default_share,
+                    initial_investment=0.0,
+                    notes="Partner capital account"
+                )
+                db.add(new_prof)
+                valid_profiles.append(new_prof)
+                existing_user_ids.add(u.id)
+
+    await db.commit()
+
+    # Attach user_email in memory for payer matching
+    for p in valid_profiles:
+        matched_u = eligible_user_map.get(p.user_id)
+        if matched_u:
+            p.user_email = matched_u.email
+        else:
+            p.user_email = None
+
+    profiles = valid_profiles
 
     # 2. Calculate Clinic Financial Performance (Sales revenue excluding Debt Settlements and refunds)
     txn_res = await db.execute(select(FinancialTransaction))
@@ -84,44 +185,8 @@ async def get_partner_equity_overview(
     drw_res = await db.execute(select(PartnerDrawing).order_by(PartnerDrawing.date.desc(), PartnerDrawing.id.desc()))
     all_drawings = drw_res.scalars().all()
 
-    def is_payer_match(payer: Optional[str], partner_name: str) -> bool:
-        if not payer:
-            return False
-        pay_clean = payer.lower().strip()
-        part_clean = partner_name.lower().strip()
-        if "zaini" in part_clean:
-            if any(alias in pay_clean for alias in ["zaini", "drzaini", "dr.zaini", "dr. zaini"]):
-                return True
-        if "sheraz" in part_clean:
-            if "sheraz" in pay_clean:
-                return True
-        return part_clean in pay_clean or pay_clean in part_clean
-
-    def get_partner_invested_amount(partner_name: str) -> float:
-        total = 0.0
-        for e in paid_expenses:
-            # Exclude partner drawings from investment
-            if e.category == "Partner Drawing" or "Partner Drawing" in (e.title or ""):
-                continue
-
-            # If expense has payment logs, aggregate any payment logs matching this partner
-            if e.payment_logs and isinstance(e.payment_logs, list) and len(e.payment_logs) > 0:
-                has_matching_log = False
-                for log in e.payment_logs:
-                    if isinstance(log, dict) and is_payer_match(log.get("paidBy") or log.get("paid_by"), partner_name):
-                        total += float(log.get("amount", 0.0))
-                        has_matching_log = True
-                if has_matching_log:
-                    continue
-
-            # Fallback to direct paid_by field on the expense
-            if is_payer_match(e.paid_by, partner_name):
-                amt = float(e.amount_paid if e.amount_paid is not None else e.amount)
-                total += amt
-        return round(total, 2)
-
-    # 4. Total dynamic invested across all partners drives tangible capital baseline
-    partner_investments = {p.id: get_partner_invested_amount(p.partner_name) for p in profiles}
+    # 4. Total dynamic invested across all partners (all clinic expenses settled between partners)
+    partner_investments = calculate_partner_investments(profiles, paid_expenses)
     total_dynamic_invested = sum(partner_investments.values())
     estimated_brand_valuation = (net_profit * 5.0) + total_dynamic_invested
 
@@ -214,21 +279,10 @@ async def record_partner_drawing(
     profit_share = net_profit * (profile.equity_percentage / 100.0)
 
     # Dynamic invested calculation for this partner
-    partner_inv = 0.0
-    p_name = profile.partner_name
-    for e in paid_expenses:
-        if e.category == "Partner Drawing" or "Partner Drawing" in (e.title or ""):
-            continue
-        if e.payment_logs and isinstance(e.payment_logs, list) and len(e.payment_logs) > 0:
-            has_matching_log = False
-            for log in e.payment_logs:
-                if isinstance(log, dict) and is_payer_match(log.get("paidBy") or log.get("paid_by"), p_name):
-                    partner_inv += float(log.get("amount", 0.0))
-                    has_matching_log = True
-            if has_matching_log:
-                continue
-        if is_payer_match(e.paid_by, p_name):
-            partner_inv += float(e.amount_paid if e.amount_paid is not None else e.amount)
+    all_prof_res = await db.execute(select(PartnerProfile))
+    all_profs = all_prof_res.scalars().all()
+    partner_investments = calculate_partner_investments(all_profs, paid_expenses)
+    partner_inv = partner_investments.get(profile.id, 0.0)
 
     net_capital = (partner_inv + profit_share) - total_withdrawn
 

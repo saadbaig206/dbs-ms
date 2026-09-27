@@ -475,6 +475,9 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       safeSetFallback(setExpenses, 'expenses', expensesData);
       safeSetFallback(setTransactions, 'transactions', transactionsData);
       safeSetFallback(setPartners, 'partners', partnersData);
+      if (initialRole === 'admin' || initialRole === 'partner') {
+        refreshPartnerEquity();
+      }
     } catch (err: any) {
       console.error('Failed to load clinic data:', err);
       setError(err.message || 'Failed to fetch data');

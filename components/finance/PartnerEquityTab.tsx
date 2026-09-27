@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   DollarSign,
   TrendingUp,
@@ -52,6 +52,16 @@ export function PartnerEquityTab() {
 
   const partners = partnerEquity?.partners || [];
   const drawings = partnerEquity?.recentDrawings || [];
+
+  useEffect(() => {
+    refreshPartnerEquity();
+  }, []);
+
+  useEffect(() => {
+    if (partners.length > 0 && !selectedPartnerId) {
+      setSelectedPartnerId(partners[0].id);
+    }
+  }, [partners, selectedPartnerId]);
 
   const totalBrandValuation = partnerEquity?.estimatedBrandValuation || 0;
   const netProfit = partnerEquity?.netProfit || 0;

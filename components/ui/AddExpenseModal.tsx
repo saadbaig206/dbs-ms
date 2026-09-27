@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { DollarSign, CheckCircle2 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { Modal } from './Modal';
@@ -19,13 +19,13 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   onClose,
   defaultBranchId
 }) => {
-  const { addExpense, branches, selectedBranchId, userBranchId, userEmail, role } = useClinic();
+  const { addExpense, branches, selectedBranchId, userBranchId, userEmail, role, partnerEquity, refreshPartnerEquity } = useClinic();
 
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<ExpenseCategory>('Other');
   const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Card' | 'Bank Transfer' | 'Cheque'>('Cash');
-  const [paidBy, setPaidBy] = useState<string>('Dr. Zaini');
+  const [paidBy, setPaidBy] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [vendorName, setVendorName] = useState('');
   const [branchId, setBranchId] = useState<string>(defaultBranchId || selectedBranchId || userBranchId || '');
@@ -34,11 +34,40 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!partnerEquity?.partners || partnerEquity.partners.length === 0) {
+      refreshPartnerEquity();
+    }
+  }, [partnerEquity?.partners, refreshPartnerEquity]);
+
+  const partnerOptions = useMemo(() => {
+    if (partnerEquity?.partners && partnerEquity.partners.length > 0) {
+      return partnerEquity.partners.map((p) => ({
+        label: p.partnerName,
+        value: p.partnerName,
+      }));
+    }
+    return [];
+  }, [partnerEquity?.partners]);
+
+  useEffect(() => {
+    if (partnerOptions.length > 0 && !paidBy) {
+      const matched = partnerOptions.find((o) =>
+        userEmail && (
+          o.value.toLowerCase().includes(userEmail.split('@')[0].toLowerCase()) ||
+          userEmail.toLowerCase().includes(o.value.toLowerCase().replace(/[^a-z0-9]/g, ''))
+        )
+      );
+      setPaidBy(matched ? matched.value : partnerOptions[0].value);
+    }
+  }, [partnerOptions, paidBy, userEmail]);
+
   const resetForm = () => {
     setTitle('');
     setCategory('Other');
     setAmount('');
     setPaymentMethod('Cash');
+    setPaidBy(partnerOptions[0]?.value || '');
     setNotes('');
     setVendorName('');
     setErrorMsg(null);
@@ -154,13 +183,8 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Select
-              label="Paid By (Partner / Payer)"
-              options={[
-                { label: 'Dr. Zaini', value: 'Dr. Zaini' },
-                { label: 'Sheraz', value: 'Sheraz' },
-                { label: 'Clinic Treasury / Drawer', value: 'Clinic Treasury' },
-                { label: 'Admin', value: 'Admin' }
-              ]}
+              label="Paid By (Partner / Admin)"
+              options={partnerOptions.length > 0 ? partnerOptions : [{ label: 'Loading Partners...', value: '' }]}
               value={paidBy}
               onChange={(e) => setPaidBy(e.target.value)}
             />

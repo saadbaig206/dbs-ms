@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ShoppingBag,
   Plus,
@@ -47,7 +47,10 @@ export function PurchasesTab() {
     setPrintData,
     role,
     selectedBranchId,
-    inventory = []
+    inventory = [],
+    partnerEquity,
+    refreshPartnerEquity,
+    userEmail
   } = useClinic();
 
   const returns = useMemo(() => Array.isArray(contextReturns) ? contextReturns : [], [contextReturns]);
@@ -57,6 +60,23 @@ export function PurchasesTab() {
   const [activeSubTab, setActiveSubTab] = useState<'items' | 'bills' | 'returns'>('items');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Paid' | 'Partial' | 'Pending'>('All');
+
+  // Dynamic Partner Options
+  useEffect(() => {
+    if (!partnerEquity?.partners || partnerEquity.partners.length === 0) {
+      refreshPartnerEquity();
+    }
+  }, [partnerEquity?.partners, refreshPartnerEquity]);
+
+  const partnerOptions = useMemo(() => {
+    if (partnerEquity?.partners && partnerEquity.partners.length > 0) {
+      return partnerEquity.partners.map((p) => ({
+        label: p.partnerName,
+        value: p.partnerName,
+      }));
+    }
+    return [];
+  }, [partnerEquity?.partners]);
 
   // RTV Modal State
   const [isRtvModalOpen, setIsRtvModalOpen] = useState(false);
@@ -78,7 +98,7 @@ export function PurchasesTab() {
   const [purchaseDate, setPurchaseDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [paymentStatus, setPaymentStatus] = useState<'Paid' | 'Pending' | 'Partial'>('Paid');
   const [paymentMethod, setPaymentMethod] = useState('Online');
-  const [billPaidBy, setBillPaidBy] = useState('Dr. Zaini');
+  const [billPaidBy, setBillPaidBy] = useState('');
   const [amountPaidInput, setAmountPaidInput] = useState('');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -94,9 +114,32 @@ export function PurchasesTab() {
   const [selectedBill, setSelectedBill] = useState<any>(null);
   const [payAmount, setPayAmount] = useState('');
   const [payMethod, setPayMethod] = useState('Online');
-  const [payPaidBy, setPayPaidBy] = useState('Dr. Zaini');
+  const [payPaidBy, setPayPaidBy] = useState('');
   const [payNotes, setPayNotes] = useState('');
   const [payError, setPayError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (partnerOptions.length > 0) {
+      if (!billPaidBy) {
+        const matched = partnerOptions.find((o) =>
+          userEmail && (
+            o.value.toLowerCase().includes(userEmail.split('@')[0].toLowerCase()) ||
+            userEmail.toLowerCase().includes(o.value.toLowerCase().replace(/[^a-z0-9]/g, ''))
+          )
+        );
+        setBillPaidBy(matched ? matched.value : partnerOptions[0].value);
+      }
+      if (!payPaidBy) {
+        const matched = partnerOptions.find((o) =>
+          userEmail && (
+            o.value.toLowerCase().includes(userEmail.split('@')[0].toLowerCase()) ||
+            userEmail.toLowerCase().includes(o.value.toLowerCase().replace(/[^a-z0-9]/g, ''))
+          )
+        );
+        setPayPaidBy(matched ? matched.value : partnerOptions[0].value);
+      }
+    }
+  }, [partnerOptions, billPaidBy, payPaidBy, userEmail]);
 
   // Bill Payment Logs Modal State
   const [isBillLogsModalOpen, setIsBillLogsModalOpen] = useState(false);
@@ -1054,12 +1097,7 @@ export function PurchasesTab() {
                 label="Paid By (Partner / Admin)"
                 value={billPaidBy}
                 onChange={e => setBillPaidBy(e.target.value)}
-                options={[
-                  { label: 'Dr. Zaini', value: 'Dr. Zaini' },
-                  { label: 'Sheraz', value: 'Sheraz' },
-                  { label: 'Clinic Treasury / Drawer', value: 'Clinic Treasury' },
-                  { label: 'Admin', value: 'Admin' }
-                ]}
+                options={partnerOptions.length > 0 ? partnerOptions : [{ label: 'Loading Partners...', value: '' }]}
               />
             )}
 
@@ -1208,12 +1246,7 @@ export function PurchasesTab() {
                 label="Paid By (Partner / Admin)"
                 value={payPaidBy}
                 onChange={e => setPayPaidBy(e.target.value)}
-                options={[
-                  { label: 'Dr. Zaini', value: 'Dr. Zaini' },
-                  { label: 'Sheraz', value: 'Sheraz' },
-                  { label: 'Clinic Treasury / Drawer', value: 'Clinic Treasury' },
-                  { label: 'Admin', value: 'Admin' }
-                ]}
+                options={partnerOptions.length > 0 ? partnerOptions : [{ label: 'Loading Partners...', value: '' }]}
               />
 
               <Select
@@ -1336,7 +1369,7 @@ export function PurchasesTab() {
                           <td className="p-2.5 pl-3 font-mono text-slate-500">{selectedBillForLogs.date}</td>
                           <td className="p-2.5">
                             <span className="px-2 py-0.5 rounded-full font-bold text-[11px] bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
-                              {selectedBillForLogs.paidBy || selectedBillForLogs.createdBy || 'Dr. Zaini'}
+                              {selectedBillForLogs.paidBy || selectedBillForLogs.createdBy || 'Partner/Admin'}
                             </span>
                           </td>
                           <td className="p-2.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">

@@ -137,6 +137,7 @@ async def create_purchase(
         notes=purchase_in.notes,
         branch_id=active_branch,
         created_by=creator_identifier,
+        paid_by=actual_payer,
         payment_logs=initial_logs
     )
     db.add(db_bill)
@@ -261,6 +262,7 @@ async def pay_vendor_bill(
     bill.remaining_due = new_due
     bill.payment_status = "Paid" if new_due == 0 else "Partial"
     bill.payment_method = payment_in.payment_method
+    bill.paid_by = actual_payer
 
     today_str = datetime.now().strftime("%Y-%m-%d")
     now_str = datetime.now().strftime("%Y-%m-%d %I:%M %p")

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Users,
   Wallet,
@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   Receipt,
   FileSpreadsheet,
+  Check,
 } from "lucide-react";
 import { useClinic } from "../../lib/context/ClinicContext";
 import { formatPKR } from "../../lib/utils/currency";
@@ -23,11 +24,16 @@ import { StatCard } from "../../components/cards/StatCard";
 import { Badge } from "../../components/ui/Badge";
 import { Input, Select } from "../../components/ui/Input";
 import { Button } from "../../components/ui/Button";
-import { ExpenseItem } from "../../lib/types/clinic";
+import { PartnerEquityReportItem } from "../../lib/types/clinic";
 
 export function PartnerExpensesTab() {
-  const { expenses = [], purchaseBills = [], partnerEquity, role } = useClinic();
+  const { expenses = [], purchaseBills = [], partnerEquity, refreshPartnerEquity, updateExpense, role } = useClinic();
   const equityPartners = partnerEquity?.partners || [];
+
+  // Always refresh partner equity when mounting this tab
+  useEffect(() => {
+    refreshPartnerEquity();
+  }, []);
 
   // Filter States
   const [selectedPayer, setSelectedPayer] = useState<string>("all");
@@ -36,35 +42,37 @@ export function PartnerExpensesTab() {
   const [dateFilter, setDateFilter] = useState<"all" | "this-month" | "last-30" | "custom">("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [reassigningExpId, setReassigningExpId] = useState<string | null>(null);
 
-  // Normalizer for payer identity
-  const classifyPayer = (paidBy?: string): string => {
-    if (!paidBy || !paidBy.trim()) return "Admin / Clinic Account";
-    const clean = paidBy.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (clean.includes("zaini")) return "Dr. Zaini";
-    if (clean.includes("sheraz")) return "Sheraz";
-    
-    // Check against any other dynamically registered partners
+  // Dynamic Payer Matching without any hardcoded names
+  const matchPartner = (paidBy?: string): PartnerEquityReportItem | null => {
+    if (!paidBy || !paidBy.trim()) return null;
+    const clean = paidBy.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (!clean) return null;
+    if (clean.includes("admin@gmail") || clean.includes("staff@gmail")) return null;
+
     for (const p of equityPartners) {
       const pClean = p.partnerName.toLowerCase().replace(/[^a-z0-9]/g, "");
-      if (clean.includes(pClean) || pClean.includes(clean)) {
-        return p.partnerName;
+      if (pClean && (clean === pClean || pClean.includes(clean) || clean.includes(pClean))) {
+        return p;
       }
     }
-    return paidBy.trim();
+    return null;
   };
 
   // Compile all paid disbursements (Expenses + Vendor Bill partial/full logs)
   const unifiedExpenses = useMemo(() => {
     const list: Array<{
       id: string;
+      rawExpenseId?: string;
       title: string;
       category: string;
       vendorName?: string;
       amount: number;
       date: string;
       paidBy: string;
-      standardPayer: string;
+      matchedPartner: PartnerEquityReportItem | null;
+      isSettledShared: boolean;
       paymentMethod: string;
       status: string;
       notes?: string;
@@ -73,23 +81,24 @@ export function PartnerExpensesTab() {
 
     // 1. Regular Clinic Expenses
     expenses.forEach((exp) => {
-      // Exclude partner drawings if any are marked as expense
       if (exp.category === ("Partner Drawing" as any) || (exp.title && exp.title.toLowerCase().includes("partner drawing"))) {
         return;
       }
 
-      // If expense has payment logs, break them down, otherwise use the top-level expense
       if (exp.paymentLogs && exp.paymentLogs.length > 0) {
         exp.paymentLogs.forEach((log) => {
+          const matched = matchPartner(log.paidBy || exp.paidBy);
           list.push({
             id: `${exp.id}-${log.id}`,
+            rawExpenseId: exp.id,
             title: exp.title,
             category: exp.category,
             vendorName: exp.vendorName,
             amount: log.amount,
             date: log.date || exp.date,
-            paidBy: log.paidBy || exp.paidBy || "Admin / Clinic",
-            standardPayer: classifyPayer(log.paidBy || exp.paidBy),
+            paidBy: log.paidBy || exp.paidBy || "Common Clinic Operating",
+            matchedPartner: matched,
+            isSettledShared: matched === null,
             paymentMethod: log.paymentMethod || exp.paymentMethod || "Cash",
             status: exp.status,
             notes: log.notes || exp.notes,
@@ -97,15 +106,18 @@ export function PartnerExpensesTab() {
           });
         });
       } else {
+        const matched = matchPartner(exp.paidBy);
         list.push({
           id: exp.id,
+          rawExpenseId: exp.id,
           title: exp.title,
           category: exp.category,
           vendorName: exp.vendorName,
           amount: exp.amountPaid ?? exp.amount,
           date: exp.date,
-          paidBy: exp.paidBy || "Admin / Clinic",
-          standardPayer: classifyPayer(exp.paidBy),
+          paidBy: exp.paidBy || "Common Clinic Operating",
+          matchedPartner: matched,
+          isSettledShared: matched === null,
           paymentMethod: exp.paymentMethod || "Cash",
           status: exp.status,
           notes: exp.notes,
@@ -114,11 +126,10 @@ export function PartnerExpensesTab() {
       }
     });
 
-    // 2. Vendor Purchase Bills that might not have mirrored into expenses or had separate payment logs
+    // 2. Vendor Purchase Bills
     purchaseBills.forEach((bill) => {
       if (bill.paymentLogs && bill.paymentLogs.length > 0) {
         bill.paymentLogs.forEach((log) => {
-          // Prevent exact duplicate if this log is already linked to an expense item
           const isAlreadyInList = list.some(
             (item) =>
               item.date === log.date &&
@@ -126,6 +137,7 @@ export function PartnerExpensesTab() {
               item.vendorName === bill.vendorName
           );
           if (!isAlreadyInList) {
+            const matched = matchPartner(log.paidBy || bill.paidBy);
             list.push({
               id: `${bill.id}-${log.id}`,
               title: `Vendor Bill: ${bill.billNumber || bill.vendorName}`,
@@ -133,10 +145,11 @@ export function PartnerExpensesTab() {
               vendorName: bill.vendorName,
               amount: log.amount,
               date: log.date,
-              paidBy: log.paidBy || bill.paidBy || "Admin / Clinic",
-              standardPayer: classifyPayer(log.paidBy || bill.paidBy),
+              paidBy: log.paidBy || bill.paidBy || "Common Clinic Operating",
+              matchedPartner: matched,
+              isSettledShared: matched === null,
               paymentMethod: log.paymentMethod || "Bank Transfer",
-              status: bill.paymentStatus,
+              status: bill.paymentStatus || "Paid",
               notes: log.notes || bill.notes,
               source: "vendor_bill",
             });
@@ -146,48 +159,54 @@ export function PartnerExpensesTab() {
     });
 
     return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [expenses, purchaseBills, partnerEquity]);
+  }, [expenses, purchaseBills, equityPartners]);
 
-  // Aggregate KPI metrics across all disbursements
-  const kpis = useMemo(() => {
+  // Aggregate Partner Metrics: Every rupee is accounted for under the partners
+  const partnerSummaries = useMemo(() => {
     let totalAll = 0;
-    let totalZaini = 0;
-    let totalSheraz = 0;
-    let totalAdminOther = 0;
+    let commonUnassigned = 0;
+    const directTotals: { [partnerId: string]: { partner: PartnerEquityReportItem; directAmount: number; count: number } } = {};
 
-    let countZaini = 0;
-    let countSheraz = 0;
-    let countAdminOther = 0;
+    equityPartners.forEach((p) => {
+      directTotals[p.id] = { partner: p, directAmount: 0, count: 0 };
+    });
 
     unifiedExpenses.forEach((item) => {
       totalAll += item.amount;
-      if (item.standardPayer === "Dr. Zaini") {
-        totalZaini += item.amount;
-        countZaini++;
-      } else if (item.standardPayer === "Sheraz") {
-        totalSheraz += item.amount;
-        countSheraz++;
+      if (item.matchedPartner && directTotals[item.matchedPartner.id]) {
+        directTotals[item.matchedPartner.id].directAmount += item.amount;
+        directTotals[item.matchedPartner.id].count += 1;
       } else {
-        totalAdminOther += item.amount;
-        countAdminOther++;
+        commonUnassigned += item.amount;
       }
     });
 
-    return {
-      totalAll,
-      totalZaini,
-      totalSheraz,
-      totalAdminOther,
-      countZaini,
-      countSheraz,
-      countAdminOther,
-      zainiPct: totalAll > 0 ? ((totalZaini / totalAll) * 100).toFixed(1) : "0",
-      sherazPct: totalAll > 0 ? ((totalSheraz / totalAll) * 100).toFixed(1) : "0",
-      adminPct: totalAll > 0 ? ((totalAdminOther / totalAll) * 100).toFixed(1) : "0",
-    };
+    const totalEquity = equityPartners.reduce((acc, curr) => acc + curr.equityPercentage, 0) || 100;
+
+    return equityPartners.map((p) => {
+      const shareRatio = totalEquity > 0 ? p.equityPercentage / totalEquity : 1 / Math.max(1, equityPartners.length);
+      const settledShare = commonUnassigned * shareRatio;
+      const direct = directTotals[p.id]?.directAmount || 0;
+      const count = directTotals[p.id]?.count || 0;
+      const totalContributed = direct + settledShare;
+      const pct = totalAll > 0 ? ((totalContributed / totalAll) * 100).toFixed(1) : "0";
+
+      return {
+        partner: p,
+        direct,
+        settledShare,
+        totalContributed,
+        count,
+        pct,
+      };
+    });
+  }, [unifiedExpenses, equityPartners]);
+
+  const totalClinicExpenses = useMemo(() => {
+    return unifiedExpenses.reduce((acc, curr) => acc + curr.amount, 0);
   }, [unifiedExpenses]);
 
-  // Filtered dataset according to user selection
+  // Filtered dataset
   const filteredList = useMemo(() => {
     const today = new Date();
     const currentMonthPrefix = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
@@ -197,10 +216,9 @@ export function PartnerExpensesTab() {
     return unifiedExpenses.filter((item) => {
       // Payer filter
       if (selectedPayer !== "all") {
-        if (selectedPayer === "Dr. Zaini" && item.standardPayer !== "Dr. Zaini") return false;
-        if (selectedPayer === "Sheraz" && item.standardPayer !== "Sheraz") return false;
-        if (selectedPayer === "Admin / Clinic" && item.standardPayer === "Dr. Zaini") return false;
-        if (selectedPayer === "Admin / Clinic" && item.standardPayer === "Sheraz") return false;
+        if (item.matchedPartner?.id !== selectedPayer && !item.isSettledShared) {
+          return false;
+        }
       }
 
       // Category filter
@@ -229,7 +247,8 @@ export function PartnerExpensesTab() {
         const matchesCategory = item.category.toLowerCase().includes(q);
         const matchesNotes = (item.notes || "").toLowerCase().includes(q);
         const matchesPaidBy = item.paidBy.toLowerCase().includes(q);
-        if (!matchesTitle && !matchesVendor && !matchesCategory && !matchesNotes && !matchesPaidBy) {
+        const matchesPartner = (item.matchedPartner?.partnerName || "").toLowerCase().includes(q);
+        if (!matchesTitle && !matchesVendor && !matchesCategory && !matchesNotes && !matchesPaidBy && !matchesPartner) {
           return false;
         }
       }
@@ -238,12 +257,11 @@ export function PartnerExpensesTab() {
     });
   }, [unifiedExpenses, selectedPayer, selectedCategory, dateFilter, startDate, endDate, searchQuery]);
 
-  // Total amount of currently filtered records
   const filteredTotal = useMemo(() => {
     return filteredList.reduce((acc, curr) => acc + curr.amount, 0);
   }, [filteredList]);
 
-  // Breakdown of "Where the money went" (by Category)
+  // Category breakdown
   const categoryBreakdown = useMemo(() => {
     const map: { [key: string]: { category: string; amount: number; count: number } } = {};
     filteredList.forEach((item) => {
@@ -258,11 +276,11 @@ export function PartnerExpensesTab() {
     return Object.values(map).sort((a, b) => b.amount - a.amount);
   }, [filteredList]);
 
-  // Breakdown of "Who received the money" (by Vendor / Payee)
+  // Top vendors & payees
   const vendorBreakdown = useMemo(() => {
     const map: { [key: string]: { vendor: string; amount: number; count: number } } = {};
     filteredList.forEach((item) => {
-      const v = item.vendorName || (item.category === "Salary" ? "Staff Salaries" : item.category === "Rent" ? "Clinic Landlord" : "Direct Expense");
+      const v = item.vendorName || (item.category === "Salary" ? "Staff Salaries" : item.category === "Rent" ? "Clinic Landlord" : "Operational Direct");
       if (!map[v]) {
         map[v] = { vendor: v, amount: 0, count: 0 };
       }
@@ -273,17 +291,27 @@ export function PartnerExpensesTab() {
     return Object.values(map).sort((a, b) => b.amount - a.amount).slice(0, 8);
   }, [filteredList]);
 
-  // Export filtered expenses to CSV
+  // Quick reassign of a common expense to a specific partner
+  const handleAssignExpenseToPartner = async (rawExpId: string, partnerName: string) => {
+    try {
+      await updateExpense(rawExpId, { paidBy: partnerName });
+      await refreshPartnerEquity();
+      setReassigningExpId(null);
+    } catch (err: any) {
+      console.error("Failed to reassign expense:", err);
+    }
+  };
+
   const handleExportCSV = () => {
     if (filteredList.length === 0) return;
-    const headers = ["Date", "Title", "Category", "Vendor/Payee", "Amount (PKR)", "Paid By", "Payment Method", "Notes"];
+    const headers = ["Date", "Title", "Category", "Vendor/Payee", "Amount (PKR)", "Attribution / Paid By", "Method", "Notes"];
     const rows = filteredList.map((item) => [
       `"${item.date}"`,
       `"${(item.title || "").replace(/"/g, '""')}"`,
       `"${(item.category || "").replace(/"/g, '""')}"`,
       `"${(item.vendorName || "").replace(/"/g, '""')}"`,
       item.amount,
-      `"${item.paidBy}"`,
+      `"${item.matchedPartner ? item.matchedPartner.partnerName : "Settled Across Partners"}"`,
       `"${item.paymentMethod}"`,
       `"${(item.notes || "").replace(/"/g, '""')}"`,
     ]);
@@ -298,12 +326,6 @@ export function PartnerExpensesTab() {
     document.body.removeChild(link);
   };
 
-  const getPayerBadgeVariant = (standardPayer: string) => {
-    if (standardPayer === "Dr. Zaini") return "primary";
-    if (standardPayer === "Sheraz") return "success";
-    return "neutral";
-  };
-
   return (
     <div className="space-y-6">
       {/* Top Header & Overview */}
@@ -312,14 +334,14 @@ export function PartnerExpensesTab() {
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              Partner & Admin Expense Breakdown
+              Partner Expense Settlement & Breakdown
             </h2>
-            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
-              Live Audit
+            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900">
+              100% Settled Between Partners
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
-            Detailed breakdown of every clinic expense and vendor bill payment made by each partner or admin. Tracks exactly who paid how much, where the funds were allocated, and provides transparent capital investment accounting.
+            Transparent breakdown of every clinic expense and vendor payment. Direct payments are credited to the paying partner, and all common clinic operational expenses are settled proportionally between partners.
           </p>
         </div>
 
@@ -335,90 +357,80 @@ export function PartnerExpensesTab() {
         </div>
       </div>
 
-      {/* KPI Cards: Who Paid What */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Dynamic KPI Cards: Total Clinic Expenses + One Card per Active Partner */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Total Clinic Expenses */}
         <StatCard
           title="Total Clinic Expenses"
-          value={formatPKR(kpis.totalAll)}
+          value={formatPKR(totalClinicExpenses)}
           colorVariant="blue"
           icon={<Receipt className="w-5 h-5 text-blue-500" />}
           subtitle={`${unifiedExpenses.length} total expense entries logged`}
         />
 
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Paid by Dr. Zaini
-            </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300">
-              {kpis.zainiPct}% of total
-            </span>
-          </div>
-          <div className="text-2xl font-black font-mono text-slate-900 dark:text-slate-100 mt-2">
-            {formatPKR(kpis.totalZaini)}
-          </div>
-          <div className="flex items-center justify-between text-xs text-slate-500 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-            <span>{kpis.countZaini} payments logged</span>
-            <button
-              onClick={() => setSelectedPayer("Dr. Zaini")}
-              className="text-blue-600 dark:text-blue-400 font-bold hover:underline"
-            >
-              Filter Dr. Zaini →
-            </button>
-          </div>
-        </div>
+        {/* Dynamic Card for Each Active Partner (NO HARDCODING) */}
+        {partnerSummaries.map(({ partner, direct, settledShare, totalContributed, count, pct }, idx) => {
+          const colors = [
+            { bg: "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300", accent: "text-blue-600 dark:text-blue-400" },
+            { bg: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300", accent: "text-emerald-600 dark:text-emerald-400" },
+            { bg: "bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300", accent: "text-purple-600 dark:text-purple-400" },
+            { bg: "bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300", accent: "text-amber-600 dark:text-amber-400" },
+          ];
+          const color = colors[idx % colors.length];
 
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Paid by Sheraz
-            </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-300">
-              {kpis.sherazPct}% of total
-            </span>
-          </div>
-          <div className="text-2xl font-black font-mono text-slate-900 dark:text-slate-100 mt-2">
-            {formatPKR(kpis.totalSheraz)}
-          </div>
-          <div className="flex items-center justify-between text-xs text-slate-500 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-            <span>{kpis.countSheraz} payments logged</span>
-            <button
-              onClick={() => setSelectedPayer("Sheraz")}
-              className="text-emerald-600 dark:text-emerald-400 font-bold hover:underline"
+          return (
+            <div
+              key={partner.id}
+              className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between"
             >
-              Filter Sheraz →
-            </button>
-          </div>
-        </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Wallet className="w-3.5 h-3.5 text-slate-400" />
+                    {partner.partnerName}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${color.bg}`}>
+                    {pct}% of Total
+                  </span>
+                </div>
 
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Admin & Clinic Account
-            </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-              {kpis.adminPct}% of total
-            </span>
-          </div>
-          <div className="text-2xl font-black font-mono text-slate-900 dark:text-slate-100 mt-2">
-            {formatPKR(kpis.totalAdminOther)}
-          </div>
-          <div className="flex items-center justify-between text-xs text-slate-500 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-            <span>{kpis.countAdminOther} operations payments</span>
-            <button
-              onClick={() => setSelectedPayer("Admin / Clinic")}
-              className="text-slate-600 dark:text-slate-400 font-bold hover:underline"
-            >
-              Filter Admin →
-            </button>
-          </div>
-        </div>
+                <div className="text-2xl font-black font-mono text-slate-900 dark:text-slate-100 mt-2">
+                  {formatPKR(totalContributed)}
+                </div>
+
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                  {direct > 0 && (
+                    <span className="font-semibold text-slate-700 dark:text-slate-200">
+                      {formatPKR(direct)} direct
+                    </span>
+                  )}
+                  {direct > 0 && settledShare > 0 && <span> + </span>}
+                  {settledShare > 0 && (
+                    <span>
+                      {formatPKR(settledShare)} settled share ({partner.equityPercentage}%)
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-xs text-slate-500 mt-4 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+                <span>{count} direct logs</span>
+                <button
+                  onClick={() => setSelectedPayer(selectedPayer === partner.id ? "all" : partner.id)}
+                  className={`${color.accent} font-bold hover:underline cursor-pointer`}
+                >
+                  {selectedPayer === partner.id ? "Showing Filtered ✓" : `Filter ${partner.partnerName} →`}
+                </button>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Filter and Control Toolbar */}
+      {/* Dynamic Filter and Control Toolbar */}
       <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Payer Toggle Buttons */}
+          {/* Dynamic Payer Toggle Buttons (NO Admin/Clinic Account button) */}
           <div className="inline-flex max-w-full gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl overflow-x-auto text-xs font-bold">
             <button
               onClick={() => setSelectedPayer("all")}
@@ -428,38 +440,21 @@ export function PartnerExpensesTab() {
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
               }`}
             >
-              All Payers ({unifiedExpenses.length})
+              All Partners ({unifiedExpenses.length})
             </button>
-            <button
-              onClick={() => setSelectedPayer("Dr. Zaini")}
-              className={`px-3 py-1.5 rounded-lg transition ${
-                selectedPayer === "Dr. Zaini"
-                  ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-              }`}
-            >
-              Dr. Zaini ({kpis.countZaini})
-            </button>
-            <button
-              onClick={() => setSelectedPayer("Sheraz")}
-              className={`px-3 py-1.5 rounded-lg transition ${
-                selectedPayer === "Sheraz"
-                  ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-white shadow-sm"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-              }`}
-            >
-              Sheraz ({kpis.countSheraz})
-            </button>
-            <button
-              onClick={() => setSelectedPayer("Admin / Clinic")}
-              className={`px-3 py-1.5 rounded-lg transition ${
-                selectedPayer === "Admin / Clinic"
-                  ? "bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-              }`}
-            >
-              Admin / Clinic ({kpis.countAdminOther})
-            </button>
+            {equityPartners.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setSelectedPayer(p.id)}
+                className={`px-3 py-1.5 rounded-lg transition ${
+                  selectedPayer === p.id
+                    ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                }`}
+              >
+                {p.partnerName}
+              </button>
+            ))}
           </div>
 
           {/* Quick Date Presets */}
@@ -570,7 +565,6 @@ export function PartnerExpensesTab() {
                         <span className="text-[10px] text-slate-400 ml-1.5">({pct.toFixed(1)}%)</span>
                       </div>
                     </div>
-                    {/* Progress Bar */}
                     <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-300"
@@ -648,7 +642,7 @@ export function PartnerExpensesTab() {
                 <th className="p-3.5">Expense Title / Description</th>
                 <th className="p-3.5">Category</th>
                 <th className="p-3.5">Vendor / Payee</th>
-                <th className="p-3.5">Paid By</th>
+                <th className="p-3.5">Attributed To</th>
                 <th className="p-3.5">Method</th>
                 <th className="p-3.5 text-right pr-4">Amount Paid</th>
               </tr>
@@ -681,9 +675,53 @@ export function PartnerExpensesTab() {
                       {item.vendorName || "—"}
                     </td>
                     <td className="p-3.5">
-                      <Badge variant={getPayerBadgeVariant(item.standardPayer)}>
-                        {item.paidBy || item.standardPayer}
-                      </Badge>
+                      {item.matchedPartner ? (
+                        <Badge variant="primary">
+                          {item.matchedPartner.partnerName}
+                        </Badge>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-900/60">
+                            Settled: Shared Across Partners
+                          </span>
+                          {item.rawExpenseId && (role === "admin" || role === "partner") && (
+                            <div className="relative inline-block">
+                              {reassigningExpId === item.rawExpenseId ? (
+                                <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-1 rounded-lg border shadow-lg z-10">
+                                  <select
+                                    onChange={(e) => {
+                                      if (e.target.value) {
+                                        handleAssignExpenseToPartner(item.rawExpenseId!, e.target.value);
+                                      }
+                                    }}
+                                    defaultValue=""
+                                    className="text-[10px] p-1 border rounded bg-transparent"
+                                  >
+                                    <option value="" disabled>Assign to...</option>
+                                    {equityPartners.map((p) => (
+                                      <option key={p.id} value={p.partnerName}>{p.partnerName}</option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    onClick={() => setReassigningExpId(null)}
+                                    className="text-[10px] text-slate-400 hover:text-slate-600 px-1"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setReassigningExpId(item.rawExpenseId!)}
+                                  className="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline"
+                                  title="Assign directly to a specific partner if paid out-of-pocket"
+                                >
+                                  Assign
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="p-3.5 text-slate-500">
                       {item.paymentMethod}
