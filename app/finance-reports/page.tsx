@@ -25,6 +25,7 @@ import {
   Globe,
   Clock,
   RotateCcw,
+  Package,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useClinic } from "../../lib/context/ClinicContext";
@@ -254,21 +255,87 @@ export default function FinanceReportsPage() {
   const [refundReason, setRefundReason] = useState("");
   const [refundRestock, setRefundRestock] = useState(true);
   const [isRefunding, setIsRefunding] = useState(false);
+  const [refundMode, setRefundMode] = useState<"item" | "full">("item");
   const [selectedRefundItems, setSelectedRefundItems] = useState<{ [index: number]: boolean }>({});
+  const [refundItemQuantities, setRefundItemQuantities] = useState<{ [index: number]: number }>({});
   const [refundError, setRefundError] = useState<string | null>(null);
+
+  const getTxnItems = (txn: any) => {
+    if (txn?.items && Array.isArray(txn.items) && txn.items.length > 0) {
+      return txn.items;
+    }
+    if (txn?.serviceName) {
+      return [
+        {
+          name: txn.serviceName,
+          price: txn.amount || txn.grandTotal || 0,
+          quantity: 1,
+          isProduct: false,
+        },
+      ];
+    }
+    return [];
+  };
 
   const handleOpenRefundModal = (txn: any) => {
     setSelectedRefundTxn(txn);
     setRefundReason("");
     setRefundRestock(true);
     setRefundError(null);
+    setRefundMode("item");
+    const items = getTxnItems(txn);
     const initialSelected: { [index: number]: boolean } = {};
-    (txn.items || []).forEach((_: any, idx: number) => {
-      initialSelected[idx] = true;
+    const initialQtys: { [index: number]: number } = {};
+    items.forEach((item: any, idx: number) => {
+      // If single item, select it; if multi-item, select first by default so customer can return any one item
+      initialSelected[idx] = (items.length === 1 || idx === 0) && !item.refunded;
+      initialQtys[idx] = item.quantity || 1;
     });
     setSelectedRefundItems(initialSelected);
+    setRefundItemQuantities(initialQtys);
     setIsRefundModalOpen(true);
   };
+
+  const refundCalculation = useMemo(() => {
+    if (!selectedRefundTxn) {
+      return { refundSubtotal: 0, estimatedRefundAmount: 0, selectedCount: 0, isFullOrderReturn: false };
+    }
+    const items = getTxnItems(selectedRefundTxn);
+    let subtotal = 0;
+    let selectedCount = 0;
+    let totalAvailQty = 0;
+    let selectedQty = 0;
+
+    items.forEach((item: any, idx: number) => {
+      const origQty = item.quantity || 1;
+      if (!item.refunded) {
+        totalAvailQty += origQty;
+        if (selectedRefundItems[idx]) {
+          const qty = Math.min(origQty, Math.max(1, refundItemQuantities[idx] || 1));
+          subtotal += (item.price || 0) * qty;
+          selectedCount += 1;
+          selectedQty += qty;
+        }
+      }
+    });
+
+    const txnAmt = selectedRefundTxn.amount || selectedRefundTxn.grandTotal || 1;
+    const disc = selectedRefundTxn.discount || 0;
+    const effDisc = Math.max(0, 1 - (disc / (txnAmt || 1)));
+    const taxPct = selectedRefundTxn.taxPercent || 0;
+    const effTax = 1 + (taxPct / 100);
+    const estGross = Math.round(subtotal * effDisc * effTax * 100) / 100;
+    const finalRefund = Math.min(selectedRefundTxn.amountPaid || selectedRefundTxn.grandTotal || 0, estGross);
+
+    const isFull = (selectedQty === totalAvailQty && totalAvailQty > 0);
+
+    return {
+      refundSubtotal: subtotal,
+      estimatedRefundAmount: isFull ? (selectedRefundTxn.amountPaid || selectedRefundTxn.grandTotal || 0) : finalRefund,
+      selectedCount,
+      isFullOrderReturn: isFull,
+    };
+  }, [selectedRefundTxn, selectedRefundItems, refundItemQuantities]);
 
   const handleConfirmRefund = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -276,17 +343,28 @@ export default function FinanceReportsPage() {
     try {
       setIsRefunding(true);
       setRefundError(null);
-      const itemsList = selectedRefundTxn.items || [];
-      const hasSomeSelected = itemsList.some((_: any, idx: number) => selectedRefundItems[idx]);
-      if (itemsList.length > 0 && !hasSomeSelected) {
-        setRefundError("Please select at least one line item to refund.");
+      const itemsList = getTxnItems(selectedRefundTxn);
+      const itemsToRefund = itemsList
+        .filter((item: any, idx: number) => selectedRefundItems[idx] && !item.refunded)
+        .map((item: any, idx: number) => ({
+          ...item,
+          quantity: Math.min(item.quantity || 1, Math.max(1, refundItemQuantities[idx] || 1)),
+        }));
+
+      if (itemsToRefund.length === 0) {
+        setRefundError("Please select at least one item to return / refund.");
         setIsRefunding(false);
         return;
       }
-      const isPartial = itemsList.length > 0 && itemsList.some((_: any, idx: number) => !selectedRefundItems[idx]);
-      const itemsToRefund = isPartial ? itemsList.filter((_: any, idx: number) => selectedRefundItems[idx]) : undefined;
 
-      await refundTransaction(selectedRefundTxn.id, refundReason.trim(), refundRestock, itemsToRefund);
+      const isPartial = !refundCalculation.isFullOrderReturn;
+
+      await refundTransaction(
+        selectedRefundTxn.id,
+        refundReason.trim(),
+        refundRestock,
+        isPartial ? itemsToRefund : undefined,
+      );
       setIsRefundModalOpen(false);
       setSelectedRefundTxn(null);
     } catch (err: any) {
@@ -3200,83 +3278,237 @@ export default function FinanceReportsPage() {
           setIsRefundModalOpen(false);
           setSelectedRefundTxn(null);
         }}
-        title="Sales Return & Refund"
+        title="Sales Return & Item Refund"
         description={
           selectedRefundTxn
-            ? `Refund invoice ${selectedRefundTxn.invoiceId} • ${selectedRefundTxn.clientName} (${formatPKR(selectedRefundTxn.grandTotal)})`
+            ? `Invoice ${selectedRefundTxn.invoiceId} • ${selectedRefundTxn.clientName} (Total: ${formatPKR(selectedRefundTxn.grandTotal)})`
             : undefined
         }
-        maxWidth="md"
+        maxWidth="lg"
       >
         {selectedRefundTxn && (
-          <form onSubmit={handleConfirmRefund} className="space-y-4 pt-2">
+          <form onSubmit={handleConfirmRefund} className="space-y-4 pt-1">
             {refundError && (
               <div className="p-3 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200">
                 {refundError}
               </div>
             )}
 
-            <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 rounded-xl space-y-1">
-              <div className="text-[10px] text-red-700 dark:text-red-400 font-bold uppercase tracking-wider">
-                Return / Refund Action
+            {/* Scope Switcher: Return Specific Items vs Return Entire Order */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
+                Return Option
+              </label>
+              <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setRefundMode("item")}
+                  className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                    refundMode === "item"
+                      ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm border border-slate-200/60 dark:border-slate-600"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  }`}
+                >
+                  <Package className="w-3.5 h-3.5" />
+                  <span>Return Specific Item(s)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRefundMode("full");
+                    const allSel: { [index: number]: boolean } = {};
+                    const allQ: { [index: number]: number } = {};
+                    getTxnItems(selectedRefundTxn).forEach((it: any, idx: number) => {
+                      if (!it.refunded) {
+                        allSel[idx] = true;
+                        allQ[idx] = it.quantity || 1;
+                      }
+                    });
+                    setSelectedRefundItems(allSel);
+                    setRefundItemQuantities(allQ);
+                  }}
+                  className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                    refundMode === "full"
+                      ? "bg-white dark:bg-slate-700 text-red-600 dark:text-red-400 shadow-sm border border-slate-200/60 dark:border-slate-600"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  }`}
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Return Entire Order</span>
+                </button>
               </div>
-              <p className="text-xs text-red-800 dark:text-red-300">
-                This will mark the selected items as refunded, reverse client spend and dues, and restock products back into inventory.
-              </p>
             </div>
 
-            {selectedRefundTxn.items && selectedRefundTxn.items.length > 0 && (
-              <div className="space-y-1.5 pt-1">
-                <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex justify-between items-center">
-                  <span>Select Items to Return / Refund</span>
-                  <span className="text-[10px] text-slate-400 font-normal">
-                    {selectedRefundTxn.items.filter((_: any, i: number) => selectedRefundItems[i]).length} of {selectedRefundTxn.items.length} selected
-                  </span>
-                </div>
-                <div className="max-h-48 overflow-y-auto space-y-1 p-2 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
-                  {selectedRefundTxn.items.map((item: any, idx: number) => (
-                    <label key={idx} className="flex items-center justify-between py-2 px-1 cursor-pointer text-xs hover:bg-slate-100/50 dark:hover:bg-slate-800/50 rounded">
-                      <div className="flex items-center gap-2.5">
-                        <input
-                          type="checkbox"
-                          checked={!!selectedRefundItems[idx]}
-                          onChange={(e) => {
-                            setSelectedRefundItems((prev) => ({ ...prev, [idx]: e.target.checked }));
-                          }}
-                          className="rounded text-red-600 focus:ring-red-500 w-4 h-4 cursor-pointer"
-                        />
-                        <div>
-                          <span className="text-slate-800 dark:text-slate-200 font-semibold block">{item.name}</span>
-                          {item.isProduct && (
-                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Physical Product</span>
-                          )}
-                        </div>
-                      </div>
-                      <span className="font-mono text-slate-600 dark:text-slate-300 font-bold">
-                        {item.quantity} × {formatPKR(item.price)}
-                      </span>
-                    </label>
-                  ))}
+            {/* Item Selection List */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                <span>Select Item(s) Being Returned</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allSel: { [index: number]: boolean } = {};
+                      getTxnItems(selectedRefundTxn).forEach((it: any, idx: number) => {
+                        if (!it.refunded) allSel[idx] = true;
+                      });
+                      setSelectedRefundItems(allSel);
+                    }}
+                    className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                  >
+                    Select All
+                  </button>
+                  <span className="text-slate-300 dark:text-slate-600">•</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRefundItems({})}
+                    className="text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:underline cursor-pointer"
+                  >
+                    Deselect All
+                  </button>
                 </div>
               </div>
-            )}
+
+              <div className="max-h-60 overflow-y-auto space-y-2 p-2.5 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800">
+                {getTxnItems(selectedRefundTxn).map((item: any, idx: number) => {
+                  const isChecked = !!selectedRefundItems[idx];
+                  const isAlreadyRefunded = !!item.refunded;
+                  const maxQty = item.quantity || 1;
+                  const currentQty = refundItemQuantities[idx] ?? maxQty;
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`p-3 rounded-xl border transition-all ${
+                        isAlreadyRefunded
+                          ? "bg-slate-100/60 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 opacity-60"
+                          : isChecked
+                            ? "bg-red-50/40 dark:bg-red-950/20 border-red-200 dark:border-red-900/60 shadow-xs"
+                            : "bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <label className="flex items-start gap-2.5 cursor-pointer flex-1">
+                          <input
+                            type="checkbox"
+                            disabled={isAlreadyRefunded}
+                            checked={isChecked}
+                            onChange={(e) => {
+                              setSelectedRefundItems((prev) => ({ ...prev, [idx]: e.target.checked }));
+                            }}
+                            className="mt-0.5 rounded text-red-600 focus:ring-red-500 w-4 h-4 cursor-pointer"
+                          />
+                          <div>
+                            <div className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 flex-wrap">
+                              <span>{item.name}</span>
+                              {item.isProduct ? (
+                                <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                  Product
+                                </span>
+                              ) : (
+                                <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                  Treatment
+                                </span>
+                              )}
+                              {isAlreadyRefunded && (
+                                <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300">
+                                  Already Refunded
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
+                              Sold: {maxQty} × {formatPKR(item.price)}
+                            </div>
+                          </div>
+                        </label>
+
+                        {/* Quantity to return controller */}
+                        {!isAlreadyRefunded && isChecked && maxQty > 1 && (
+                          <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-xs">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase mr-1">Qty to Return:</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRefundItemQuantities((prev) => ({
+                                  ...prev,
+                                  [idx]: Math.max(1, (prev[idx] || maxQty) - 1),
+                                }));
+                              }}
+                              className="w-5 h-5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-xs hover:bg-slate-200"
+                            >
+                              -
+                            </button>
+                            <span className="font-mono font-bold text-xs px-1 text-slate-800 dark:text-slate-200">
+                              {currentQty}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRefundItemQuantities((prev) => ({
+                                  ...prev,
+                                  [idx]: Math.min(maxQty, (prev[idx] || maxQty) + 1),
+                                }));
+                              }}
+                              className="w-5 h-5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-xs hover:bg-slate-200"
+                            >
+                              +
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="text-right">
+                          <div className="font-mono text-xs font-bold text-slate-900 dark:text-slate-100">
+                            {formatPKR((item.price || 0) * (isChecked ? currentQty : maxQty))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Calculated Refund Summary Card */}
+            <div className="p-3.5 bg-red-50/60 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  {refundCalculation.isFullOrderReturn ? "Full Order Return" : "Partial Return Summary"}
+                </span>
+                <span className="text-xs font-mono font-bold text-red-600 dark:text-red-400">
+                  {refundCalculation.selectedCount} item(s) selected
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between pt-1 border-t border-red-100 dark:border-red-900/30">
+                <span className="text-xs text-slate-600 dark:text-slate-400">Amount to Refund to Client:</span>
+                <span className="text-base font-mono font-black text-red-600 dark:text-red-400">
+                  {formatPKR(refundCalculation.estimatedRefundAmount)}
+                </span>
+              </div>
+              {!refundCalculation.isFullOrderReturn && refundCalculation.selectedCount > 0 && (
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 flex justify-between">
+                  <span>Retained Balance on Invoice:</span>
+                  <span className="font-mono font-semibold">
+                    {formatPKR(Math.max(0, (selectedRefundTxn.grandTotal || 0) - refundCalculation.estimatedRefundAmount))}
+                  </span>
+                </div>
+              )}
+            </div>
 
             <Input
               label="Return / Refund Reason"
               value={refundReason}
               onChange={(e) => setRefundReason(e.target.value)}
-              placeholder="e.g. Client requested return, defective product, service rescheduled"
+              placeholder="e.g. Client returned 1 product, allergic reaction, service adjustment"
               required
             />
 
-            <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer pt-1">
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer pt-0.5">
               <input
                 type="checkbox"
                 checked={refundRestock}
                 onChange={(e) => setRefundRestock(e.target.checked)}
                 className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
               />
-              <span>Restock returned inventory / products into stock</span>
+              <span>Restock returned product(s) back into inventory</span>
             </label>
 
             <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -3296,10 +3528,14 @@ export default function FinanceReportsPage() {
                 type="submit"
                 variant="primary"
                 size="sm"
-                className="bg-red-600 hover:bg-red-700 text-white"
-                disabled={isRefunding || !refundReason.trim()}
+                className="bg-red-600 hover:bg-red-700 text-white font-bold"
+                disabled={isRefunding || refundCalculation.selectedCount === 0 || !refundReason.trim()}
               >
-                {isRefunding ? "Processing Refund..." : "Confirm Return & Refund"}
+                {isRefunding
+                  ? "Processing Return..."
+                  : refundCalculation.isFullOrderReturn
+                    ? `Refund Full Order (${formatPKR(refundCalculation.estimatedRefundAmount)})`
+                    : `Process Return (${formatPKR(refundCalculation.estimatedRefundAmount)})`}
               </Button>
             </div>
           </form>

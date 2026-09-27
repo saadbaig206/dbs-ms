@@ -114,7 +114,21 @@ async def refund_pos_transaction(
         raise HTTPException(status_code=400, detail="Transaction has already been fully refunded")
 
     items_to_process = payload.items_to_refund if payload.items_to_refund else (txn.items or [])
-    is_partial = bool(payload.items_to_refund and len(payload.items_to_refund) < len(txn.items or []))
+    
+    total_orig_items_count = len(txn.items or [])
+    total_orig_qty = sum(int(it.get("quantity", 1)) for it in (txn.items or []))
+    total_orig_amount = float(txn.amount or sum(float(it.get("price", 0.0)) * int(it.get("quantity", 1)) for it in (txn.items or [])))
+
+    if payload.items_to_refund:
+        refund_subtotal = sum(float(it.get("price", 0.0)) * int(it.get("quantity", 1)) for it in payload.items_to_refund)
+        refund_qty = sum(int(it.get("quantity", 1)) for it in payload.items_to_refund)
+        is_partial = bool(
+            len(payload.items_to_refund) < total_orig_items_count or
+            refund_qty < total_orig_qty or
+            refund_subtotal < (total_orig_amount - 0.01)
+        )
+    else:
+        is_partial = False
 
     # 1. Restock Inventory if requested
     if payload.restock_inventory and items_to_process:
@@ -225,12 +239,21 @@ async def refund_pos_transaction(
         txn.payment_status = "Partial Refund" if txn.amount_paid > 0 else "Refunded"
 
         if txn.items:
-            refunded_names = set(it.get("name") for it in items_to_process)
+            refunded_map = {it.get("name"): int(it.get("quantity", 1)) for it in items_to_process}
             updated_items = []
             for it in txn.items:
                 it_copy = dict(it)
-                if it_copy.get("name") in refunded_names:
-                    it_copy["refunded"] = True
+                it_name = it_copy.get("name")
+                if it_name in refunded_map:
+                    ret_qty = refunded_map[it_name]
+                    curr_qty = int(it_copy.get("quantity", 1))
+                    if ret_qty >= curr_qty:
+                        it_copy["refunded"] = True
+                        it_copy["refundedQty"] = (it_copy.get("refundedQty", 0) or 0) + curr_qty
+                    else:
+                        it_copy["quantity"] = curr_qty - ret_qty
+                        it_copy["partiallyRefunded"] = True
+                        it_copy["refundedQty"] = (it_copy.get("refundedQty", 0) or 0) + ret_qty
                 updated_items.append(it_copy)
             txn.items = updated_items
             flag_modified(txn, "items")
@@ -248,7 +271,7 @@ async def refund_pos_transaction(
         "restocked": payload.restock_inventory,
         "amount_refunded": refund_paid,
         "due_cancelled": refund_due,
-        "items_refunded": [it.get("name") for it in items_to_process]
+        "items_refunded": [f"{it.get('quantity', 1)}x {it.get('name')}" for it in items_to_process]
     }
     if txn.audit_logs is None:
         txn.audit_logs = []
