@@ -12,13 +12,13 @@ export default function PurchasesPage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && role !== 'admin' && role !== 'partner') {
+    if (!isLoading && role !== 'admin' && role !== 'partner' && role !== 'staff') {
       router.push('/dashboard');
     }
   }, [role, isLoading, router]);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 pb-10">
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

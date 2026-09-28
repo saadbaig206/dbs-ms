@@ -161,10 +161,9 @@ export function PartnerExpensesTab() {
     return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [expenses, purchaseBills, equityPartners]);
 
-  // Aggregate Partner Metrics: Every rupee is accounted for under the partners
+  // Aggregate Partner Metrics: strictly direct expenses paid by each partner
   const partnerSummaries = useMemo(() => {
     let totalAll = 0;
-    let commonUnassigned = 0;
     const directTotals: { [partnerId: string]: { partner: PartnerEquityReportItem; directAmount: number; count: number } } = {};
 
     equityPartners.forEach((p) => {
@@ -176,26 +175,18 @@ export function PartnerExpensesTab() {
       if (item.matchedPartner && directTotals[item.matchedPartner.id]) {
         directTotals[item.matchedPartner.id].directAmount += item.amount;
         directTotals[item.matchedPartner.id].count += 1;
-      } else {
-        commonUnassigned += item.amount;
       }
     });
 
-    const totalEquity = equityPartners.reduce((acc, curr) => acc + curr.equityPercentage, 0) || 100;
-
     return equityPartners.map((p) => {
-      const shareRatio = totalEquity > 0 ? p.equityPercentage / totalEquity : 1 / Math.max(1, equityPartners.length);
-      const settledShare = commonUnassigned * shareRatio;
       const direct = directTotals[p.id]?.directAmount || 0;
       const count = directTotals[p.id]?.count || 0;
-      const totalContributed = direct + settledShare;
-      const pct = totalAll > 0 ? ((totalContributed / totalAll) * 100).toFixed(1) : "0";
+      const pct = totalAll > 0 ? ((direct / totalAll) * 100).toFixed(1) : "0";
 
       return {
         partner: p,
         direct,
-        settledShare,
-        totalContributed,
+        totalContributed: direct,
         count,
         pct,
       };
@@ -214,9 +205,11 @@ export function PartnerExpensesTab() {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     return unifiedExpenses.filter((item) => {
-      // Payer filter
+      // Payer filter: strictly filter by selected partner or clinic-direct
       if (selectedPayer !== "all") {
-        if (item.matchedPartner?.id !== selectedPayer && !item.isSettledShared) {
+        if (selectedPayer === "clinic-direct") {
+          if (item.matchedPartner !== null) return false;
+        } else if (item.matchedPartner?.id !== selectedPayer) {
           return false;
         }
       }
@@ -311,7 +304,7 @@ export function PartnerExpensesTab() {
       `"${(item.category || "").replace(/"/g, '""')}"`,
       `"${(item.vendorName || "").replace(/"/g, '""')}"`,
       item.amount,
-      `"${item.matchedPartner ? item.matchedPartner.partnerName : "Settled Across Partners"}"`,
+      `"${item.matchedPartner ? item.matchedPartner.partnerName : (item.paidBy && item.paidBy !== "Common Clinic Operating" ? item.paidBy : "Clinic Direct")}"`,
       `"${item.paymentMethod}"`,
       `"${(item.notes || "").replace(/"/g, '""')}"`,
     ]);
@@ -334,14 +327,14 @@ export function PartnerExpensesTab() {
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              Partner Expense Settlement & Breakdown
+              Partner Expenses & Direct Disbursements
             </h2>
             <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900">
-              100% Settled Between Partners
+              Direct Partner Expenses
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
-            Transparent breakdown of every clinic expense and vendor payment. Direct payments are credited to the paying partner, and all common clinic operational expenses are settled proportionally between partners.
+            Detailed breakdown of clinic expenses and vendor payments directly attributed to each paying partner. Direct expenses are credited to the partner who paid them.
           </p>
         </div>
 
@@ -369,7 +362,7 @@ export function PartnerExpensesTab() {
         />
 
         {/* Dynamic Card for Each Active Partner (NO HARDCODING) */}
-        {partnerSummaries.map(({ partner, direct, settledShare, totalContributed, count, pct }, idx) => {
+        {partnerSummaries.map(({ partner, direct, count, pct }, idx) => {
           const colors = [
             { bg: "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300", accent: "text-blue-600 dark:text-blue-400" },
             { bg: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300", accent: "text-emerald-600 dark:text-emerald-400" },
@@ -395,21 +388,13 @@ export function PartnerExpensesTab() {
                 </div>
 
                 <div className="text-2xl font-black font-mono text-slate-900 dark:text-slate-100 mt-2">
-                  {formatPKR(totalContributed)}
+                  {formatPKR(direct)}
                 </div>
 
                 <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                  {direct > 0 && (
-                    <span className="font-semibold text-slate-700 dark:text-slate-200">
-                      {formatPKR(direct)} direct
-                    </span>
-                  )}
-                  {direct > 0 && settledShare > 0 && <span> + </span>}
-                  {settledShare > 0 && (
-                    <span>
-                      {formatPKR(settledShare)} settled share ({partner.equityPercentage}%)
-                    </span>
-                  )}
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">
+                    {formatPKR(direct)} direct paid
+                  </span>
                 </div>
               </div>
 
@@ -430,7 +415,7 @@ export function PartnerExpensesTab() {
       {/* Dynamic Filter and Control Toolbar */}
       <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Dynamic Payer Toggle Buttons (NO Admin/Clinic Account button) */}
+          {/* Dynamic Payer Toggle Buttons */}
           <div className="inline-flex max-w-full gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl overflow-x-auto text-xs font-bold">
             <button
               onClick={() => setSelectedPayer("all")}
@@ -440,21 +425,36 @@ export function PartnerExpensesTab() {
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
               }`}
             >
-              All Partners ({unifiedExpenses.length})
+              All Expenses ({unifiedExpenses.length})
             </button>
-            {equityPartners.map((p) => (
+            {equityPartners.map((p) => {
+              const summary = partnerSummaries.find((s) => s.partner.id === p.id);
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setSelectedPayer(p.id)}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    selectedPayer === p.id
+                      ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  }`}
+                >
+                  {p.partnerName} ({summary?.count || 0})
+                </button>
+              );
+            })}
+            {unifiedExpenses.some((i) => !i.matchedPartner) && (
               <button
-                key={p.id}
-                onClick={() => setSelectedPayer(p.id)}
+                onClick={() => setSelectedPayer("clinic-direct")}
                 className={`px-3 py-1.5 rounded-lg transition ${
-                  selectedPayer === p.id
+                  selectedPayer === "clinic-direct"
                     ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm"
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                 }`}
               >
-                {p.partnerName}
+                Clinic Direct ({unifiedExpenses.filter((i) => !i.matchedPartner).length})
               </button>
-            ))}
+            )}
           </div>
 
           {/* Quick Date Presets */}
@@ -634,8 +634,8 @@ export function PartnerExpensesTab() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+        <div className="responsive-table-wrapper">
+          <table className="w-full min-w-[720px] text-left border-collapse text-xs">
             <thead>
               <tr className="bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                 <th className="p-3.5 pl-4">Date</th>
@@ -681,8 +681,8 @@ export function PartnerExpensesTab() {
                         </Badge>
                       ) : (
                         <div className="flex items-center gap-1.5">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-900/60">
-                            Settled: Shared Across Partners
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                            {item.paidBy && item.paidBy !== "Common Clinic Operating" ? item.paidBy : "Clinic Direct"}
                           </span>
                           {item.rawExpenseId && (role === "admin" || role === "partner") && (
                             <div className="relative inline-block">

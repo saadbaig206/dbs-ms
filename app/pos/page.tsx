@@ -737,7 +737,7 @@ function POSContent() {
           <div className="luxury-card p-4 max-h-[600px] overflow-y-auto pr-1">
             <div className="overflow-x-auto">
               {catalogMode === 'services' ? (
-                <table className="w-full text-left text-xs">
+                <table className="w-full min-w-[480px] text-left text-xs">
                   <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[10px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
                     <tr>
                       <th className="py-2 px-3 rounded-l-xl">Service</th>
@@ -811,7 +811,7 @@ function POSContent() {
                   </tbody>
                 </table>
               ) : (
-                <table className="w-full text-left text-xs">
+                <table className="w-full min-w-[520px] text-left text-xs">
                   <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[10px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
                     <tr>
                       <th className="py-2 px-3 rounded-l-xl">Product / Formula</th>

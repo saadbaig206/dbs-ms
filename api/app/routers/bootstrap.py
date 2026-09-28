@@ -174,23 +174,23 @@ async def get_bootstrap_data(
         except Exception:
             transactions = []
 
-        try:
-            pur_query = select(PurchaseBill)
-            if user_branch_id:
-                pur_query = pur_query.where(or_(PurchaseBill.branch_id == user_branch_id, PurchaseBill.branch_id == None))
-            pb_res = await db.execute(pur_query.order_by(PurchaseBill.date.desc()).limit(100))
-            purchase_bills = [safe_dump(pb, PurchaseBillResponse) for pb in pb_res.scalars().all()]
-        except Exception:
-            purchase_bills = []
+    try:
+        pur_query = select(PurchaseBill)
+        if user_branch_id:
+            pur_query = pur_query.where(or_(PurchaseBill.branch_id == user_branch_id, PurchaseBill.branch_id == None))
+        pb_res = await db.execute(pur_query.order_by(PurchaseBill.date.desc()).limit(100))
+        purchase_bills = [safe_dump(pb, PurchaseBillResponse) for pb in pb_res.scalars().all()]
+    except Exception:
+        purchase_bills = []
 
-        try:
-            item_query = select(PurchaseItem)
-            if user_branch_id:
-                item_query = item_query.where(or_(PurchaseItem.branch_id == user_branch_id, PurchaseItem.branch_id == None))
-            pi_res = await db.execute(item_query.order_by(PurchaseItem.date.desc()).limit(100))
-            purchase_items = [safe_dump(pi, PurchaseItemResponse) for pi in pi_res.scalars().all()]
-        except Exception:
-            purchase_items = []
+    try:
+        item_query = select(PurchaseItem)
+        if user_branch_id:
+            item_query = item_query.where(or_(PurchaseItem.branch_id == user_branch_id, PurchaseItem.branch_id == None))
+        pi_res = await db.execute(item_query.order_by(PurchaseItem.date.desc()).limit(100))
+        purchase_items = [safe_dump(pi, PurchaseItemResponse) for pi in pi_res.scalars().all()]
+    except Exception:
+        purchase_items = []
 
     if role == "admin":
         try:

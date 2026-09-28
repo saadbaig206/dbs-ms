@@ -119,7 +119,12 @@ export function PurchasesTab() {
   const [payError, setPayError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (partnerOptions.length > 0) {
+    if (role === 'staff') {
+      const drzainiOption = partnerOptions.find(o => o.value.toLowerCase().includes('zaini'));
+      const zName = drzainiOption ? drzainiOption.value : 'Dr. Zaini';
+      if (!billPaidBy) setBillPaidBy(zName);
+      if (!payPaidBy) setPayPaidBy(zName);
+    } else if (partnerOptions.length > 0) {
       if (!billPaidBy) {
         const matched = partnerOptions.find((o) =>
           userEmail && (
@@ -139,7 +144,7 @@ export function PurchasesTab() {
         setPayPaidBy(matched ? matched.value : partnerOptions[0].value);
       }
     }
-  }, [partnerOptions, billPaidBy, payPaidBy, userEmail]);
+  }, [partnerOptions, billPaidBy, payPaidBy, userEmail, role]);
 
   // Bill Payment Logs Modal State
   const [isBillLogsModalOpen, setIsBillLogsModalOpen] = useState(false);
@@ -262,6 +267,7 @@ export function PurchasesTab() {
         ? 0
         : Math.min(computedBillTotal, Number(amountPaidInput) || 0);
 
+      const finalPaidBy = role === 'staff' ? (billPaidBy || 'Dr. Zaini') : billPaidBy;
       await addPurchase({
         vendorName: vendorName.trim(),
         billNumber: billNumber.trim() || undefined,
@@ -269,7 +275,8 @@ export function PurchasesTab() {
         paymentStatus,
         paymentMethod,
         amountPaid: paidAmount,
-        paidBy: paidAmount > 0 ? billPaidBy : undefined,
+        paidBy: paidAmount > 0 ? finalPaidBy : undefined,
+        createdBy: role === 'staff' ? 'Dr. Zaini' : undefined,
         notes: notes.trim() || undefined,
         branchId: selectedBranchId || undefined,
         items: validItems.map(i => ({
@@ -307,12 +314,13 @@ export function PurchasesTab() {
     try {
       setIsSubmitting(true);
       setPayError(null);
-      await payPurchaseBill(selectedBill.id, amount, payMethod, payNotes.trim() || undefined, payPaidBy);
+      const finalPaidBy = role === 'staff' ? (payPaidBy || 'Dr. Zaini') : payPaidBy;
+      await payPurchaseBill(selectedBill.id, amount, payMethod, payNotes.trim() || undefined, finalPaidBy);
       setIsPayModalOpen(false);
       setSelectedBill(null);
       setPayAmount('');
       setPayNotes('');
-      setSuccessBanner(`Vendor payment of ${formatPKR(amount)} by ${payPaidBy} successfully recorded.`);
+      setSuccessBanner(`Vendor payment of ${formatPKR(amount)} by ${finalPaidBy} successfully recorded.`);
       setTimeout(() => setSuccessBanner(null), 5000);
     } catch (err: any) {
       setPayError(err.message || 'Payment recording failed.');
@@ -498,7 +506,7 @@ export function PurchasesTab() {
           </div>
 
           {/* Action Buttons */}
-          {(role === 'admin' || role === 'partner') && (
+          {(role === 'admin' || role === 'partner' || role === 'staff') && (
             <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto">
               <Button
                 onClick={() => {
@@ -546,8 +554,8 @@ export function PurchasesTab() {
             <Badge variant="primary">{filteredItems.length} Products</Badge>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
+          <div className="responsive-table-wrapper">
+            <table className="w-full min-w-[720px] text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                   <th className="p-3.5 pl-4">Product / Item Name</th>
@@ -622,8 +630,8 @@ export function PurchasesTab() {
             <Badge variant="primary">{filteredBills.length} Bills</Badge>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
+          <div className="responsive-table-wrapper">
+            <table className="w-full min-w-[760px] text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                   <th className="p-3.5 pl-4">Bill # / Order ID</th>
@@ -737,8 +745,8 @@ export function PurchasesTab() {
             <Badge variant="primary">{filteredReturns.length} Debit Notes</Badge>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
+          <div className="responsive-table-wrapper">
+            <table className="w-full min-w-[700px] text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                   <th className="p-3.5 pl-4">Debit Note #</th>

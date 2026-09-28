@@ -45,13 +45,10 @@ def is_payer_match(payer: Optional[str], partner_name: str, user_email: Optional
 
 def calculate_partner_investments(profiles: list, paid_expenses: list) -> dict:
     """
-    Calculates dynamic invested capital for each active partner.
-    Direct partner payments are attributed 100% to that partner.
-    Common / staff expenses are settled across the partners in proportion to equity.
-    Ensures 100% of expenses are settled between partners without any orphaned clinic accounts.
+    Calculates invested capital for each active partner based strictly on direct expenses they paid.
+    Common or unassigned clinic expenses are not settled across partners.
     """
-    direct_investments = {p.id: 0.0 for p in profiles}
-    common_expenses = 0.0
+    direct_investments = {p.id: float(p.initial_investment or 0.0) for p in profiles}
 
     for e in paid_expenses:
         if e.category == "Partner Drawing" or "Partner Drawing" in (e.title or ""):
@@ -66,23 +63,16 @@ def calculate_partner_investments(profiles: list, paid_expenses: list) -> dict:
                 matched_p = next((p for p in profiles if is_payer_match(log_payer, p.partner_name, getattr(p, "user_email", None))), None)
                 if matched_p:
                     direct_investments[matched_p.id] += log_amt
-                else:
-                    common_expenses += log_amt
             continue
 
         amt = float(e.amount_paid if e.amount_paid is not None else e.amount)
         matched_p = next((p for p in profiles if is_payer_match(e.paid_by, p.partner_name, getattr(p, "user_email", None))), None)
         if matched_p:
             direct_investments[matched_p.id] += amt
-        else:
-            common_expenses += amt
 
-    total_equity = sum(p.equity_percentage for p in profiles) or 100.0
     total_investments = {}
     for p in profiles:
-        share_ratio = (p.equity_percentage / total_equity) if total_equity > 0 else (1.0 / max(1, len(profiles)))
-        settled_share = common_expenses * share_ratio
-        total_investments[p.id] = round(direct_investments[p.id] + settled_share, 2)
+        total_investments[p.id] = round(direct_investments[p.id], 2)
 
     return total_investments
 

@@ -48,6 +48,23 @@ export const Sidebar: React.FC = () => {
 
   const effectiveRole = mounted ? role : "staff";
 
+  // Listen for mobile sidebar events from Navbar
+  React.useEffect(() => {
+    const handleToggle = () => setIsMobileOpen(prev => !prev);
+    const handleOpen = () => setIsMobileOpen(true);
+    const handleClose = () => setIsMobileOpen(false);
+
+    window.addEventListener('toggle-mobile-sidebar', handleToggle);
+    window.addEventListener('open-mobile-sidebar', handleOpen);
+    window.addEventListener('close-mobile-sidebar', handleClose);
+
+    return () => {
+      window.removeEventListener('toggle-mobile-sidebar', handleToggle);
+      window.removeEventListener('open-mobile-sidebar', handleOpen);
+      window.removeEventListener('close-mobile-sidebar', handleClose);
+    };
+  }, []);
+
   // Lock body scroll on mobile/tablet when sidebar drawer is open
   React.useEffect(() => {
     if (isMobileOpen) {
@@ -101,7 +118,7 @@ export const Sidebar: React.FC = () => {
       title: "Purchases",
       href: "/purchases",
       icon: ShoppingBag,
-      adminOnly: true,
+      adminOnly: false,
     },
     {
       title: "Attendance",
@@ -248,14 +265,16 @@ export const Sidebar: React.FC = () => {
 
   return (
     <>
-      {/* Mobile Toggle Button */}
-      <button
-        onClick={() => setIsMobileOpen(true)}
-        className="lg:hidden fixed bottom-5 right-5 z-40 p-3.5 rounded-full bg-blue-600 text-white shadow-2xl hover:bg-blue-700 transition-transform active:scale-95 cursor-pointer"
-        aria-label="Toggle Mobile Menu"
-      >
-        <Menu className="w-6 h-6" />
-      </button>
+      {/* Mobile Toggle Button (hidden on /pos to avoid collision with mobile checkout ticket bar) */}
+      {pathname !== "/pos" && (
+        <button
+          onClick={() => setIsMobileOpen(true)}
+          className="lg:hidden fixed bottom-5 right-5 z-40 p-3.5 rounded-full bg-blue-600 text-white shadow-2xl hover:bg-blue-700 transition-transform active:scale-95 cursor-pointer"
+          aria-label="Toggle Mobile Menu"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+      )}
 
       {/* Mobile Drawer Backdrop & Sidebar */}
       <AnimatePresence>

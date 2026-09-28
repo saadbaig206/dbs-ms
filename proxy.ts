@@ -46,12 +46,11 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL(fallback, request.nextUrl));
   }
 
-  // Admin & Partner allowed paths for finance/reports/expenses/purchases
+  // Admin & Partner allowed paths for finance/reports/expenses
   const isFinanceOrAdminPath =
     path.startsWith('/expenses') ||
     path.startsWith('/finance') ||
-    path.startsWith('/reports') ||
-    path.startsWith('/purchases');
+    path.startsWith('/reports');
 
   if (isFinanceOrAdminPath && role !== 'admin' && role !== 'partner') {
     return NextResponse.redirect(new URL('/pos', request.nextUrl));

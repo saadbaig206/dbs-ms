@@ -42,7 +42,8 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
         '/services',
         '/inventory',
         '/attendance',
-        '/reminders'
+        '/reminders',
+        '/purchases'
       ];
       return allowedPathsForStaff.some(path => pathname === path || pathname.startsWith(path + '/'));
     }

@@ -51,7 +51,10 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   }, [partnerEquity?.partners]);
 
   useEffect(() => {
-    if (partnerOptions.length > 0 && !paidBy) {
+    if (role === 'staff') {
+      const drzainiOption = partnerOptions.find(o => o.value.toLowerCase().includes('zaini'));
+      setPaidBy(drzainiOption ? drzainiOption.value : 'Dr. Zaini');
+    } else if (partnerOptions.length > 0 && !paidBy) {
       const matched = partnerOptions.find((o) =>
         userEmail && (
           o.value.toLowerCase().includes(userEmail.split('@')[0].toLowerCase()) ||
@@ -60,14 +63,15 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       );
       setPaidBy(matched ? matched.value : partnerOptions[0].value);
     }
-  }, [partnerOptions, paidBy, userEmail]);
+  }, [partnerOptions, paidBy, userEmail, role]);
 
   const resetForm = () => {
     setTitle('');
     setCategory('Other');
     setAmount('');
     setPaymentMethod('Cash');
-    setPaidBy(partnerOptions[0]?.value || '');
+    const drzainiOption = partnerOptions.find(o => o.value.toLowerCase().includes('zaini'));
+    setPaidBy(role === 'staff' ? (drzainiOption ? drzainiOption.value : 'Dr. Zaini') : (partnerOptions[0]?.value || ''));
     setNotes('');
     setVendorName('');
     setErrorMsg(null);
@@ -94,7 +98,9 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       setErrorMsg(null);
       const activeBranch = branchId || defaultBranchId || selectedBranchId || userBranchId || undefined;
       const today = new Date().toISOString().split('T')[0];
-      const activeUser = userEmail || (role === 'staff' ? 'Staff' : 'Admin');
+      const isStaff = role === 'staff';
+      const activeUser = isStaff ? 'Dr. Zaini' : (userEmail || 'Admin');
+      const finalPaidBy = isStaff ? 'Dr. Zaini' : (paidBy.trim() || activeUser);
 
       await addExpense({
         title: title.trim(),
@@ -107,7 +113,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
         vendorName: vendorName.trim() || undefined,
         branchId: activeBranch,
         addedBy: activeUser,
-        paidBy: paidBy.trim() || activeUser
+        paidBy: finalPaidBy
       });
 
       setSuccessMsg(`Expense of Rs ${parsedAmount.toLocaleString()} recorded successfully!`);

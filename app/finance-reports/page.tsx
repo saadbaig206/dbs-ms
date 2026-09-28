@@ -1915,8 +1915,8 @@ export default function FinanceReportsPage() {
                   </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs sm:text-sm">
+                <div className="responsive-table-wrapper">
+                  <table className="w-full min-w-[720px] text-left text-xs sm:text-sm">
                     <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[11px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
                       <tr>
                         <th className="py-3.5 px-4 rounded-l-xl">Invoice ID</th>
@@ -2146,8 +2146,8 @@ export default function FinanceReportsPage() {
 
               {/* Expenses Table */}
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs sm:text-sm">
+                <div className="responsive-table-wrapper">
+                  <table className="w-full min-w-[720px] text-left text-xs sm:text-sm">
                     <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[11px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
                       <tr>
                         <th className="py-3.5 px-4 rounded-l-xl">

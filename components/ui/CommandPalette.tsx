@@ -19,7 +19,8 @@ import {
   ShieldCheck,
   Plus,
   MapPin,
-  Bell
+  Bell,
+  ShoppingBag
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 
@@ -36,6 +37,7 @@ export const CommandPalette: React.FC = () => {
     { title: 'Billing', href: '/pos', icon: CreditCard, category: 'Navigation', adminOnly: false },
     { title: 'Client Directory', href: '/clients', icon: Users, category: 'Navigation', adminOnly: false },
     { title: 'Services Catalog', href: '/services', icon: Sparkles, category: 'Navigation', adminOnly: false },
+    { title: 'Purchases & Supplier Orders', href: '/purchases', icon: ShoppingBag, category: 'Navigation', adminOnly: false },
     { title: 'Inventory Management', href: '/inventory', icon: Package, category: 'Navigation', adminOnly: true },
     { title: 'Branches Management', href: '/branches', icon: MapPin, category: 'Navigation', adminOnly: true },
     { title: 'Staff Directory', href: '/staff', icon: UserCheck, category: 'Navigation', adminOnly: true },
@@ -48,7 +50,7 @@ export const CommandPalette: React.FC = () => {
 
   const filteredItems = navItems.filter(item => {
     if (role === 'partner') {
-      const partnerPaths = ['/dashboard', '/finance', '/finance-reports', '/reports', '/expenses', '/inventory'];
+      const partnerPaths = ['/dashboard', '/finance', '/finance-reports', '/reports', '/expenses', '/inventory', '/purchases'];
       return partnerPaths.includes(item.href) && item.title.toLowerCase().includes(query.toLowerCase());
     }
     if (role === 'staff' && item.adminOnly) return false;

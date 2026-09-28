@@ -686,8 +686,8 @@ export default function StaffPage() {
               <Badge variant="primary">Updated Live</Badge>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm">
+            <div className="responsive-table-wrapper">
+              <table className="w-full min-w-[660px] text-left text-xs sm:text-sm">
                 <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[11px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
                   <tr>
                     <th className="py-3.5 px-4 rounded-l-xl">Staff Member</th>
@@ -769,8 +769,8 @@ export default function StaffPage() {
               No partner accounts created yet.
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm">
+            <div className="responsive-table-wrapper">
+              <table className="w-full min-w-[500px] text-left text-xs sm:text-sm">
                 <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[11px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
                   <tr>
                     <th className="py-3.5 px-4 rounded-l-xl">Username</th>

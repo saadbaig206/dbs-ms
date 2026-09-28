@@ -53,12 +53,20 @@ async def create_expense(
     import secrets
     expense_id = f"EXP-{secrets.token_hex(3).upper()}"
     
-    user_identifier = getattr(current_user, 'email', 'Admin/Partner')
+    is_staff = getattr(current_user, "role", "") == "staff"
     
-    # Non-admin staff cannot self-approve expenses as Paid
-    expense_status = expense_in.status or "Pending"
-    if getattr(current_user, "role", "") not in ("admin", "partner"):
-        expense_status = "Pending"
+    if is_staff:
+        user_identifier = "Dr. Zaini"
+        expense_status = expense_in.status or "Paid"
+        added_by = "Dr. Zaini"
+        paid_by = "Dr. Zaini"
+    else:
+        user_identifier = getattr(current_user, 'email', 'Admin/Partner')
+        expense_status = expense_in.status or "Pending"
+        if getattr(current_user, "role", "") not in ("admin", "partner"):
+            expense_status = "Pending"
+        added_by = expense_in.added_by or user_identifier
+        paid_by = expense_in.paid_by or user_identifier
 
     db_expense = ExpenseItem(
         id=expense_id,
@@ -71,8 +79,8 @@ async def create_expense(
         notes=expense_in.notes,
         staff_id=expense_in.staff_id,
         branch_id=expense_in.branch_id,
-        added_by=expense_in.added_by or user_identifier,
-        paid_by=expense_in.paid_by or user_identifier,
+        added_by=added_by,
+        paid_by=paid_by,
         vendor_name=expense_in.vendor_name,
         product_name=expense_in.product_name,
         payment_type=expense_in.payment_type,

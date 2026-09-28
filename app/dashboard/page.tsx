@@ -329,7 +329,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8 pb-10">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <Breadcrumb />
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
@@ -340,63 +340,54 @@ export default function DashboardPage() {
           </p>
         </div>
 
-       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 w-full">
-  
-  {/* Branch Selector */}
-  {branches.length > 0 && (
-    <select
-      value={selectedBranchId || ""}
-      onChange={(e) => setSelectedBranchId(e.target.value || null)}
-      className="w-full lg:w-auto shrink-0 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-950 dark:text-slate-50 text-sm font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-sm cursor-pointer"
-    >
-      <option value="">All Branches</option>
-      {branches.map((b) => (
-        <option key={b.id} value={b.id}>
-          {b.name}
-        </option>
-      ))}
-    </select>
-  )}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full lg:w-auto">
+          {/* Branch Selector */}
+          {branches.length > 0 && (
+            <select
+              value={selectedBranchId || ""}
+              onChange={(e) => setSelectedBranchId(e.target.value || null)}
+              className="w-full sm:w-auto shrink-0 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-950 dark:text-slate-50 text-sm font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-sm cursor-pointer"
+            >
+              <option value="">All Branches</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          )}
 
-  {/* Action Buttons Grid */}
-  {role !== "partner" && (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 w-full lg:w-auto">
-      
-      <Link href="/pos" className="w-full">
-        <Button
-          variant="primary"
-        
-          // Added text-xs sm:text-sm to decrease text size
-          className="w-full whitespace-nowrap justify-center h-full text-xs sm:text-sm"
-        >
-          Open Billing
-        </Button>
-      </Link>
-      
-      <Link href="/appointments" className="w-full">
-        <Button
-          variant="outline"
-       
-          // Added text-xs sm:text-sm to decrease text size
-          className="w-full whitespace-nowrap justify-center h-full text-xs sm:text-sm"
-        >
-          New Appointment
-        </Button>
-      </Link>
-      
-      <Button
-        variant="outline"
-       
-        onClick={() => setIsAddExpenseOpen(true)}
-        // Added text-xs sm:text-sm to decrease text size
-        className="w-full whitespace-nowrap justify-center h-full col-span-2 sm:col-span-1 text-xs sm:text-sm"
-      >
-        Record Expense
-      </Button>
-      
-    </div>
-  )}
-</div>
+          {/* Action Buttons Grid */}
+          {role !== "partner" && (
+            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2.5 w-full sm:w-auto">
+              <Link href="/pos" className="w-full sm:w-auto">
+                <Button
+                  variant="primary"
+                  className="w-full sm:w-auto whitespace-nowrap justify-center text-xs sm:text-sm"
+                >
+                  Open Billing
+                </Button>
+              </Link>
+              
+              <Link href="/appointments" className="w-full sm:w-auto">
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto whitespace-nowrap justify-center text-xs sm:text-sm"
+                >
+                  New Appointment
+                </Button>
+              </Link>
+              
+              <Button
+                variant="outline"
+                onClick={() => setIsAddExpenseOpen(true)}
+                className="w-full sm:w-auto whitespace-nowrap justify-center col-span-2 sm:col-span-1 text-xs sm:text-sm"
+              >
+                Record Expense
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Low Stock Warning Banner */}

@@ -13,7 +13,8 @@ import {
   Calendar,
   Sparkles,
   Command,
-  Trash2
+  Trash2,
+  Menu
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { Avatar } from '../ui/Avatar';
@@ -149,11 +150,22 @@ export const Navbar: React.FC = () => {
 
   return (
     <header className="sticky top-0 z-20 w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 px-3 sm:px-8 py-3 flex items-center justify-between transition-colors">
-      {/* Left Container: Live Clinic Status */}
+      {/* Left Container: Mobile Menu + Live Clinic Status */}
       <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+        <button
+          type="button"
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('toggle-mobile-sidebar'));
+          }}
+          className="lg:hidden p-2 -ml-1 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+          aria-label="Toggle navigation menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight truncate max-w-[150px] sm:max-w-xs">
+            <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight truncate max-w-[140px] sm:max-w-xs">
               {clinicInfo.name}
             </span>
           </div>

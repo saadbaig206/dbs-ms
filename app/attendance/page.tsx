@@ -378,7 +378,7 @@ export default function AttendancePage() {
       </div>
 
       {/* Attendance Register Table */}
-      <div className="luxury-card p-6">
+      <div className="luxury-card p-4 sm:p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
             Attendance Register ({selectedDate})
@@ -386,8 +386,8 @@ export default function AttendancePage() {
           <Badge variant="primary">{filteredStaff.length} Employees</Badge>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs sm:text-sm">
+        <div className="responsive-table-wrapper">
+          <table className="w-full min-w-[700px] text-left text-xs sm:text-sm">
             <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[11px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
               <tr>
                 <th className="py-3.5 px-4 rounded-l-xl">Staff Member</th>

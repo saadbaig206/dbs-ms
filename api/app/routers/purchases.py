@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import or_
 
-from app.core.deps import get_db, get_admin_or_partner_user, get_user_branch_id
+from app.core.deps import get_db, get_staff_user, get_user_branch_id
 from app.models.purchase import PurchaseBill, PurchaseItem
 from app.models.inventory import InventoryItem
 from app.schemas.purchase import (
@@ -26,7 +26,7 @@ async def list_purchase_items(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_admin_or_partner_user),
+    current_user = Depends(get_staff_user),
     user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
     """List purchased products individually with their specific unit costs and vendors."""
@@ -57,7 +57,7 @@ async def list_purchase_bills(
     branch_id: Optional[str] = None,
     payment_status: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_admin_or_partner_user),
+    current_user = Depends(get_staff_user),
     user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
     """List purchase orders / bills by vendor."""
@@ -85,7 +85,7 @@ async def list_purchase_bills(
 async def create_purchase(
     purchase_in: PurchaseCreate,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_admin_or_partner_user),
+    current_user = Depends(get_staff_user),
     user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
     """Record a vendor purchase order with multiple products, adding each item individually and updating inventory."""
@@ -108,8 +108,13 @@ async def create_purchase(
         amount_paid = min(total_amount, purchase_in.amount_paid or 0.0)
         remaining_due = max(0.0, total_amount - amount_paid)
 
-    creator_identifier = getattr(current_user, 'name', None) or getattr(current_user, 'email', 'Admin/Partner')
-    actual_payer = purchase_in.paid_by or creator_identifier
+    is_staff = getattr(current_user, "role", "") == "staff"
+    if is_staff:
+        creator_identifier = "Dr. Zaini"
+        actual_payer = "Dr. Zaini"
+    else:
+        creator_identifier = getattr(current_user, 'name', None) or getattr(current_user, 'email', 'Admin/Partner')
+        actual_payer = purchase_in.paid_by or creator_identifier
 
     initial_logs = []
     if amount_paid > 0:
@@ -231,7 +236,7 @@ async def pay_vendor_bill(
     bill_id: str,
     payment_in: PurchasePaymentInput,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_admin_or_partner_user)
+    current_user = Depends(get_staff_user)
 ):
     """Settle full or partial outstanding due on a vendor purchase bill with expense tracking."""
     from sqlalchemy.orm.attributes import flag_modified
@@ -253,8 +258,13 @@ async def pay_vendor_bill(
             detail=f"Payment amount (Rs. {payment_in.amount}) cannot exceed outstanding due (Rs. {current_due})"
         )
 
-    user_identifier = getattr(current_user, "name", None) or getattr(current_user, "email", "Admin")
-    actual_payer = payment_in.paid_by or user_identifier
+    is_staff = getattr(current_user, "role", "") == "staff"
+    if is_staff:
+        user_identifier = "Dr. Zaini"
+        actual_payer = "Dr. Zaini"
+    else:
+        user_identifier = getattr(current_user, "name", None) or getattr(current_user, "email", "Admin")
+        actual_payer = payment_in.paid_by or user_identifier
 
     new_paid = (bill.amount_paid or 0.0) + payment_in.amount
     new_due = max(0.0, bill.total_amount - new_paid)

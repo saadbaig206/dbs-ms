@@ -381,6 +381,8 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const partnersPromise = (initialRole === 'admin')
         ? fetchSafe<{ id: number; username: string }[]>('/auth/partners', [])
         : Promise.resolve([]);
+      const purchasesBillsPromise = fetchSafe<PurchaseBill[]>('/purchases/bills', []);
+      const purchasesItemsPromise = fetchSafe<PurchaseItem[]>('/purchases/items', []);
 
       const [
         fetchedUser,
@@ -394,7 +396,9 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         notificationsData,
         expensesData,
         transactionsData,
-        partnersData
+        partnersData,
+        purchaseBillsData,
+        purchaseItemsData
       ] = await Promise.all([
         mePromise,
         fetchSafe<Branch[]>('/branches', []),
@@ -407,7 +411,9 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         fetchSafe<NotificationItem[]>('/notifications', []),
         expensesPromise,
         transactionsPromise,
-        partnersPromise
+        partnersPromise,
+        purchasesBillsPromise,
+        purchasesItemsPromise
       ]);
 
       let activeUser = fetchedUser;
@@ -475,6 +481,8 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       safeSetFallback(setExpenses, 'expenses', expensesData);
       safeSetFallback(setTransactions, 'transactions', transactionsData);
       safeSetFallback(setPartners, 'partners', partnersData);
+      safeSetFallback(setPurchaseBills, 'purchase_bills', purchaseBillsData);
+      safeSetFallback(setPurchaseItems, 'purchase_items', purchaseItemsData);
       if (initialRole === 'admin' || initialRole === 'partner') {
         refreshPartnerEquity();
       }
@@ -903,20 +911,27 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Expenses CRUD
   const addExpense = async (expense: Omit<ExpenseItem, 'id'>) => {
-    const activeUser = userEmail || (role === 'staff' ? 'Staff' : 'Admin/Partner');
+    const isStaff = role === 'staff';
+    const activeUser = isStaff ? 'Dr. Zaini' : (userEmail || 'Admin/Partner');
+    const assignedPaidBy = isStaff ? (expense.paidBy || 'Dr. Zaini') : (expense.paidBy || activeUser);
+    const assignedAddedBy = isStaff ? 'Dr. Zaini' : (expense.addedBy || activeUser);
+    const assignedStatus = isStaff ? (expense.status || 'Paid') : expense.status;
+
     const newExp: ExpenseItem = {
       ...expense,
       id: `EXP-${Math.floor(Math.random() * 900) + 100}`,
-      addedBy: expense.addedBy || activeUser,
-      paidBy: expense.paidBy || activeUser
+      addedBy: assignedAddedBy,
+      paidBy: assignedPaidBy,
+      status: assignedStatus || 'Paid'
     };
     try {
       await apiFetch('/expenses', {
         method: 'POST',
         body: JSON.stringify({
           ...expense,
-          addedBy: expense.addedBy || activeUser,
-          paidBy: expense.paidBy || activeUser,
+          addedBy: assignedAddedBy,
+          paidBy: assignedPaidBy,
+          status: assignedStatus,
           branchId: expense.branchId || selectedBranchId || userBranchId || undefined
         }),
       });
@@ -1269,9 +1284,14 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const addPurchase = async (data: any) => {
     try {
+      const payload = { ...data };
+      if (role === 'staff') {
+        payload.createdBy = 'Dr. Zaini';
+        payload.paidBy = payload.paidBy || 'Dr. Zaini';
+      }
       await apiFetch('/purchases', {
         method: 'POST',
-        body: JSON.stringify(data)
+        body: JSON.stringify(payload)
       });
       await Promise.all([
         refreshPurchases(),
@@ -1286,9 +1306,10 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const payPurchaseBill = async (id: string, amount: number, paymentMethod: string, notes?: string, paidBy?: string) => {
     try {
+      const finalPaidBy = role === 'staff' ? (paidBy || 'Dr. Zaini') : paidBy;
       await apiFetch(`/purchases/bills/${id}/pay`, {
         method: 'POST',
-        body: JSON.stringify({ amount, paymentMethod, notes, paidBy })
+        body: JSON.stringify({ amount, paymentMethod, notes, paidBy: finalPaidBy })
       });
       await Promise.all([
         refreshPurchases(),

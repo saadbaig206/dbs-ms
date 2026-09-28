@@ -210,7 +210,15 @@ async def test_purchases_and_individual_items(client: AsyncClient, db: AsyncSess
 
 
 @pytest.mark.asyncio
-async def test_partner_equity_and_drawings(client: AsyncClient):
+async def test_partner_equity_and_drawings(client: AsyncClient, db: AsyncSession):
+    # Ensure drzaini admin exists in DB
+    from app.models.user import User
+    from app.core.security import get_password_hash
+    u_res = await db.execute(select(User).where(User.email == "drzaini"))
+    if not u_res.scalars().first():
+        db.add(User(email="drzaini", hashed_password=get_password_hash("drzaini109"), role="admin"))
+        await db.commit()
+
     login_response = await client.post("/api/v1/auth/login", json={
         "email": "admin@gmail.com",
         "password": "admin"
@@ -962,6 +970,119 @@ async def test_appointment_double_booking_conflict(client: AsyncClient, db: Asyn
     }, headers=staff_headers)
     assert res2.status_code == 400
     assert "already booked" in res2.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_staff_purchase_and_expense_attributed_to_dr_zaini(client: AsyncClient, db: AsyncSession):
+    # 1. Staff login
+    staff_login = await client.post("/api/v1/auth/login", json={
+        "email": "staff@gmail.com",
+        "password": "staff"
+    })
+    assert staff_login.status_code == 200
+    token = staff_login.json()["access_token"]
+    staff_headers = {"Authorization": f"Bearer {token}"}
+
+    # 2. Verify Staff can access purchases tabs (items & bills)
+    get_items_res = await client.get("/api/v1/purchases/items", headers=staff_headers)
+    assert get_items_res.status_code == 200, f"Staff should have access to purchase items, got {get_items_res.status_code}"
+
+    get_bills_res = await client.get("/api/v1/purchases/bills", headers=staff_headers)
+    assert get_bills_res.status_code == 200, f"Staff should have access to purchase bills, got {get_bills_res.status_code}"
+
+    # 3. Staff records a purchase bill with upfront payment
+    purchase_payload = {
+        "vendorName": "Aesthetic Pharma Supply",
+        "invoiceNumber": "BILL-APS-7701",
+        "items": [
+            {
+                "itemName": "Botox Allergan 100U",
+                "category": "Injectables",
+                "quantity": 5,
+                "unitCost": 20000.0,
+                "sellingPrice": 35000.0,
+                "batchNumber": "BTX-77A"
+            }
+        ],
+        "date": "2026-09-28",
+        "paymentStatus": "Paid",
+        "amountPaid": 100000.0,
+        "paymentMethod": "Cash"
+    }
+    pur_res = await client.post("/api/v1/purchases", json=purchase_payload, headers=staff_headers)
+    assert pur_res.status_code == 200, f"Purchase creation failed: {pur_res.text}"
+    pur_data = pur_res.json()
+
+    # Verify purchase is counted as done/created by Dr. Zaini and paid by Dr. Zaini
+    assert pur_data["createdBy"] == "Dr. Zaini"
+    assert pur_data["paidBy"] == "Dr. Zaini"
+    assert len(pur_data["paymentLogs"]) > 0
+    assert pur_data["paymentLogs"][0]["paid_by"] == "Dr. Zaini"
+
+    # Verify associated ExpenseItem was created with Dr. Zaini
+    from app.models.expense import ExpenseItem
+    exp_res = await db.execute(
+        select(ExpenseItem).where(ExpenseItem.title.ilike("%Aesthetic Pharma Supply%"))
+    )
+    exp = exp_res.scalars().first()
+    assert exp is not None
+    assert exp.added_by == "Dr. Zaini"
+    assert exp.paid_by == "Dr. Zaini"
+    assert exp.status == "Paid"
+
+    # 4. Staff pays remaining due on a bill
+    # Create partial bill first
+    partial_payload = {
+        "vendorName": "Syringe Supplies Co",
+        "invoiceNumber": "BILL-SSC-001",
+        "items": [
+            {
+                "itemName": "Insulin Needles 30G",
+                "category": "Disposables",
+                "quantity": 10,
+                "unitCost": 500.0,
+                "sellingPrice": 1000.0
+            }
+        ],
+        "date": "2026-09-28",
+        "paymentStatus": "Partial",
+        "amountPaid": 2000.0,
+        "paymentMethod": "Online"
+    }
+    part_res = await client.post("/api/v1/purchases", json=partial_payload, headers=staff_headers)
+    assert part_res.status_code == 200
+    partial_bill = part_res.json()
+    bill_id = partial_bill["id"]
+    assert partial_bill["remainingDue"] == 3000.0
+
+    # Staff pays remaining 3000
+    pay_res = await client.post(f"/api/v1/purchases/bills/{bill_id}/pay", json={
+        "amount": 3000.0,
+        "paymentMethod": "Cash",
+        "notes": "Cleared remaining due"
+    }, headers=staff_headers)
+    assert pay_res.status_code == 200
+    settled_bill = pay_res.json()
+    assert settled_bill["paidBy"] == "Dr. Zaini"
+    assert settled_bill["paymentStatus"] == "Paid"
+    assert settled_bill["remainingDue"] == 0.0
+
+    # 5. Staff records a standalone clinic expense
+    exp_payload = {
+        "title": "Clinic Tea & Refreshments",
+        "category": "Other",
+        "amount": 1500.0,
+        "date": "2026-09-28",
+        "status": "Paid",
+        "paymentMethod": "Cash"
+    }
+    staff_exp_res = await client.post("/api/v1/expenses", json=exp_payload, headers=staff_headers)
+    assert staff_exp_res.status_code == 200
+    staff_exp_data = staff_exp_res.json()
+    assert staff_exp_data["addedBy"] == "Dr. Zaini"
+    assert staff_exp_data["paidBy"] == "Dr. Zaini"
+    assert staff_exp_data["status"] == "Paid"
+
 
 
 

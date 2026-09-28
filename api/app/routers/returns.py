@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import or_
 
-from app.core.deps import get_db, get_admin_or_partner_user, get_user_branch_id
+from app.core.deps import get_db, get_staff_user, get_user_branch_id
 from app.models.purchase_return import PurchaseReturn
 from app.models.purchase import PurchaseBill
 from app.models.inventory import InventoryItem
@@ -21,7 +21,7 @@ async def list_returns(
     vendor_name: Optional[str] = None,
     branch_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_admin_or_partner_user),
+    current_user = Depends(get_staff_user),
     user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
     """List all Return to Vendor (RTV) orders and Debit Notes."""
@@ -40,7 +40,7 @@ async def list_returns(
 async def create_purchase_return(
     return_in: PurchaseReturnCreate,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_admin_or_partner_user),
+    current_user = Depends(get_staff_user),
     user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
     """Process a Return to Vendor (RTV), decrement inventory units, and issue an official Debit Note."""
@@ -155,7 +155,8 @@ async def create_purchase_return(
         )
         db.add(rtv_txn)
 
-    creator = getattr(current_user, 'email', 'Admin/Partner')
+    is_staff = getattr(current_user, "role", "") == "staff"
+    creator = "Dr. Zaini" if is_staff else (getattr(current_user, 'email', 'Admin/Partner'))
 
     # 4. Create Debit Note record
     db_return = PurchaseReturn(
