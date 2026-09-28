@@ -197,6 +197,20 @@ export function PartnerExpensesTab() {
     return unifiedExpenses.reduce((acc, curr) => acc + curr.amount, 0);
   }, [unifiedExpenses]);
 
+  // Aggregate Clinic Direct (Common operating expenses not paid out of pocket by a partner)
+  const clinicDirectSummary = useMemo(() => {
+    let amount = 0;
+    let count = 0;
+    unifiedExpenses.forEach((item) => {
+      if (!item.matchedPartner) {
+        amount += item.amount;
+        count += 1;
+      }
+    });
+    const pct = totalClinicExpenses > 0 ? ((amount / totalClinicExpenses) * 100).toFixed(1) : "0";
+    return { amount, count, pct };
+  }, [unifiedExpenses, totalClinicExpenses]);
+
   // Filtered dataset
   const filteredList = useMemo(() => {
     const today = new Date();
@@ -350,8 +364,8 @@ export function PartnerExpensesTab() {
         </div>
       </div>
 
-      {/* Dynamic KPI Cards: Total Clinic Expenses + One Card per Active Partner */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Dynamic KPI Cards: Total Clinic Expenses + One Card per Active Partner + Clinic Direct */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Clinic Expenses */}
         <StatCard
           title="Total Clinic Expenses"
@@ -410,6 +424,43 @@ export function PartnerExpensesTab() {
             </div>
           );
         })}
+
+        {/* Clinic Direct (Common operating expenses from clinic funds) */}
+        {clinicDirectSummary.amount > 0 && (
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                  Clinic Direct
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                  {clinicDirectSummary.pct}% of Total
+                </span>
+              </div>
+
+              <div className="text-2xl font-black font-mono text-slate-900 dark:text-slate-100 mt-2">
+                {formatPKR(clinicDirectSummary.amount)}
+              </div>
+
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                  Paid from clinic funds / operating cash
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-slate-500 mt-4 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+              <span>{clinicDirectSummary.count} clinic logs</span>
+              <button
+                onClick={() => setSelectedPayer(selectedPayer === "clinic-direct" ? "all" : "clinic-direct")}
+                className="text-slate-600 dark:text-slate-400 font-bold hover:underline cursor-pointer"
+              >
+                {selectedPayer === "clinic-direct" ? "Showing Filtered ✓" : "Filter Clinic Direct →"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Dynamic Filter and Control Toolbar */}

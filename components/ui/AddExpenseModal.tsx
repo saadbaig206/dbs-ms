@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { DollarSign, CheckCircle2 } from 'lucide-react';
+import { DollarSign, CheckCircle2, Users } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { Modal } from './Modal';
 import { Input, Select } from './Input';
@@ -26,6 +26,8 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Card' | 'Bank Transfer' | 'Cheque'>('Cash');
   const [paidBy, setPaidBy] = useState<string>('');
+  const [isSplit, setIsSplit] = useState(false);
+  const [partnerSplits, setPartnerSplits] = useState<{ [partnerName: string]: string }>({});
   const [notes, setNotes] = useState('');
   const [vendorName, setVendorName] = useState('');
   const [branchId, setBranchId] = useState<string>(defaultBranchId || selectedBranchId || userBranchId || '');
@@ -51,6 +53,24 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   }, [partnerEquity?.partners]);
 
   useEffect(() => {
+    if (partnerOptions.length > 0) {
+      setPartnerSplits((prev) => {
+        const next: { [key: string]: string } = { ...prev };
+        partnerOptions.forEach((p) => {
+          if (next[p.value] === undefined) next[p.value] = '';
+        });
+        return next;
+      });
+    }
+  }, [partnerOptions]);
+
+  const parsedAmount = Number(amount) || 0;
+  const splitSum = useMemo(() => {
+    return Object.values(partnerSplits).reduce((sum, v) => sum + (Number(v) || 0), 0);
+  }, [partnerSplits]);
+  const isSplitBalanced = parsedAmount > 0 && Math.abs(splitSum - parsedAmount) === 0;
+
+  useEffect(() => {
     if (role === 'staff') {
       const drzainiOption = partnerOptions.find(o => o.value.toLowerCase().includes('zaini'));
       setPaidBy(drzainiOption ? drzainiOption.value : 'Dr. Zaini');
@@ -72,6 +92,8 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     setPaymentMethod('Cash');
     const drzainiOption = partnerOptions.find(o => o.value.toLowerCase().includes('zaini'));
     setPaidBy(role === 'staff' ? (drzainiOption ? drzainiOption.value : 'Dr. Zaini') : (partnerOptions[0]?.value || ''));
+    setIsSplit(false);
+    setPartnerSplits({});
     setNotes('');
     setVendorName('');
     setErrorMsg(null);
@@ -87,7 +109,6 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     e.preventDefault();
     if (isSubmitting) return;
 
-    const parsedAmount = Number(amount);
     if (!parsedAmount || parsedAmount <= 0) {
       setErrorMsg('Please enter a valid expense amount greater than zero.');
       return;
@@ -100,7 +121,31 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       const today = new Date().toISOString().split('T')[0];
       const isStaff = role === 'staff';
       const activeUser = isStaff ? 'Dr. Zaini' : (userEmail || 'Admin');
-      const finalPaidBy = isStaff ? 'Dr. Zaini' : (paidBy.trim() || activeUser);
+      let finalPaidBy = isStaff ? 'Dr. Zaini' : (paidBy.trim() || activeUser);
+      let paymentLogs: any[] | undefined = undefined;
+
+      if (isSplit && !isStaff && partnerOptions.length > 1) {
+        if (!isSplitBalanced) {
+          setErrorMsg(`Split sum (Rs ${splitSum.toLocaleString()}) must exactly match total expense amount (Rs ${parsedAmount.toLocaleString()}).`);
+          setIsSubmitting(false);
+          return;
+        }
+        const activeSplits = Object.entries(partnerSplits).filter(([_, val]) => Number(val) > 0);
+        if (activeSplits.length === 0) {
+          setErrorMsg('Please specify contribution for each partner.');
+          setIsSubmitting(false);
+          return;
+        }
+        paymentLogs = activeSplits.map(([pName, val], idx) => ({
+          id: `SPLIT-${Date.now()}-${idx}`,
+          amount: Number(val),
+          paidBy: pName,
+          date: today,
+          paymentMethod,
+          notes: `Split payment: ${pName} paid Rs ${Number(val).toLocaleString()}`
+        }));
+        finalPaidBy = activeSplits.map(([pName]) => pName).join(' & ');
+      }
 
       await addExpense({
         title: title.trim(),
@@ -113,7 +158,8 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
         vendorName: vendorName.trim() || undefined,
         branchId: activeBranch,
         addedBy: activeUser,
-        paidBy: finalPaidBy
+        paidBy: finalPaidBy,
+        paymentLogs: paymentLogs
       });
 
       setSuccessMsg(`Expense of Rs ${parsedAmount.toLocaleString()} recorded successfully!`);
@@ -187,31 +233,123 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Select
-              label="Paid By (Partner / Admin)"
-              options={partnerOptions.length > 0 ? partnerOptions : [{ label: 'Loading Partners...', value: '' }]}
-              value={paidBy}
-              onChange={(e) => setPaidBy(e.target.value)}
-            />
+          {/* Payer & Split Controls */}
+          <div className="space-y-3">
+            {partnerOptions.length > 1 && role !== 'staff' && (
+              <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-blue-500" />
+                  <div>
+                    <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      Split Contribution Between Partners
+                    </div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Specify exact individual rupees contributed by each partner
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSplit(!isSplit)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    isSplit
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {isSplit ? 'Split Active ✓' : 'Enable Split'}
+                </button>
+              </div>
+            )}
 
-            <Select
-              label="Payment Method"
-              options={[
-                { label: 'Cash (Drawer / Petty Cash)', value: 'Cash' },
-                { label: 'Credit / Debit Card', value: 'Card' },
-                { label: 'Online / Bank Transfer', value: 'Online' }
-              ]}
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value as any)}
-            />
+            {!isSplit ? (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Select
+                  label="Paid By (Partner Direct)"
+                  options={partnerOptions.length > 0 ? partnerOptions : [{ label: 'Loading Partners...', value: '' }]}
+                  value={paidBy}
+                  onChange={(e) => setPaidBy(e.target.value)}
+                />
+                <Select
+                  label="Payment Method"
+                  options={[
+                    { label: 'Cash (Drawer / Petty Cash)', value: 'Cash' },
+                    { label: 'Credit / Debit Card', value: 'Card' },
+                    { label: 'Online / Bank Transfer', value: 'Online' }
+                  ]}
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value as any)}
+                />
+                <Input
+                  label="Vendor / Person Paid To"
+                  placeholder="e.g. Rider, Mart, Cleaners, Landlord"
+                  value={vendorName}
+                  onChange={(e) => setVendorName(e.target.value)}
+                />
+              </div>
+            ) : (
+              <div className="p-4 bg-blue-50/60 dark:bg-blue-950/20 rounded-xl border border-blue-200 dark:border-blue-900/50 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                  <span className="font-bold text-slate-700 dark:text-slate-200">
+                    Enter Individual Partner Amounts:
+                  </span>
+                  <span
+                    className={`font-black font-mono px-2 py-0.5 rounded text-[11px] ${
+                      isSplitBalanced
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                        : 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                    }`}
+                  >
+                    {isSplitBalanced
+                      ? '✓ Fully Balanced (100%)'
+                      : `Split: Rs ${splitSum.toLocaleString()} / Rs ${parsedAmount.toLocaleString()} (${parsedAmount > splitSum ? `Rs ${(parsedAmount - splitSum).toLocaleString()} remaining` : 'Exceeds Total!'})`}
+                  </span>
+                </div>
 
-            <Input
-              label="Vendor / Person Paid To"
-              placeholder="e.g. Rider, Mart, Cleaners, Landlord"
-              value={vendorName}
-              onChange={(e) => setVendorName(e.target.value)}
-            />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {partnerOptions.map((p) => (
+                    <div key={p.value} className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                        <span>{p.label} (PKR)</span>
+                        {Number(partnerSplits[p.value] || 0) > 0 && parsedAmount > 0 && (
+                          <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold">
+                            {(((Number(partnerSplits[p.value]) || 0) / parsedAmount) * 100).toFixed(0)}%
+                          </span>
+                        )}
+                      </label>
+                      <Input
+                        type="text"
+                        placeholder="0"
+                        value={partnerSplits[p.value] || ''}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '');
+                          setPartnerSplits((prev) => ({ ...prev, [p.value]: val }));
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-blue-200/60 dark:border-blue-900/30">
+                  <Select
+                    label="Payment Method"
+                    options={[
+                      { label: 'Cash (Drawer / Petty Cash)', value: 'Cash' },
+                      { label: 'Credit / Debit Card', value: 'Card' },
+                      { label: 'Online / Bank Transfer', value: 'Online' }
+                    ]}
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value as any)}
+                  />
+                  <Input
+                    label="Vendor / Person Paid To"
+                    placeholder="e.g. Rider, Mart, Cleaners, Landlord"
+                    value={vendorName}
+                    onChange={(e) => setVendorName(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
