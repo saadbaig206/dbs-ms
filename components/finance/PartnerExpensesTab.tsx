@@ -44,12 +44,12 @@ export function PartnerExpensesTab() {
   const [endDate, setEndDate] = useState("");
   const [reassigningExpId, setReassigningExpId] = useState<string | null>(null);
 
-  // Dynamic Payer Matching without any hardcoded names
+  // Dynamic Payer Matching: every paid expense is attributed to an individual partner/admin
   const matchPartner = (paidBy?: string): PartnerEquityReportItem | null => {
-    if (!paidBy || !paidBy.trim()) return null;
+    const defaultPartner = equityPartners.find((p) => p.partnerName.toLowerCase().includes("zaini")) || equityPartners[0] || null;
+    if (!paidBy || !paidBy.trim()) return defaultPartner;
     const clean = paidBy.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (!clean) return null;
-    if (clean.includes("admin@gmail") || clean.includes("staff@gmail")) return null;
+    if (!clean) return defaultPartner;
 
     for (const p of equityPartners) {
       const pClean = p.partnerName.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -57,7 +57,16 @@ export function PartnerExpensesTab() {
         return p;
       }
     }
-    return null;
+
+    // Map 'admin', 'admin@gmail.com', 'drzaini' to Dr. Zaini
+    if (clean.includes("admin") || clean.includes("drzaini") || clean.includes("zaini")) {
+      return equityPartners.find((p) => p.partnerName.toLowerCase().includes("zaini")) || defaultPartner;
+    }
+    if (clean.includes("sheraz")) {
+      return equityPartners.find((p) => p.partnerName.toLowerCase().includes("sheraz")) || null;
+    }
+
+    return defaultPartner;
   };
 
   // Compile all paid disbursements (Expenses + Vendor Bill partial/full logs)
@@ -96,9 +105,9 @@ export function PartnerExpensesTab() {
             vendorName: exp.vendorName,
             amount: log.amount,
             date: log.date || exp.date,
-            paidBy: log.paidBy || exp.paidBy || "Common Clinic Operating",
+            paidBy: matched ? matched.partnerName : (log.paidBy || exp.paidBy || "Dr. Zaini"),
             matchedPartner: matched,
-            isSettledShared: matched === null,
+            isSettledShared: false,
             paymentMethod: log.paymentMethod || exp.paymentMethod || "Cash",
             status: exp.status,
             notes: log.notes || exp.notes,
@@ -106,23 +115,30 @@ export function PartnerExpensesTab() {
           });
         });
       } else {
-        const matched = matchPartner(exp.paidBy);
-        list.push({
-          id: exp.id,
-          rawExpenseId: exp.id,
-          title: exp.title,
-          category: exp.category,
-          vendorName: exp.vendorName,
-          amount: exp.amountPaid ?? exp.amount,
-          date: exp.date,
-          paidBy: exp.paidBy || "Common Clinic Operating",
-          matchedPartner: matched,
-          isSettledShared: matched === null,
-          paymentMethod: exp.paymentMethod || "Cash",
-          status: exp.status,
-          notes: exp.notes,
-          source: "expense",
-        });
+        const actualPaid = exp.amountPaid !== undefined && exp.amountPaid !== null 
+          ? exp.amountPaid 
+          : (exp.status === "Paid" ? exp.amount : 0);
+
+        // Only include disbursed funds (if pending with 0 paid, it is not a paid disbursement)
+        if (actualPaid > 0) {
+          const matched = matchPartner(exp.paidBy);
+          list.push({
+            id: exp.id,
+            rawExpenseId: exp.id,
+            title: exp.title,
+            category: exp.category,
+            vendorName: exp.vendorName,
+            amount: actualPaid,
+            date: exp.date,
+            paidBy: matched ? matched.partnerName : (exp.paidBy || "Dr. Zaini"),
+            matchedPartner: matched,
+            isSettledShared: false,
+            paymentMethod: exp.paymentMethod || "Cash",
+            status: exp.status,
+            notes: exp.notes,
+            source: "expense",
+          });
+        }
       }
     });
 
@@ -145,9 +161,9 @@ export function PartnerExpensesTab() {
               vendorName: bill.vendorName,
               amount: log.amount,
               date: log.date,
-              paidBy: log.paidBy || bill.paidBy || "Common Clinic Operating",
+              paidBy: matched ? matched.partnerName : (log.paidBy || bill.paidBy || "Dr. Zaini"),
               matchedPartner: matched,
-              isSettledShared: matched === null,
+              isSettledShared: false,
               paymentMethod: log.paymentMethod || "Bank Transfer",
               status: bill.paymentStatus || "Paid",
               notes: log.notes || bill.notes,
@@ -197,20 +213,6 @@ export function PartnerExpensesTab() {
     return unifiedExpenses.reduce((acc, curr) => acc + curr.amount, 0);
   }, [unifiedExpenses]);
 
-  // Aggregate Clinic Direct (Common operating expenses not paid out of pocket by a partner)
-  const clinicDirectSummary = useMemo(() => {
-    let amount = 0;
-    let count = 0;
-    unifiedExpenses.forEach((item) => {
-      if (!item.matchedPartner) {
-        amount += item.amount;
-        count += 1;
-      }
-    });
-    const pct = totalClinicExpenses > 0 ? ((amount / totalClinicExpenses) * 100).toFixed(1) : "0";
-    return { amount, count, pct };
-  }, [unifiedExpenses, totalClinicExpenses]);
-
   // Filtered dataset
   const filteredList = useMemo(() => {
     const today = new Date();
@@ -219,13 +221,9 @@ export function PartnerExpensesTab() {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     return unifiedExpenses.filter((item) => {
-      // Payer filter: strictly filter by selected partner or clinic-direct
-      if (selectedPayer !== "all") {
-        if (selectedPayer === "clinic-direct") {
-          if (item.matchedPartner !== null) return false;
-        } else if (item.matchedPartner?.id !== selectedPayer) {
-          return false;
-        }
+      // Payer filter: strictly filter by selected partner
+      if (selectedPayer !== "all" && item.matchedPartner?.id !== selectedPayer) {
+        return false;
       }
 
       // Category filter
@@ -311,14 +309,14 @@ export function PartnerExpensesTab() {
 
   const handleExportCSV = () => {
     if (filteredList.length === 0) return;
-    const headers = ["Date", "Title", "Category", "Vendor/Payee", "Amount (PKR)", "Attribution / Paid By", "Method", "Notes"];
+    const headers = ["Date", "Title", "Category", "Vendor/Payee", "Amount (PKR)", "Paid By (Partner)", "Method", "Notes"];
     const rows = filteredList.map((item) => [
       `"${item.date}"`,
       `"${(item.title || "").replace(/"/g, '""')}"`,
       `"${(item.category || "").replace(/"/g, '""')}"`,
       `"${(item.vendorName || "").replace(/"/g, '""')}"`,
       item.amount,
-      `"${item.matchedPartner ? item.matchedPartner.partnerName : (item.paidBy && item.paidBy !== "Common Clinic Operating" ? item.paidBy : "Clinic Direct")}"`,
+      `"${item.matchedPartner ? item.matchedPartner.partnerName : item.paidBy}"`,
       `"${item.paymentMethod}"`,
       `"${(item.notes || "").replace(/"/g, '""')}"`,
     ]);
@@ -344,11 +342,11 @@ export function PartnerExpensesTab() {
               Partner Expenses & Direct Disbursements
             </h2>
             <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900">
-              Direct Partner Expenses
+              100% Direct Partner Capital
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
-            Detailed breakdown of clinic expenses and vendor payments directly attributed to each paying partner. Direct expenses are credited to the partner who paid them.
+            Detailed breakdown of clinic expenses and vendor payments directly attributed to each paying partner. Every rupee paid by a partner is recorded directly as their capital investment without settling by share.
           </p>
         </div>
 
@@ -364,8 +362,8 @@ export function PartnerExpensesTab() {
         </div>
       </div>
 
-      {/* Dynamic KPI Cards: Total Clinic Expenses + One Card per Active Partner + Clinic Direct */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Dynamic KPI Cards: Total Clinic Expenses + One Card per Active Partner */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Total Clinic Expenses */}
         <StatCard
           title="Total Clinic Expenses"
@@ -407,7 +405,7 @@ export function PartnerExpensesTab() {
 
                 <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
                   <span className="font-semibold text-slate-700 dark:text-slate-200">
-                    {formatPKR(direct)} direct paid
+                    {formatPKR(direct)} contributed capital
                   </span>
                 </div>
               </div>
@@ -424,43 +422,6 @@ export function PartnerExpensesTab() {
             </div>
           );
         })}
-
-        {/* Clinic Direct (Common operating expenses from clinic funds) */}
-        {clinicDirectSummary.amount > 0 && (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                  Clinic Direct
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                  {clinicDirectSummary.pct}% of Total
-                </span>
-              </div>
-
-              <div className="text-2xl font-black font-mono text-slate-900 dark:text-slate-100 mt-2">
-                {formatPKR(clinicDirectSummary.amount)}
-              </div>
-
-              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                <span className="font-semibold text-slate-700 dark:text-slate-200">
-                  Paid from clinic funds / operating cash
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between text-xs text-slate-500 mt-4 pt-2.5 border-t border-slate-100 dark:border-slate-800">
-              <span>{clinicDirectSummary.count} clinic logs</span>
-              <button
-                onClick={() => setSelectedPayer(selectedPayer === "clinic-direct" ? "all" : "clinic-direct")}
-                className="text-slate-600 dark:text-slate-400 font-bold hover:underline cursor-pointer"
-              >
-                {selectedPayer === "clinic-direct" ? "Showing Filtered ✓" : "Filter Clinic Direct →"}
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Dynamic Filter and Control Toolbar */}
@@ -494,18 +455,6 @@ export function PartnerExpensesTab() {
                 </button>
               );
             })}
-            {unifiedExpenses.some((i) => !i.matchedPartner) && (
-              <button
-                onClick={() => setSelectedPayer("clinic-direct")}
-                className={`px-3 py-1.5 rounded-lg transition ${
-                  selectedPayer === "clinic-direct"
-                    ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-                }`}
-              >
-                Clinic Direct ({unifiedExpenses.filter((i) => !i.matchedPartner).length})
-              </button>
-            )}
           </div>
 
           {/* Quick Date Presets */}
@@ -726,53 +675,47 @@ export function PartnerExpensesTab() {
                       {item.vendorName || "—"}
                     </td>
                     <td className="p-3.5">
-                      {item.matchedPartner ? (
+                      <div className="flex items-center gap-1.5">
                         <Badge variant="primary">
-                          {item.matchedPartner.partnerName}
+                          {item.matchedPartner ? item.matchedPartner.partnerName : item.paidBy}
                         </Badge>
-                      ) : (
-                        <div className="flex items-center gap-1.5">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                            {item.paidBy && item.paidBy !== "Common Clinic Operating" ? item.paidBy : "Clinic Direct"}
-                          </span>
-                          {item.rawExpenseId && (role === "admin" || role === "partner") && (
-                            <div className="relative inline-block">
-                              {reassigningExpId === item.rawExpenseId ? (
-                                <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-1 rounded-lg border shadow-lg z-10">
-                                  <select
-                                    onChange={(e) => {
-                                      if (e.target.value) {
-                                        handleAssignExpenseToPartner(item.rawExpenseId!, e.target.value);
-                                      }
-                                    }}
-                                    defaultValue=""
-                                    className="text-[10px] p-1 border rounded bg-transparent"
-                                  >
-                                    <option value="" disabled>Assign to...</option>
-                                    {equityPartners.map((p) => (
-                                      <option key={p.id} value={p.partnerName}>{p.partnerName}</option>
-                                    ))}
-                                  </select>
-                                  <button
-                                    onClick={() => setReassigningExpId(null)}
-                                    className="text-[10px] text-slate-400 hover:text-slate-600 px-1"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => setReassigningExpId(item.rawExpenseId!)}
-                                  className="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline"
-                                  title="Assign directly to a specific partner if paid out-of-pocket"
+                        {item.rawExpenseId && (role === "admin" || role === "partner") && (
+                          <div className="relative inline-block">
+                            {reassigningExpId === item.rawExpenseId ? (
+                              <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-1 rounded-lg border shadow-lg z-10">
+                                <select
+                                  onChange={(e) => {
+                                    if (e.target.value) {
+                                      handleAssignExpenseToPartner(item.rawExpenseId!, e.target.value);
+                                    }
+                                  }}
+                                  defaultValue=""
+                                  className="text-[10px] p-1 border rounded bg-transparent"
                                 >
-                                  Assign
+                                  <option value="" disabled>Assign to...</option>
+                                  {equityPartners.map((p) => (
+                                    <option key={p.id} value={p.partnerName}>{p.partnerName}</option>
+                                  ))}
+                                </select>
+                                <button
+                                  onClick={() => setReassigningExpId(null)}
+                                  className="text-[10px] text-slate-400 hover:text-slate-600 px-1"
+                                >
+                                  ✕
                                 </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setReassigningExpId(item.rawExpenseId!)}
+                                className="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline"
+                                title="Reassign to another partner if needed"
+                              >
+                                Reassign
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="p-3.5 text-slate-500">
                       {item.paymentMethod}

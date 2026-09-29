@@ -555,7 +555,7 @@ export default function FinanceReportsPage() {
       const newStatus: "Paid" | "Pending" =
         newRemainingAmount === 0 ? "Paid" : "Pending";
 
-      const activeUser = userEmail || role || "Admin/Partner";
+      const activeUser = userEmail?.toLowerCase().includes("sheraz") ? "Sheraz" : "Dr. Zaini";
       const nowFormatStr = new Date().toLocaleString("en-US", {
         dateStyle: "medium",
         timeStyle: "short",
@@ -2951,7 +2951,7 @@ export default function FinanceReportsPage() {
           <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl text-xs flex justify-between items-center font-mono">
             <span>Logged Paying User:</span>
             <span className="font-bold text-blue-600 dark:text-blue-400">
-              {userEmail || role || "Admin/Partner"}
+              {userEmail?.toLowerCase().includes("sheraz") ? "Sheraz" : "Dr. Zaini"}
             </span>
           </div>
 

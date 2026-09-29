@@ -61,12 +61,19 @@ async def create_expense(
         added_by = "Dr. Zaini"
         paid_by = "Dr. Zaini"
     else:
-        user_identifier = getattr(current_user, 'email', 'Admin/Partner')
+        user_identifier = getattr(current_user, 'email', 'Dr. Zaini')
         expense_status = expense_in.status or "Pending"
         if getattr(current_user, "role", "") not in ("admin", "partner"):
             expense_status = "Pending"
         added_by = expense_in.added_by or user_identifier
-        paid_by = expense_in.paid_by or user_identifier
+        req_payer = (expense_in.paid_by or "").strip()
+        if not req_payer or req_payer.lower() in ("admin", "admin@gmail.com", "drzaini"):
+            if "sheraz" in user_identifier.lower():
+                paid_by = "Sheraz"
+            else:
+                paid_by = "Dr. Zaini"
+        else:
+            paid_by = req_payer
 
     db_expense = ExpenseItem(
         id=expense_id,

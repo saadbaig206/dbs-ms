@@ -41,14 +41,24 @@ def is_payer_match(payer: Optional[str], partner_name: str, user_email: Optional
         u_clean = "".join(c for c in user_email.lower().split('@')[0] if c.isalnum())
         if u_clean and (p_clean == u_clean or u_clean in p_clean or p_clean in u_clean):
             return True
+    # Aliases for Dr. Zaini (clinic founder & managing admin partner)
+    if ("admin" in p_clean or "drzaini" in p_clean or "zaini" in p_clean) and "zaini" in name_clean:
+        return True
+    # Aliases for Sheraz
+    if "sheraz" in p_clean and "sheraz" in name_clean:
+        return True
     return False
 
 def calculate_partner_investments(profiles: list, paid_expenses: list) -> dict:
     """
     Calculates invested capital for each active partner based strictly on direct expenses they paid.
-    Common or unassigned clinic expenses are not settled across partners.
+    There are no direct clinic funds; each partner and admin pays expenses individually.
+    Every single penny paid is recorded directly as their capital without settling according to share.
     """
     direct_investments = {p.id: float(p.initial_investment or 0.0) for p in profiles}
+
+    # Default managing partner (Dr. Zaini) for legacy unassigned paid expenses
+    default_partner = next((p for p in profiles if "zaini" in (p.partner_name or "").lower()), profiles[0] if profiles else None)
 
     for e in paid_expenses:
         if e.category == "Partner Drawing" or "Partner Drawing" in (e.title or ""):
@@ -59,14 +69,22 @@ def calculate_partner_investments(profiles: list, paid_expenses: list) -> dict:
                 if not isinstance(log, dict):
                     continue
                 log_amt = float(log.get("amount", 0.0))
-                log_payer = log.get("paidBy") or log.get("paid_by")
+                if log_amt <= 0:
+                    continue
+                log_payer = log.get("paidBy") or log.get("paid_by") or e.paid_by
                 matched_p = next((p for p in profiles if is_payer_match(log_payer, p.partner_name, getattr(p, "user_email", None))), None)
+                if not matched_p and default_partner:
+                    matched_p = default_partner
                 if matched_p:
                     direct_investments[matched_p.id] += log_amt
             continue
 
         amt = float(e.amount_paid if e.amount_paid is not None else e.amount)
+        if amt <= 0:
+            continue
         matched_p = next((p for p in profiles if is_payer_match(e.paid_by, p.partner_name, getattr(p, "user_email", None))), None)
+        if not matched_p and default_partner:
+            matched_p = default_partner
         if matched_p:
             direct_investments[matched_p.id] += amt
 
