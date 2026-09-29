@@ -156,11 +156,10 @@ function FinanceDatePicker({
                     onChange(dateKey(date));
                     setIsOpen(false);
                   }}
-                  className={`h-8 rounded-lg text-xs font-bold transition ${
-                    dateKey(date) === value
+                  className={`h-8 rounded-lg text-xs font-bold transition ${dateKey(date) === value
                       ? "bg-blue-600 text-white shadow-md shadow-blue-500/25"
                       : "text-slate-600 hover:bg-blue-50 hover:text-blue-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-blue-300"
-                  }`}
+                    }`}
                 >
                   {date.getDate()}
                 </button>
@@ -225,8 +224,8 @@ export default function FinanceReportsPage() {
 
   const transactions = selectedBranchId
     ? allTransactions.filter(
-        (t) => !t.branchId || t.branchId === selectedBranchId,
-      )
+      (t) => !t.branchId || t.branchId === selectedBranchId,
+    )
     : allTransactions;
 
   const expenses = selectedBranchId
@@ -235,14 +234,14 @@ export default function FinanceReportsPage() {
 
   const purchaseBills = selectedBranchId
     ? allPurchaseBills.filter(
-        (b: any) => !b.branchId || b.branchId === selectedBranchId,
-      )
+      (b: any) => !b.branchId || b.branchId === selectedBranchId,
+    )
     : allPurchaseBills;
 
   const clients = selectedBranchId
     ? allClients.filter(
-        (c: any) => !c.branchId || c.branchId === selectedBranchId,
-      )
+      (c: any) => !c.branchId || c.branchId === selectedBranchId,
+    )
     : allClients;
 
   const [activeTab, setActiveTab] = useState<
@@ -555,7 +554,7 @@ export default function FinanceReportsPage() {
       const newStatus: "Paid" | "Pending" =
         newRemainingAmount === 0 ? "Paid" : "Pending";
 
-      const activeUser = userEmail?.toLowerCase().includes("sheraz") ? "Sheraz" : "Dr. Zaini";
+      const activeUser = userEmail || role || "Admin/Partner";
       const nowFormatStr = new Date().toLocaleString("en-US", {
         dateStyle: "medium",
         timeStyle: "short",
@@ -673,7 +672,7 @@ export default function FinanceReportsPage() {
         t.serviceName === "Client Debt Settlement";
       const gTotal = t.grandTotal || 0;
       const disc = t.discount || 0;
-      
+
       const isPartialOrPending =
         t.paymentStatus === "Partial" ||
         t.paymentStatus === "Unpaid" ||
@@ -684,8 +683,8 @@ export default function FinanceReportsPage() {
         t.amountPaid !== undefined && t.amountPaid !== null
           ? t.amountPaid
           : (isPartialOrPending && t.remainingDue !== undefined && t.remainingDue !== null
-              ? Math.max(0, gTotal - t.remainingDue)
-              : (isPartialOrPending ? 0 : gTotal));
+            ? Math.max(0, gTotal - t.remainingDue)
+            : (isPartialOrPending ? 0 : gTotal));
 
       const remDue =
         t.remainingDue !== undefined && t.remainingDue !== null
@@ -1065,9 +1064,8 @@ export default function FinanceReportsPage() {
     <div className="space-y-6 pb-10">
       {toast && (
         <div
-          className={`fixed top-5 right-5 z-50 px-4 py-3 rounded-xl shadow-2xl text-sm font-bold text-white transition-all flex items-center gap-2 ${
-            toast.type === "error" ? "bg-rose-600" : "bg-emerald-600"
-          }`}
+          className={`fixed top-5 right-5 z-50 px-4 py-3 rounded-xl shadow-2xl text-sm font-bold text-white transition-all flex items-center gap-2 ${toast.type === "error" ? "bg-rose-600" : "bg-emerald-600"
+            }`}
         >
           <span>{toast.message}</span>
         </div>
@@ -1105,61 +1103,55 @@ export default function FinanceReportsPage() {
           <div className="inline-flex shrink-0 max-w-full gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <button
               onClick={() => setActiveTab("transactions")}
-              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === "transactions"
+              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === "transactions"
                   ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-              }`}
+                }`}
             >
               Ledger
             </button>
             <button
               onClick={() => setActiveTab("purchases")}
-              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === "purchases"
+              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === "purchases"
                   ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-              }`}
+                }`}
             >
               Purchases
             </button>
             <button
               onClick={() => setActiveTab("expenses")}
-              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === "expenses"
+              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === "expenses"
                   ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-              }`}
+                }`}
             >
               Expenses
             </button>
             <button
               onClick={() => setActiveTab("equity")}
-              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === "equity"
+              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === "equity"
                   ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-              }`}
+                }`}
             >
               Partner Equity
             </button>
             <button
               onClick={() => setActiveTab("partner-expenses")}
-              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === "partner-expenses"
+              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === "partner-expenses"
                   ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-              }`}
+                }`}
             >
               Partner & Admin Expenses
             </button>
             <button
               onClick={() => setActiveTab("reports")}
-              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === "reports"
+              className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === "reports"
                   ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-              }`}
+                }`}
             >
               Analytics
             </button>
@@ -1543,8 +1535,8 @@ export default function FinanceReportsPage() {
                           </thead>
                           <tbody>
                             ${filteredTxns
-                              .map(
-                                (t) => `
+                      .map(
+                        (t) => `
                               <tr>
                                 <td style="font-weight: bold;">${escapeHtml(t.invoiceId) || "N/A"}</td>
                                 <td style="font-weight: bold;">${escapeHtml(t.clientName) || "Valued Client"}</td>
@@ -1553,8 +1545,8 @@ export default function FinanceReportsPage() {
                                 <td class="text-right font-mono font-bold">${formatFinancial(t.grandTotal)}</td>
                               </tr>
                             `,
-                              )
-                              .join("")}
+                      )
+                      .join("")}
                             ${filteredTxns.length === 0 ? '<tr><td colspan="5" style="text-align: center; color: #94a3b8;">No sales transactions in range.</td></tr>' : ""}
                           </tbody>
                         </table>
@@ -1572,8 +1564,8 @@ export default function FinanceReportsPage() {
                           </thead>
                           <tbody>
                             ${filteredExps
-                              .map(
-                                (e) => `
+                      .map(
+                        (e) => `
                               <tr>
                                 <td>
                                   <span style="font-weight: bold; display: block;">${escapeHtml(e.title)}</span>
@@ -1585,8 +1577,8 @@ export default function FinanceReportsPage() {
                                 <td class="text-right font-mono font-bold">${formatFinancial(-e.amount)}</td>
                               </tr>
                             `,
-                              )
-                              .join("")}
+                      )
+                      .join("")}
                             ${filteredExps.length === 0 ? '<tr><td colspan="5" style="text-align: center; color: #94a3b8;">No expenses in range.</td></tr>' : ""}
                           </tbody>
                         </table>
@@ -1853,11 +1845,10 @@ export default function FinanceReportsPage() {
                           setTxnMethodFilter("All");
                           setTxnPage(1);
                         }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                          txnMethodFilter === "All"
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${txnMethodFilter === "All"
                             ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
                             : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-                        }`}
+                          }`}
                       >
                         All ({transactions.length})
                       </button>
@@ -1866,11 +1857,10 @@ export default function FinanceReportsPage() {
                           setTxnMethodFilter("Cash");
                           setTxnPage(1);
                         }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                          txnMethodFilter === "Cash"
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${txnMethodFilter === "Cash"
                             ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
                             : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-                        }`}
+                          }`}
                       >
                         Cash ({cashCount})
                       </button>
@@ -1879,11 +1869,10 @@ export default function FinanceReportsPage() {
                           setTxnMethodFilter("Card");
                           setTxnPage(1);
                         }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                          txnMethodFilter === "Card"
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${txnMethodFilter === "Card"
                             ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
                             : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-                        }`}
+                          }`}
                       >
                         Card ({cardCount})
                       </button>
@@ -1892,11 +1881,10 @@ export default function FinanceReportsPage() {
                           setTxnMethodFilter("Online");
                           setTxnPage(1);
                         }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                          txnMethodFilter === "Online"
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${txnMethodFilter === "Online"
                             ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
                             : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-                        }`}
+                          }`}
                       >
                         Online ({onlineCount})
                       </button>
@@ -1960,12 +1948,12 @@ export default function FinanceReportsPage() {
                               variant={
                                 (txn.status || "").toLowerCase() ===
                                   "refunded" ||
-                                (txn.status || "").toLowerCase() === "cancelled"
+                                  (txn.status || "").toLowerCase() === "cancelled"
                                   ? "danger"
                                   : (txn.status || "").toLowerCase() ===
-                                        "partial" ||
-                                      (txn.status || "").toLowerCase() ===
-                                        "pending"
+                                    "partial" ||
+                                    (txn.status || "").toLowerCase() ===
+                                    "pending"
                                     ? "warning"
                                     : "success"
                               }
@@ -2207,7 +2195,7 @@ export default function FinanceReportsPage() {
                               </div>
                               {exp.paidBy &&
                                 formatUserName(exp.paidBy, staff) !==
-                                  formatUserName(exp.addedBy, staff) && (
+                                formatUserName(exp.addedBy, staff) && (
                                   <div className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold mt-0.5">
                                     Paid by: {formatUserName(exp.paidBy, staff)}
                                   </div>
@@ -2297,11 +2285,10 @@ export default function FinanceReportsPage() {
                                           handleDeleteExpenseClick(exp)
                                         }
                                         disabled={hasCurrentUserApproved}
-                                        className={`px-2.5 py-1 text-[10px] font-extrabold uppercase rounded-lg transition-all flex items-center gap-1 ${
-                                          hasCurrentUserApproved
+                                        className={`px-2.5 py-1 text-[10px] font-extrabold uppercase rounded-lg transition-all flex items-center gap-1 ${hasCurrentUserApproved
                                             ? "bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed"
                                             : "bg-rose-600 text-white hover:bg-rose-700 shadow-sm cursor-pointer"
-                                        }`}
+                                          }`}
                                         title={
                                           hasCurrentUserApproved
                                             ? `You have approved deletion (${approvals.length}/${totalApprovers})`
@@ -2371,11 +2358,10 @@ export default function FinanceReportsPage() {
                     <button
                       key={tab}
                       onClick={() => setActiveReport(tab)}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                        activeReport === tab
+                      className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${activeReport === tab
                           ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
                           : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
-                      }`}
+                        }`}
                     >
                       {tab} Report
                     </button>
@@ -2895,22 +2881,20 @@ export default function FinanceReportsPage() {
                     setPayAmountInput(rem.toString());
                   }
                 }}
-                className={`py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
-                  payType === "Full"
+                className={`py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${payType === "Full"
                     ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
                     : "bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700"
-                }`}
+                  }`}
               >
                 Full Payment
               </button>
               <button
                 type="button"
                 onClick={() => setPayType("Partial")}
-                className={`py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
-                  payType === "Partial"
+                className={`py-2.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${payType === "Partial"
                     ? "bg-amber-600 text-white border-amber-600 shadow-sm"
                     : "bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700"
-                }`}
+                  }`}
               >
                 Partial Installment
               </button>
@@ -2951,7 +2935,7 @@ export default function FinanceReportsPage() {
           <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl text-xs flex justify-between items-center font-mono">
             <span>Logged Paying User:</span>
             <span className="font-bold text-blue-600 dark:text-blue-400">
-              {userEmail?.toLowerCase().includes("sheraz") ? "Sheraz" : "Dr. Zaini"}
+              {userEmail || role || "Admin/Partner"}
             </span>
           </div>
 
@@ -3003,9 +2987,9 @@ export default function FinanceReportsPage() {
                 <span className="font-mono font-bold text-sm text-emerald-600">
                   {formatPKR(
                     selectedLogsExp.amountPaid ??
-                      (selectedLogsExp.status === "Paid"
-                        ? selectedLogsExp.amount
-                        : 0),
+                    (selectedLogsExp.status === "Paid"
+                      ? selectedLogsExp.amount
+                      : 0),
                   )}
                 </span>
               </div>
@@ -3016,9 +3000,9 @@ export default function FinanceReportsPage() {
                 <span className="font-mono font-bold text-sm text-amber-600">
                   {formatPKR(
                     selectedLogsExp.remainingAmount ??
-                      (selectedLogsExp.status === "Paid"
-                        ? 0
-                        : selectedLogsExp.amount),
+                    (selectedLogsExp.status === "Paid"
+                      ? 0
+                      : selectedLogsExp.amount),
                   )}
                 </span>
               </div>
@@ -3038,7 +3022,7 @@ export default function FinanceReportsPage() {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {selectedLogsExp?.paymentLogs &&
-                selectedLogsExp.paymentLogs.length > 0 ? (
+                  selectedLogsExp.paymentLogs.length > 0 ? (
                   selectedLogsExp.paymentLogs.map((log: any, idx: number) => (
                     <tr
                       key={log.id || idx}
@@ -3155,7 +3139,7 @@ export default function FinanceReportsPage() {
                     <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
                       {formatPKR(
                         selectedDeleteExp.actualAmount ??
-                          selectedDeleteExp.amount,
+                        selectedDeleteExp.amount,
                       )}
                     </span>
                   </div>
@@ -3303,11 +3287,10 @@ export default function FinanceReportsPage() {
                 <button
                   type="button"
                   onClick={() => setRefundMode("item")}
-                  className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                    refundMode === "item"
+                  className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${refundMode === "item"
                       ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm border border-slate-200/60 dark:border-slate-600"
                       : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-                  }`}
+                    }`}
                 >
                   <Package className="w-3.5 h-3.5" />
                   <span>Return Specific Item(s)</span>
@@ -3327,11 +3310,10 @@ export default function FinanceReportsPage() {
                     setSelectedRefundItems(allSel);
                     setRefundItemQuantities(allQ);
                   }}
-                  className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                    refundMode === "full"
+                  className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${refundMode === "full"
                       ? "bg-white dark:bg-slate-700 text-red-600 dark:text-red-400 shadow-sm border border-slate-200/60 dark:border-slate-600"
                       : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-                  }`}
+                    }`}
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Return Entire Order</span>
@@ -3378,13 +3360,12 @@ export default function FinanceReportsPage() {
                   return (
                     <div
                       key={idx}
-                      className={`p-3 rounded-xl border transition-all ${
-                        isAlreadyRefunded
+                      className={`p-3 rounded-xl border transition-all ${isAlreadyRefunded
                           ? "bg-slate-100/60 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 opacity-60"
                           : isChecked
                             ? "bg-red-50/40 dark:bg-red-950/20 border-red-200 dark:border-red-900/60 shadow-xs"
                             : "bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <label className="flex items-start gap-2.5 cursor-pointer flex-1">

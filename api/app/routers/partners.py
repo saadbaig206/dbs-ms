@@ -53,7 +53,7 @@ def calculate_partner_investments(profiles: list, paid_expenses: list) -> dict:
     """
     Calculates invested capital for each active partner based strictly on direct expenses they paid.
     There are no direct clinic funds; each partner and admin pays expenses individually.
-    Every single penny paid is recorded directly as their capital without settling according to share.
+    Every single penny paid (including partial salary payouts) is recorded directly as their capital without settling according to share.
     """
     direct_investments = {p.id: float(p.initial_investment or 0.0) for p in profiles}
 
@@ -79,7 +79,7 @@ def calculate_partner_investments(profiles: list, paid_expenses: list) -> dict:
                     direct_investments[matched_p.id] += log_amt
             continue
 
-        amt = float(e.amount_paid if e.amount_paid is not None else e.amount)
+        amt = float(e.amount_paid if e.amount_paid is not None else (e.amount if (e.status or "").lower() == "paid" else 0.0))
         if amt <= 0:
             continue
         matched_p = next((p for p in profiles if is_payer_match(e.paid_by, p.partner_name, getattr(p, "user_email", None))), None)
@@ -177,8 +177,19 @@ async def get_partner_equity_overview(
 
     exp_res = await db.execute(select(ExpenseItem))
     expenses = exp_res.scalars().all()
-    paid_expenses = [e for e in expenses if (e.status or '').lower() == 'paid']
-    operational_exp = sum(e.amount for e in paid_expenses if e.category != 'Inventory Purchase')
+    eligible_expenses = [
+        e for e in expenses 
+        if (e.status or '').lower() == 'paid' 
+        or (e.payment_logs and isinstance(e.payment_logs, list) and len(e.payment_logs) > 0)
+    ]
+    operational_exp = 0.0
+    for e in eligible_expenses:
+        if e.category == 'Inventory Purchase':
+            continue
+        if e.payment_logs and isinstance(e.payment_logs, list) and len(e.payment_logs) > 0:
+            operational_exp += sum(float(l.get('amount', 0.0)) for l in e.payment_logs if isinstance(l, dict))
+        else:
+            operational_exp += float(e.amount_paid if e.amount_paid is not None else (e.amount if (e.status or '').lower() == 'paid' else 0.0))
 
     # Include settled purchase bills (stock & product purchases)
     from app.models.purchase import PurchaseBill
@@ -193,8 +204,8 @@ async def get_partner_equity_overview(
     drw_res = await db.execute(select(PartnerDrawing).order_by(PartnerDrawing.date.desc(), PartnerDrawing.id.desc()))
     all_drawings = drw_res.scalars().all()
 
-    # 4. Total dynamic invested across all partners (all clinic expenses settled between partners)
-    partner_investments = calculate_partner_investments(profiles, paid_expenses)
+    # 4. Total dynamic invested across all partners (including partial salary payouts)
+    partner_investments = calculate_partner_investments(profiles, eligible_expenses)
     total_dynamic_invested = sum(partner_investments.values())
     estimated_brand_valuation = (net_profit * 5.0) + total_dynamic_invested
 
@@ -270,8 +281,19 @@ async def record_partner_drawing(
 
     exp_res = await db.execute(select(ExpenseItem))
     expenses = exp_res.scalars().all()
-    paid_expenses = [e for e in expenses if (e.status or '').lower() == 'paid']
-    operational_exp = sum(e.amount for e in paid_expenses if e.category != 'Inventory Purchase')
+    eligible_expenses = [
+        e for e in expenses 
+        if (e.status or '').lower() == 'paid' 
+        or (e.payment_logs and isinstance(e.payment_logs, list) and len(e.payment_logs) > 0)
+    ]
+    operational_exp = 0.0
+    for e in eligible_expenses:
+        if e.category == 'Inventory Purchase':
+            continue
+        if e.payment_logs and isinstance(e.payment_logs, list) and len(e.payment_logs) > 0:
+            operational_exp += sum(float(l.get('amount', 0.0)) for l in e.payment_logs if isinstance(l, dict))
+        else:
+            operational_exp += float(e.amount_paid if e.amount_paid is not None else (e.amount if (e.status or '').lower() == 'paid' else 0.0))
 
     from app.models.purchase import PurchaseBill
     pb_res = await db.execute(select(PurchaseBill))
@@ -289,7 +311,7 @@ async def record_partner_drawing(
     # Dynamic invested calculation for this partner
     all_prof_res = await db.execute(select(PartnerProfile))
     all_profs = all_prof_res.scalars().all()
-    partner_investments = calculate_partner_investments(all_profs, paid_expenses)
+    partner_investments = calculate_partner_investments(all_profs, eligible_expenses)
     partner_inv = partner_investments.get(profile.id, 0.0)
 
     net_capital = (partner_inv + profit_share) - total_withdrawn
