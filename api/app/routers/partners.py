@@ -29,9 +29,14 @@ def format_partner_name(email_or_username: str) -> str:
     return cleaned.title()
 
 def is_payer_match(payer: Optional[str], partner_name: str, user_email: Optional[str] = None) -> bool:
-    if not payer:
+    if not payer or not payer.strip():
         return False
-    p_clean = "".join(c for c in payer.lower() if c.isalnum())
+    p_lower = payer.lower().strip()
+    # General clinic drawer / cash accounts are shared clinic expenses, not individual partner investments
+    if p_lower in ("cash", "clinic cash", "clinic drawer", "drawer cash", "common clinic operating", "clinic account", "company account", "petty cash", "none"):
+        return False
+
+    p_clean = "".join(c for c in p_lower if c.isalnum())
     if not p_clean:
         return False
     name_clean = "".join(c for c in partner_name.lower() if c.isalnum())
@@ -42,7 +47,7 @@ def is_payer_match(payer: Optional[str], partner_name: str, user_email: Optional
         if u_clean and (p_clean == u_clean or u_clean in p_clean or p_clean in u_clean):
             return True
     # Aliases for Dr. Zaini (clinic founder & managing admin partner)
-    if ("admin" in p_clean or "drzaini" in p_clean or "zaini" in p_clean) and "zaini" in name_clean:
+    if ("drzaini" in p_clean or "zaini" in p_clean) and "zaini" in name_clean:
         return True
     # Aliases for Sheraz
     if "sheraz" in p_clean and "sheraz" in name_clean:
@@ -51,14 +56,10 @@ def is_payer_match(payer: Optional[str], partner_name: str, user_email: Optional
 
 def calculate_partner_investments(profiles: list, paid_expenses: list) -> dict:
     """
-    Calculates invested capital for each active partner based strictly on direct expenses they paid.
-    There are no direct clinic funds; each partner and admin pays expenses individually.
-    Every single penny paid (including partial salary payouts) is recorded directly as their capital without settling according to share.
+    Calculates invested capital for each active partner based strictly on direct expenses they paid out of pocket or initial investments.
+    General clinic expenses paid from shared clinic cash/drawer are not attributed to individual partner capital accounts.
     """
     direct_investments = {p.id: float(p.initial_investment or 0.0) for p in profiles}
-
-    # Default managing partner (Dr. Zaini) for legacy unassigned paid expenses
-    default_partner = next((p for p in profiles if "zaini" in (p.partner_name or "").lower()), profiles[0] if profiles else None)
 
     for e in paid_expenses:
         if e.category == "Partner Drawing" or "Partner Drawing" in (e.title or ""):
@@ -73,8 +74,6 @@ def calculate_partner_investments(profiles: list, paid_expenses: list) -> dict:
                     continue
                 log_payer = log.get("paidBy") or log.get("paid_by") or e.paid_by
                 matched_p = next((p for p in profiles if is_payer_match(log_payer, p.partner_name, getattr(p, "user_email", None))), None)
-                if not matched_p and default_partner:
-                    matched_p = default_partner
                 if matched_p:
                     direct_investments[matched_p.id] += log_amt
             continue
@@ -83,8 +82,6 @@ def calculate_partner_investments(profiles: list, paid_expenses: list) -> dict:
         if amt <= 0:
             continue
         matched_p = next((p for p in profiles if is_payer_match(e.paid_by, p.partner_name, getattr(p, "user_email", None))), None)
-        if not matched_p and default_partner:
-            matched_p = default_partner
         if matched_p:
             direct_investments[matched_p.id] += amt
 
@@ -398,7 +395,7 @@ async def upsert_partner_profile(
 
     if profile:
         profile.equity_percentage = profile_in.equity_percentage
-        if profile_in.initial_investment is not None and profile_in.initial_investment > 0:
+        if profile_in.initial_investment is not None and profile_in.initial_investment >= 0:
             profile.initial_investment = profile_in.initial_investment
         profile.notes = profile_in.notes
     else:

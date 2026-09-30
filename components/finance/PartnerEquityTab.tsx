@@ -81,8 +81,13 @@ export function PartnerEquityTab() {
     e.preventDefault();
     if (!editingPartner) return;
     const eqNum = Number(editEquityPercent);
+    const initInvNum = Number(editInitialInvestment);
     if (isNaN(eqNum) || eqNum < 0 || eqNum > 100) {
       setErrorMsg('Equity percentage must be between 0% and 100%.');
+      return;
+    }
+    if (isNaN(initInvNum) || initInvNum < 0) {
+      setErrorMsg('Initial investment must be a valid non-negative number.');
       return;
     }
     try {
@@ -91,12 +96,12 @@ export function PartnerEquityTab() {
       await updatePartnerProfile({
         partnerName: editingPartner.partnerName,
         equityPercentage: eqNum,
-        initialInvestment: editingPartner.initialInvestment || 0,
+        initialInvestment: initInvNum,
         notes: editProfileNotes.trim() || undefined
       });
       setIsEditProfileModalOpen(false);
       setEditingPartner(null);
-      setProfileSuccessMsg(`Updated equity details for ${editingPartner.partnerName}!`);
+      setProfileSuccessMsg(`Updated equity & capital details for ${editingPartner.partnerName}!`);
       setTimeout(() => setProfileSuccessMsg(null), 4000);
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to update partner profile.');
@@ -492,6 +497,16 @@ export function PartnerEquityTab() {
               Partner invested amount is automatically aggregated in real-time from all clinic expenses and vendor bills paid by this partner. You only need to configure their equity ownership stake (%) here.
             </p>
           </div>
+
+          <Input
+            label="Initial Baseline Capital Investment (Rs)"
+            type="number"
+            min="0"
+            step="1000"
+            placeholder="e.g. 50000"
+            value={editInitialInvestment}
+            onChange={e => setEditInitialInvestment(e.target.value)}
+          />
 
           <Input
             label="Equity Ownership Percentage (%)"

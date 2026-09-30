@@ -8,6 +8,8 @@ from app.core.deps import get_db, get_admin_or_partner_user, get_staff_user, get
 from app.models.expense import ExpenseItem
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate, ExpenseResponse
 
+from sqlalchemy import or_
+
 router = APIRouter()
 
 @router.get("", response_model=List[ExpenseResponse])
@@ -20,7 +22,11 @@ async def list_expenses(
     current_user = Depends(get_admin_or_partner_user),
     user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
-    query = select(ExpenseItem)
+    query = select(ExpenseItem).where(
+        or_(ExpenseItem.category != "Inventory Purchase", ExpenseItem.category.is_(None)),
+        ~ExpenseItem.id.ilike("EXP-PUR-%"),
+        ~ExpenseItem.title.ilike("Vendor Bill Payment:%")
+    )
     if search:
         pattern = f"%{search}%"
         query = query.where(

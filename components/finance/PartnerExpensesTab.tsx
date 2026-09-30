@@ -44,18 +44,21 @@ export function PartnerExpensesTab() {
   const [endDate, setEndDate] = useState("");
   const [reassigningExpId, setReassigningExpId] = useState<string | null>(null);
 
-  // Dynamic Payer Matching: every penny belongs to the partner who paid it
+  // Dynamic Payer Matching: every penny belongs to the partner who paid it out of pocket
   const matchPartner = (paidBy?: string): PartnerEquityReportItem | null => {
-    const defaultManagingPartner = equityPartners.find(p => p.partnerName.toLowerCase().includes("zaini")) || equityPartners[0] || null;
-    if (!paidBy || !paidBy.trim()) return defaultManagingPartner;
-    const clean = paidBy.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (!clean) return defaultManagingPartner;
+    if (!paidBy || !paidBy.trim()) return null;
+    const lower = paidBy.toLowerCase().trim();
+    if (["cash", "clinic cash", "clinic drawer", "drawer cash", "common clinic operating", "clinic account", "company account", "petty cash", "none"].includes(lower)) {
+      return null;
+    }
+    const clean = lower.replace(/[^a-z0-9]/g, "");
+    if (!clean) return null;
 
     if (clean.includes("sheraz")) {
       const sheraz = equityPartners.find(p => p.partnerName.toLowerCase().includes("sheraz"));
       if (sheraz) return sheraz;
     }
-    if (clean.includes("admin") || clean.includes("drzaini") || clean.includes("zaini")) {
+    if (clean.includes("drzaini") || clean.includes("zaini")) {
       const zaini = equityPartners.find(p => p.partnerName.toLowerCase().includes("zaini"));
       if (zaini) return zaini;
     }
@@ -66,7 +69,7 @@ export function PartnerExpensesTab() {
         return p;
       }
     }
-    return defaultManagingPartner;
+    return null;
   };
 
   // Compile all paid disbursements (Expenses + Vendor Bill partial/full logs)
@@ -88,9 +91,15 @@ export function PartnerExpensesTab() {
       source: "expense" | "vendor_bill";
     }> = [];
 
-    // 1. Regular Clinic Expenses
+    // 1. Regular Clinic Operating Expenses
     expenses.forEach((exp) => {
-      if (exp.category === ("Partner Drawing" as any) || (exp.title && exp.title.toLowerCase().includes("partner drawing"))) {
+      if (
+        exp.category === ("Partner Drawing" as any) ||
+        (exp.title && exp.title.toLowerCase().includes("partner drawing")) ||
+        exp.category === ("Inventory Purchase" as any) ||
+        exp.id?.startsWith("EXP-PUR-") ||
+        (exp.title && exp.title.toLowerCase().includes("vendor bill payment"))
+      ) {
         return;
       }
 
@@ -136,38 +145,6 @@ export function PartnerExpensesTab() {
           status: exp.status,
           notes: exp.notes,
           source: "expense",
-        });
-      }
-    });
-
-    // 2. Vendor Purchase Bills
-    purchaseBills.forEach((bill) => {
-      if (bill.paymentLogs && bill.paymentLogs.length > 0) {
-        bill.paymentLogs.forEach((log) => {
-          const isAlreadyInList = list.some(
-            (item) =>
-              item.date === log.date &&
-              item.amount === log.amount &&
-              item.vendorName === bill.vendorName
-          );
-          if (!isAlreadyInList) {
-            const matched = matchPartner(log.paidBy || bill.paidBy);
-            list.push({
-              id: `${bill.id}-${log.id}`,
-              title: `Vendor Bill: ${bill.billNumber || bill.vendorName}`,
-              category: "Inventory Purchase",
-              vendorName: bill.vendorName,
-              amount: log.amount,
-              date: log.date,
-              paidBy: log.paidBy || bill.paidBy || "Common Clinic Operating",
-              matchedPartner: matched,
-              isSettledShared: matched === null,
-              paymentMethod: log.paymentMethod || "Bank Transfer",
-              status: bill.paymentStatus || "Paid",
-              notes: log.notes || bill.notes,
-              source: "vendor_bill",
-            });
-          }
         });
       }
     });

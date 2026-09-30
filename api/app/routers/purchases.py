@@ -203,29 +203,6 @@ async def create_purchase(
             )
             db.add(new_inv)
 
-    # If upfront payment made on bill creation, log ExpenseItem
-    if amount_paid > 0:
-        from app.models.expense import ExpenseItem
-        exp_id = f"EXP-PUR-{secrets.token_hex(3).upper()}"
-        exp_item = ExpenseItem(
-            id=exp_id,
-            title=f"Vendor Bill Payment: {purchase_in.vendor_name} ({db_bill.bill_number or bill_id})",
-            category="Inventory Purchase",
-            amount=amount_paid,
-            actual_amount=amount_paid,
-            amount_paid=amount_paid,
-            remaining_amount=0.0,
-            date=today_str,
-            status="Paid",
-            payment_method=purchase_in.payment_method or "Cash",
-            vendor_name=purchase_in.vendor_name,
-            branch_id=active_branch,
-            added_by=creator_identifier,
-            paid_by=actual_payer,
-            notes=f"Initial payment on Purchase Bill {bill_id}. Paid by {actual_payer}."
-        )
-        db.add(exp_item)
-
     await db.commit()
     await db.refresh(db_bill)
     invalidate_bootstrap_cache()
@@ -295,28 +272,6 @@ async def pay_vendor_bill(
     bill.payment_logs = bill_logs
     flag_modified(bill, "payment_logs")
     db.add(bill)
-
-    # Log ExpenseItem to ensure Treasury cash flow & P&L reflect inventory cash-out with paid_by
-    from app.models.expense import ExpenseItem
-    exp_id = f"EXP-PUR-{secrets.token_hex(3).upper()}"
-    exp_item = ExpenseItem(
-        id=exp_id,
-        title=f"Vendor Bill Payment: {bill.vendor_name} ({bill.bill_number or bill.id})",
-        category="Inventory Purchase",
-        amount=payment_in.amount,
-        actual_amount=payment_in.amount,
-        amount_paid=payment_in.amount,
-        remaining_amount=0.0,
-        date=today_str,
-        status="Paid",
-        payment_method=payment_in.payment_method or "Cash",
-        vendor_name=bill.vendor_name,
-        branch_id=bill.branch_id,
-        added_by=user_identifier,
-        paid_by=actual_payer,
-        notes=f"Settlement payment for Purchase Bill {bill.id}. Paid by {actual_payer}. {payment_in.notes or ''}".strip()
-    )
-    db.add(exp_item)
 
     await db.commit()
     await db.refresh(bill)

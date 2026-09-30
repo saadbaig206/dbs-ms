@@ -1041,7 +1041,12 @@ export function PurchasesTab() {
                         type="date"
                         value={row.expiryDate || ''}
                         onChange={e => handleUpdateItemRow(idx, 'expiryDate', e.target.value)}
-                        className="flex-1 px-2 py-1 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200"
+                        onClick={(e) => {
+                          try {
+                            e.currentTarget.showPicker?.();
+                          } catch (_) {}
+                        }}
+                        className="flex-1 px-2 py-1 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-200 cursor-pointer"
                       />
                     </div>
                     <div className="text-right font-mono text-xs">

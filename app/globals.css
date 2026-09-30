@@ -171,17 +171,26 @@ input[type="number"] {
   }
 }
 
-/* Hide native calendar indicator on date input fields and expand it to cover the input for easy clicking */
-input[type="date"]::-webkit-calendar-picker-indicator {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
+/* Style native calendar indicator on date input fields */
+input[type="date"] {
+  position: relative;
   cursor: pointer;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.8) hue-rotate(180deg);
 }
 
 /* Touch & Responsive Scrollbar Utilities */

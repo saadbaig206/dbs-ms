@@ -35,6 +35,12 @@ async def lifespan(app: FastAPI):
                 except Exception:
                     tables_ready = False
 
+                try:
+                    async with engine.begin() as conn:
+                        await conn.execute(text("DELETE FROM expenses WHERE category = 'Inventory Purchase' OR id LIKE 'EXP-PUR-%' OR title LIKE 'Vendor Bill Payment:%'"))
+                except Exception:
+                    pass
+
                 if not tables_ready:
                     # 1. Create tables on initial startup
                     async with engine.begin() as conn:
@@ -82,6 +88,7 @@ async def lifespan(app: FastAPI):
                         ALTER TABLE expenses ADD COLUMN IF NOT EXISTS deletion_requested_by VARCHAR;
                         ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS branch_id VARCHAR UNIQUE REFERENCES branches(id) ON DELETE SET NULL;
                         ALTER TABLE services ADD COLUMN IF NOT EXISTS required_inventory JSON DEFAULT '[]';
+                        DELETE FROM expenses WHERE category = 'Inventory Purchase' OR id LIKE 'EXP-PUR-%' OR title LIKE 'Vendor Bill Payment:%';
                         """
                         try:
                             # Execute as a single SQL block without SAVEPOINTs (PgBouncer compatible)
