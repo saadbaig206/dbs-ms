@@ -22,6 +22,7 @@ import { Badge } from "../../components/ui/Badge";
 import { Modal } from "../../components/ui/Modal";
 import { Input, Select } from "../../components/ui/Input";
 import { Breadcrumb } from "../../components/ui/Breadcrumb";
+import { Pagination, usePagination } from "../../components/ui/Pagination";
 import { getLocalDateString } from "../../lib/utils/date";
 
 export default function AttendancePage() {
@@ -100,6 +101,13 @@ export default function AttendancePage() {
       s.role.toLowerCase().includes(search.toLowerCase());
     return matchesBranch && matchesSearch;
   });
+
+  // Sort staff recent first (by numeric ID descending)
+  const sortedStaff = React.useMemo(() => {
+    return [...filteredStaff].sort((a, b) => (b.id || "").localeCompare(a.id || "", undefined, { numeric: true }));
+  }, [filteredStaff]);
+
+  const { currentPage, setCurrentPage, paginatedItems: pagedStaff } = usePagination(sortedStaff, 5);
 
   const getCoordinates = (): Promise<
     { latitude: number; longitude: number } | undefined
@@ -401,7 +409,7 @@ export default function AttendancePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-              {filteredStaff.length === 0 ? (
+              {sortedStaff.length === 0 ? (
                 <tr>
                   <td
                     colSpan={8}
@@ -411,7 +419,7 @@ export default function AttendancePage() {
                   </td>
                 </tr>
               ) : (
-                filteredStaff.map((member) => {
+                pagedStaff.map((member) => {
                   const rec = dateRecords.find((a) => a.staffId === member.id);
                   const branch = branches.find((b) => b.id === member.branchId);
                   const branchName = branch ? branch.name : "Unassigned";
@@ -514,6 +522,13 @@ export default function AttendancePage() {
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={currentPage}
+          totalItems={sortedStaff.length}
+          pageSize={5}
+          onPageChange={setCurrentPage}
+          itemLabel="staff records"
+        />
       </div>
 
       {/* Mark Single Staff Attendance Modal */}

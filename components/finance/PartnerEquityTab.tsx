@@ -24,6 +24,7 @@ import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
 import { Input, Select } from '../ui/Input';
+import { Pagination, usePagination } from '../ui/Pagination';
 
 export function PartnerEquityTab() {
   const {
@@ -55,6 +56,13 @@ export function PartnerEquityTab() {
   const partners = partnerEquity?.partners || [];
   const drawings = partnerEquity?.recentDrawings || [];
 
+  // 5 Recent Drawings per page
+  const {
+    currentPage: drawingsPage,
+    setCurrentPage: setDrawingsPage,
+    paginatedItems: pagedDrawings,
+  } = usePagination(drawings, 5);
+
   useEffect(() => {
     refreshPartnerEquity();
   }, []);
@@ -84,11 +92,11 @@ export function PartnerEquityTab() {
   };
 
   const getPartnerNetCapital = (p: any, profit: number) => {
-    const inv = p.totalInvested ?? p.initialInvestment ?? 0;
-    const withdrawn = p.totalWithdrawn || 0;
-    if (typeof p.netCapitalBalance === 'number' && p.netCapitalBalance > inv) {
+    if (typeof p.netCapitalBalance === 'number') {
       return p.netCapitalBalance;
     }
+    const inv = p.totalInvested ?? p.initialInvestment ?? 0;
+    const withdrawn = p.totalWithdrawn || 0;
     return Math.round((inv + profit) - withdrawn);
   };
 
@@ -410,7 +418,7 @@ export function PartnerEquityTab() {
                   </td>
                 </tr>
               ) : (
-                drawings.map(d => (
+                pagedDrawings.map(d => (
                   <tr key={d.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
                     <td className="p-3.5 pl-4 font-mono text-slate-500 dark:text-slate-400">
                       {d.date}
@@ -438,6 +446,14 @@ export function PartnerEquityTab() {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={drawingsPage}
+          totalItems={drawings.length}
+          pageSize={5}
+          onPageChange={setDrawingsPage}
+          itemLabel="drawings"
+        />
       </div>
 
       {/* MODAL: Record Partner Drawing */}

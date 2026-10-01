@@ -250,12 +250,14 @@ async def get_partner_equity_overview(
         title = (e.title or '').lower()
         eid = (e.id or '').upper()
         if (
-            cat in ('inventory purchase', 'products', 'purchases', 'purchase')
+            cat in ('inventory purchase', 'products', 'purchases', 'purchase', 'partner drawing')
             or eid.startswith('EXP-PUR-')
+            or eid.startswith('EXP-DRW-')
             or eid.startswith('PIT-')
             or '-PUR-' in eid
             or 'vendor bill' in title
             or 'purchase bill' in title
+            or 'partner drawing' in title
             or 'supplier order' in title
             or getattr(e, 'product_name', None)
         ):
@@ -367,7 +369,21 @@ async def record_partner_drawing(
     ]
     operational_exp = 0.0
     for e in eligible_expenses:
-        if e.category == 'Inventory Purchase':
+        cat = (e.category or '').lower()
+        title = (e.title or '').lower()
+        eid = (e.id or '').upper()
+        if (
+            cat in ('inventory purchase', 'products', 'purchases', 'purchase', 'partner drawing')
+            or eid.startswith('EXP-PUR-')
+            or eid.startswith('EXP-DRW-')
+            or eid.startswith('PIT-')
+            or '-PUR-' in eid
+            or 'vendor bill' in title
+            or 'purchase bill' in title
+            or 'partner drawing' in title
+            or 'supplier order' in title
+            or getattr(e, 'product_name', None)
+        ):
             continue
         if e.payment_logs and isinstance(e.payment_logs, list) and len(e.payment_logs) > 0:
             operational_exp += sum(float(l.get('amount', 0.0)) for l in e.payment_logs if isinstance(l, dict))

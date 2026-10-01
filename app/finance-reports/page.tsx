@@ -39,6 +39,7 @@ import { Badge } from "../../components/ui/Badge";
 import { Modal } from "../../components/ui/Modal";
 import { Input, Select } from "../../components/ui/Input";
 import { Breadcrumb } from "../../components/ui/Breadcrumb";
+import { Pagination, usePagination } from "../../components/ui/Pagination";
 import { PurchasesTab } from "../../components/finance/PurchasesTab";
 import { PartnerEquityTab } from "../../components/finance/PartnerEquityTab";
 import { PartnerExpensesTab } from "../../components/finance/PartnerExpensesTab";
@@ -941,7 +942,7 @@ export default function FinanceReportsPage() {
     });
   }, [filteredTxns]);
 
-  const itemsPerPage = 10;
+  const itemsPerPage = 5;
   const totalTxnPages = Math.ceil(sortedTxns.length / itemsPerPage) || 1;
   const pagedTxns = useMemo(() => {
     return sortedTxns.slice(
@@ -1031,6 +1032,13 @@ export default function FinanceReportsPage() {
       return matchesSearch && matchesCat && matchesStatus;
     });
   }, [expenses, expSearch, expCategoryFilter, expStatusFilter]);
+
+  // 5 Recent Expenses per page
+  const {
+    currentPage: expPage,
+    setCurrentPage: setExpPage,
+    paginatedItems: pagedExpenses,
+  } = usePagination(filteredExpenses, 5);
 
   const handleAddExpense = async (ev: React.FormEvent) => {
     ev.preventDefault();
@@ -2116,53 +2124,13 @@ export default function FinanceReportsPage() {
                 </div>
 
                 {/* Pagination Controls */}
-                {sortedTxns.length > 0 && (
-                  <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 mt-4 pt-4 text-xs font-semibold text-slate-500">
-                    <div>
-                      Showing{" "}
-                      <span className="font-bold text-slate-800 dark:text-slate-200">
-                        {Math.min(
-                          sortedTxns.length,
-                          (txnPage - 1) * itemsPerPage + 1,
-                        )}
-                      </span>{" "}
-                      to{" "}
-                      <span className="font-bold text-slate-800 dark:text-slate-200">
-                        {Math.min(sortedTxns.length, txnPage * itemsPerPage)}
-                      </span>{" "}
-                      of{" "}
-                      <span className="font-bold text-slate-800 dark:text-slate-200">
-                        {sortedTxns.length}
-                      </span>{" "}
-                      entries
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={txnPage === 1}
-                        onClick={() => setTxnPage((p) => Math.max(1, p - 1))}
-                        className="py-1 px-3"
-                      >
-                        Previous
-                      </Button>
-                      <span className="text-slate-400 font-mono">
-                        Page {txnPage} of {totalTxnPages}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={txnPage === totalTxnPages}
-                        onClick={() =>
-                          setTxnPage((p) => Math.min(totalTxnPages, p + 1))
-                        }
-                        className="py-1 px-3"
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                <Pagination
+                  currentPage={txnPage}
+                  totalItems={sortedTxns.length}
+                  pageSize={5}
+                  onPageChange={setTxnPage}
+                  itemLabel="transactions"
+                />
               </div>
             </div>
           )}
@@ -2304,7 +2272,7 @@ export default function FinanceReportsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-                      {filteredExpenses.map((exp) => {
+                      {pagedExpenses.map((exp) => {
                         const actual = exp.actualAmount ?? exp.amount;
                         const paid =
                           exp.amountPaid ??
@@ -2496,6 +2464,14 @@ export default function FinanceReportsPage() {
                     </tbody>
                   </table>
                 </div>
+
+                <Pagination
+                  currentPage={expPage}
+                  totalItems={filteredExpenses.length}
+                  pageSize={5}
+                  onPageChange={setExpPage}
+                  itemLabel="expenses"
+                />
               </div>
             </div>
           )}

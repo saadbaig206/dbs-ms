@@ -22,6 +22,7 @@ import { Button } from '../../components/ui/Button';
 import { Input, Select } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
+import { Pagination, usePagination } from '../../components/ui/Pagination';
 
 function isReminderEligible(dateStr: string, timeStr: string): { eligible: boolean; hoursRemaining?: number } {
   try {
@@ -109,6 +110,18 @@ export default function RemindersPage() {
     
     return matchesSearch;
   });
+
+  // Sort reminders most recent first (by date descending, then ID descending)
+  const sortedAppointments = React.useMemo(() => {
+    return [...filteredAppointments].sort((a, b) => {
+      if (a.date && b.date && a.date !== b.date) {
+        return b.date.localeCompare(a.date);
+      }
+      return (b.id || '').localeCompare(a.id || '', undefined, { numeric: true });
+    });
+  }, [filteredAppointments]);
+
+  const { currentPage, setCurrentPage, paginatedItems: pagedAppointments } = usePagination(sortedAppointments, 5);
 
   const handleSend = async (id: string, clientName: string) => {
     try {
@@ -231,7 +244,7 @@ Thank you!`;
       {/* Reminders Queue List */}
       <div className="space-y-4">
         <AnimatePresence mode="popLayout">
-          {filteredAppointments.length === 0 ? (
+          {sortedAppointments.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -243,7 +256,7 @@ Thank you!`;
               <p className="text-xs text-slate-400 mt-1">New scheduled bookings will appear here automatically.</p>
             </motion.div>
           ) : (
-            filteredAppointments.map((apt) => {
+            pagedAppointments.map((apt) => {
               const remStatus = apt.reminderStatus || 'Pending';
               const { eligible, hoursRemaining } = isReminderEligible(apt.date, apt.time);
 
@@ -375,6 +388,13 @@ Thank you!`;
             })
           )}
         </AnimatePresence>
+        <Pagination
+          currentPage={currentPage}
+          totalItems={sortedAppointments.length}
+          pageSize={5}
+          onPageChange={setCurrentPage}
+          itemLabel="reminders"
+        />
       </div>
 
       {/* Toast Notification */}

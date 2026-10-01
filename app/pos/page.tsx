@@ -33,6 +33,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 import { Modal } from '../../components/ui/Modal';
 import { AddExpenseModal } from '../../components/ui/AddExpenseModal';
+import { Pagination, usePagination } from '../../components/ui/Pagination';
 import { posClient } from '../../lib/api/client';
 
 
@@ -101,6 +102,21 @@ function POSContent() {
   // Local recent transactions list to guarantee reprint works for staff
   const [localRecentTransactions, setLocalRecentTransactions] = useState<any[]>([]);
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
+
+  // Paginated recent transactions list (most recent first)
+  const allRecentTxns = useMemo(() => {
+    const list = role === 'admin'
+      ? [...localRecentTransactions, ...(transactions || [])].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)
+      : localRecentTransactions;
+    return [...list].sort((a, b) => {
+      if (a.date && b.date && a.date !== b.date) {
+        return b.date.localeCompare(a.date);
+      }
+      return (b.id || '').localeCompare(a.id || '', undefined, { numeric: true });
+    });
+  }, [role, localRecentTransactions, transactions]);
+
+  const { currentPage: posTxnPage, setCurrentPage: setPosTxnPage, paginatedItems: pagedPosTxns } = usePagination(allRecentTxns, 5);
 
   // Auto-populate client and service from appointment parameters
   const autoBillProcessedRef = useRef<string | null>(null);
@@ -1535,16 +1551,10 @@ function POSContent() {
           Recent Sales & Invoice Reprinting
         </h3>
 
-        {(() => {
-          const displayTxns = role === 'admin'
-            ? [...localRecentTransactions, ...(transactions || [])].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).slice(0, 5)
-            : localRecentTransactions;
-
-          if (displayTxns.length === 0) {
-            return <p className="text-xs text-slate-400 text-center py-4">No recent transactions recorded today.</p>;
-          }
-
-          return (
+        {allRecentTxns.length === 0 ? (
+          <p className="text-xs text-slate-400 text-center py-4">No recent transactions recorded today.</p>
+        ) : (
+          <div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[10px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
@@ -1558,7 +1568,7 @@ function POSContent() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-semibold text-slate-700 dark:text-slate-300">
-                  {displayTxns.map((txn) => (
+                  {pagedPosTxns.map((txn) => (
                     <tr key={txn.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
                       <td className="py-3 px-4 font-mono text-slate-900 dark:text-slate-100">{txn.invoiceId}</td>
                       <td className="py-3 px-4">
@@ -1615,8 +1625,15 @@ function POSContent() {
                 </tbody>
               </table>
             </div>
-          );
-        })()}
+            <Pagination
+              currentPage={posTxnPage}
+              totalItems={allRecentTxns.length}
+              pageSize={5}
+              onPageChange={setPosTxnPage}
+              itemLabel="invoices"
+            />
+          </div>
+        )}
       </div>
 
       {/* Edit Transaction Modal */}

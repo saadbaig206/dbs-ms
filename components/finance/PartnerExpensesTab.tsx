@@ -24,6 +24,7 @@ import { StatCard } from "../../components/cards/StatCard";
 import { Badge } from "../../components/ui/Badge";
 import { Input, Select } from "../../components/ui/Input";
 import { Button } from "../../components/ui/Button";
+import { Pagination, usePagination } from "../../components/ui/Pagination";
 import { PartnerEquityReportItem } from "../../lib/types/clinic";
 
 export function PartnerExpensesTab() {
@@ -333,6 +334,13 @@ export function PartnerExpensesTab() {
   const filteredTotal = useMemo(() => {
     return filteredList.reduce((acc, curr) => acc + curr.amount, 0);
   }, [filteredList]);
+
+  // 5 Recent Records per page
+  const {
+    currentPage,
+    setCurrentPage,
+    paginatedItems: pagedList,
+  } = usePagination(filteredList, 5);
 
   // Category breakdown
   const categoryBreakdown = useMemo(() => {
@@ -721,7 +729,7 @@ export function PartnerExpensesTab() {
                   </td>
                 </tr>
               ) : (
-                filteredList.map((item) => (
+                pagedList.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
                     <td className="p-3.5 pl-4 text-slate-500 font-mono whitespace-nowrap">
                       {item.date}
@@ -819,6 +827,14 @@ export function PartnerExpensesTab() {
             )}
           </table>
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredList.length}
+          pageSize={5}
+          onPageChange={setCurrentPage}
+          itemLabel="payment records"
+        />
       </div>
     </div>
   );

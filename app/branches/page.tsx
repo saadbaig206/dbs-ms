@@ -11,6 +11,7 @@ import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
 import { Badge } from '../../components/ui/Badge';
+import { Pagination, usePagination } from '../../components/ui/Pagination';
 
 export default function BranchesPage() {
   const { branches, addBranch, updateBranch, deleteBranch, role, isLoading } = useClinic();
@@ -24,6 +25,12 @@ export default function BranchesPage() {
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  // Sort branches recent first (by numeric ID descending)
+  const sortedBranches = React.useMemo(() => {
+    return [...branches].sort((a, b) => (b.id || '').localeCompare(a.id || '', undefined, { numeric: true }));
+  }, [branches]);
+  const { currentPage, setCurrentPage, paginatedItems: pagedBranches } = usePagination(sortedBranches, 5);
 
   if (isLoading || role !== 'admin') {
     return (
@@ -183,64 +190,73 @@ export default function BranchesPage() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {branches.map((branch) => (
-            <motion.div
-              key={branch.id}
-              whileHover={{ y: -4 }}
-              className="luxury-card p-6 flex flex-col justify-between space-y-4"
-            >
-              <div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-                      <MapPin className="w-5 h-5" />
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {pagedBranches.map((branch) => (
+              <motion.div
+                key={branch.id}
+                whileHover={{ y: -4 }}
+                className="luxury-card p-6 flex flex-col justify-between space-y-4"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                        <MapPin className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">{branch.name}</h3>
+                        <span className="text-[10px] text-slate-400 font-mono">ID: {branch.id}</span>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">{branch.name}</h3>
-                      <span className="text-[10px] text-slate-400 font-mono">ID: {branch.id}</span>
-                    </div>
+                    <Badge variant="primary" size="sm">Active</Badge>
                   </div>
-                  <Badge variant="primary" size="sm">Active</Badge>
+
+                  <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Location:</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 text-right max-w-[200px] truncate">{branch.location}</span>
+                    </div>
+                    {branch.phone && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-400">Phone:</span>
+                        <span className="font-mono text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                          <Phone className="w-3 h-3 text-slate-400" /> {branch.phone}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Location:</span>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200 text-right max-w-[200px] truncate">{branch.location}</span>
+                {role === 'admin' && (
+                  <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                    <button
+                      onClick={() => handleOpenEditModal(branch)}
+                      className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors"
+                      title="Edit Location"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteBranch(branch.id)}
+                      className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors"
+                      title="Delete Location"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
-                  {branch.phone && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-400">Phone:</span>
-                      <span className="font-mono text-slate-800 dark:text-slate-200 flex items-center gap-1">
-                        <Phone className="w-3 h-3 text-slate-400" /> {branch.phone}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {role === 'admin' && (
-                <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-                  <button
-                    onClick={() => handleOpenEditModal(branch)}
-                    className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors"
-                    title="Edit Location"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteBranch(branch.id)}
-                    className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors"
-                    title="Delete Location"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-            </motion.div>
-          ))}
-        </div>
+                )}
+              </motion.div>
+            ))}
+          </div>
+          <Pagination
+            currentPage={currentPage}
+            totalItems={sortedBranches.length}
+            pageSize={5}
+            onPageChange={setCurrentPage}
+            itemLabel="branches"
+          />
+        </>
       )}
 
       {/* Add Modal */}

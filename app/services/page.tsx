@@ -11,6 +11,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { Input, Select } from '../../components/ui/Input';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
+import { Pagination, usePagination } from '../../components/ui/Pagination';
 
 export default function ServicesPage() {
   const { services, addService, updateService, role, inventory, staff } = useClinic();
@@ -55,6 +56,13 @@ export default function ServicesPage() {
     const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase());
     return matchesCat && matchesSearch;
   });
+
+  // Sort services most recent first (by numeric ID descending)
+  const sortedServices = React.useMemo(() => {
+    return [...filteredServices].sort((a, b) => (b.id || '').localeCompare(a.id || '', undefined, { numeric: true }));
+  }, [filteredServices]);
+
+  const { currentPage, setCurrentPage, paginatedItems: pagedServices } = usePagination(sortedServices, 5);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -198,14 +206,14 @@ export default function ServicesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-              {filteredServices.length === 0 ? (
+              {sortedServices.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-slate-400 text-sm">
                     No services found matching your search.
                   </td>
                 </tr>
               ) : (
-                filteredServices.map((srv) => (
+                pagedServices.map((srv) => (
                   <tr key={srv.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-500">
                       {srv.id}
@@ -265,6 +273,13 @@ export default function ServicesPage() {
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={currentPage}
+          totalItems={sortedServices.length}
+          pageSize={5}
+          onPageChange={setCurrentPage}
+          itemLabel="services"
+        />
       </div>
 
       {/* Add Service Modal */}

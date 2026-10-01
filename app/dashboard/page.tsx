@@ -21,6 +21,7 @@ import { StatCard } from "../../components/cards/StatCard";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
 import { Breadcrumb } from "../../components/ui/Breadcrumb";
+import { Pagination, usePagination } from "../../components/ui/Pagination";
 import { AddExpenseModal } from "../../components/ui/AddExpenseModal";
 
 export default function DashboardPage() {
@@ -107,6 +108,28 @@ export default function DashboardPage() {
     () => appointments.filter((a) => a.date === todayStr),
     [appointments, todayStr],
   );
+
+  // Sort recent transactions (most recent first by date descending, then ID descending)
+  const sortedTransactions = useMemo(() => {
+    return [...transactions].sort((a, b) => {
+      if (a.date && b.date && a.date !== b.date) {
+        return b.date.localeCompare(a.date);
+      }
+      return (b.id || "").localeCompare(a.id || "", undefined, { numeric: true });
+    });
+  }, [transactions]);
+  const { currentPage: txnPage, setCurrentPage: setTxnPage, paginatedItems: pagedTxns } = usePagination(sortedTransactions, 5);
+
+  // Sort today's appointments (by time descending, then ID descending)
+  const sortedTodayAppointments = useMemo(() => {
+    return [...todayAppointments].sort((a, b) => {
+      if (a.time && b.time && a.time !== b.time) {
+        return b.time.localeCompare(a.time);
+      }
+      return (b.id || "").localeCompare(a.id || "", undefined, { numeric: true });
+    });
+  }, [todayAppointments]);
+  const { currentPage: aptPage, setCurrentPage: setAptPage, paginatedItems: pagedTodayAppointments } = usePagination(sortedTodayAppointments, 5);
   const lowStockCount = useMemo(
     () =>
       inventory.filter(
@@ -720,7 +743,7 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-                {transactions.length === 0 ? (
+                {sortedTransactions.length === 0 ? (
                   <tr>
                     <td
                       colSpan={7}
@@ -730,7 +753,7 @@ export default function DashboardPage() {
                     </td>
                   </tr>
                 ) : (
-                  transactions.slice(0, 8).map((txn) => (
+                  pagedTxns.map((txn) => (
                     <tr
                       key={txn.id}
                       className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
@@ -774,6 +797,13 @@ export default function DashboardPage() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            currentPage={txnPage}
+            totalItems={sortedTransactions.length}
+            pageSize={5}
+            onPageChange={setTxnPage}
+            itemLabel="transactions"
+          />
         </div>
       ) : (
         /* Today's Schedule Table */
@@ -811,7 +841,17 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-                {todayAppointments.slice(0, 5).map((apt) => (
+                {sortedTodayAppointments.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="py-8 text-center text-xs text-slate-400"
+                    >
+                      No appointments scheduled for today.
+                    </td>
+                  </tr>
+                ) : (
+                  pagedTodayAppointments.map((apt) => (
                   <tr
                     key={apt.id}
                     className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
@@ -867,10 +907,17 @@ export default function DashboardPage() {
                       </button>
                     </td>
                   </tr>
-                ))}
+                )))}
               </tbody>
             </table>
           </div>
+          <Pagination
+            currentPage={aptPage}
+            totalItems={sortedTodayAppointments.length}
+            pageSize={5}
+            onPageChange={setAptPage}
+            itemLabel="appointments"
+          />
         </div>
       )}
 

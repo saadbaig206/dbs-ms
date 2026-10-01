@@ -11,6 +11,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { Input, Select } from '../../components/ui/Input';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
+import { Pagination, usePagination } from '../../components/ui/Pagination';
 
 export default function InventoryPage() {
   const {
@@ -228,6 +229,18 @@ export default function InventoryPage() {
     return matchesSearch && matchesStatus;
   });
 
+  // Sort inventory most recent first (by lastRestocked descending, then ID descending)
+  const sortedInventory = React.useMemo(() => {
+    return [...filteredInventory].sort((a, b) => {
+      if (a.lastRestocked && b.lastRestocked && a.lastRestocked !== b.lastRestocked) {
+        return b.lastRestocked.localeCompare(a.lastRestocked);
+      }
+      return (b.id || '').localeCompare(a.id || '', undefined, { numeric: true });
+    });
+  }, [filteredInventory]);
+
+  const { currentPage, setCurrentPage, paginatedItems: pagedInventory } = usePagination(sortedInventory, 5);
+
   const reduceItem = inventory.find(i => i.id === reduceModalItemId);
 
   if (isLoading) {
@@ -343,7 +356,7 @@ export default function InventoryPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-              {filteredInventory.length === 0 ? (
+              {sortedInventory.length === 0 ? (
                 <tr>
                   <td colSpan={role === 'partner' ? 6 : 7} className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
@@ -368,7 +381,7 @@ export default function InventoryPage() {
                   </td>
                 </tr>
               ) : (
-                filteredInventory.map((item) => {
+                pagedInventory.map((item) => {
                   const percent = Math.min(100, Math.round((item.quantity / (item.minStock * 2)) * 100));
 
                   return (
@@ -459,6 +472,13 @@ export default function InventoryPage() {
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={currentPage}
+          totalItems={sortedInventory.length}
+          pageSize={5}
+          onPageChange={setCurrentPage}
+          itemLabel="inventory products"
+        />
       </div>
 
       {/* Add Inventory Product Modal */}

@@ -25,6 +25,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { Input, Select } from '../../components/ui/Input';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
+import { Pagination, usePagination } from '../../components/ui/Pagination';
 
 export default function ClientsPage() {
   const { clients, addClient, staff, services, setPrintData, branches, settleClientDue } = useClinic();
@@ -95,6 +96,18 @@ export default function ClientsPage() {
       (c.phone && c.phone.includes(search));
     return matchesBranch && matchesSearch;
   });
+
+  // Sort clients most recent first (by joinedDate descending, then ID descending)
+  const sortedClients = React.useMemo(() => {
+    return [...filteredClients].sort((a, b) => {
+      if (a.joinedDate && b.joinedDate && a.joinedDate !== b.joinedDate) {
+        return b.joinedDate.localeCompare(a.joinedDate);
+      }
+      return (b.id || '').localeCompare(a.id || '', undefined, { numeric: true });
+    });
+  }, [filteredClients]);
+
+  const { currentPage, setCurrentPage, paginatedItems: pagedClients } = usePagination(sortedClients, 5);
 
   const handleRegisterClient = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -222,7 +235,14 @@ export default function ClientsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-              {filteredClients.map((client) => (
+              {sortedClients.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-slate-400 text-sm">
+                    No clients match your search criteria.
+                  </td>
+                </tr>
+              ) : (
+                pagedClients.map((client) => (
                 <tr key={client.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                   <td className="py-3.5 px-4 font-mono text-slate-500 font-bold">
                     {client.id}
@@ -282,10 +302,17 @@ export default function ClientsPage() {
                     </button>
                   </td>
                 </tr>
-              ))}
+              )))}
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={currentPage}
+          totalItems={sortedClients.length}
+          pageSize={5}
+          onPageChange={setCurrentPage}
+          itemLabel="clients"
+        />
       </div>
 
       {/* Add Client Registration Modal */}

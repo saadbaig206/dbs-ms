@@ -25,6 +25,7 @@ import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
 import { Input, Select } from '../ui/Input';
+import { Pagination, usePagination } from '../ui/Pagination';
 
 interface PurchaseItemRow {
   itemName: string;
@@ -207,6 +208,25 @@ export function PurchasesTab() {
       );
     });
   }, [returns, searchTerm]);
+
+  // 5 Recent Records per page for each subtab
+  const {
+    currentPage: itemsPage,
+    setCurrentPage: setItemsPage,
+    paginatedItems: pagedItems,
+  } = usePagination(filteredItems, 5);
+
+  const {
+    currentPage: billsPage,
+    setCurrentPage: setBillsPage,
+    paginatedItems: pagedBills,
+  } = usePagination(filteredBills, 5);
+
+  const {
+    currentPage: returnsPage,
+    setCurrentPage: setReturnsPage,
+    paginatedItems: pagedReturns,
+  } = usePagination(filteredReturns, 5);
 
   // Line item helpers
   const handleAddItemRow = () => {
@@ -576,7 +596,7 @@ export function PurchasesTab() {
                     </td>
                   </tr>
                 ) : (
-                  filteredItems.map(item => (
+                  pagedItems.map(item => (
                     <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="p-3.5 pl-4">
                         <div className="font-bold text-slate-900 dark:text-slate-100">{item.itemName}</div>
@@ -613,6 +633,14 @@ export function PurchasesTab() {
               </tbody>
             </table>
           </div>
+
+          <Pagination
+            currentPage={itemsPage}
+            totalItems={filteredItems.length}
+            pageSize={5}
+            onPageChange={setItemsPage}
+            itemLabel="purchased products"
+          />
         </div>
       ) : activeSubTab === 'bills' ? (
         /* Vendor Bills & Invoices View */
@@ -653,7 +681,7 @@ export function PurchasesTab() {
                     </td>
                   </tr>
                 ) : (
-                  filteredBills.map(bill => (
+                  pagedBills.map(bill => (
                     <tr key={bill.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="p-3.5 pl-4">
                         <div className="font-bold text-slate-900 dark:text-slate-100">{bill.billNumber || bill.id}</div>
@@ -728,6 +756,14 @@ export function PurchasesTab() {
               </tbody>
             </table>
           </div>
+
+          <Pagination
+            currentPage={billsPage}
+            totalItems={filteredBills.length}
+            pageSize={5}
+            onPageChange={setBillsPage}
+            itemLabel="vendor bills"
+          />
         </div>
       ) : (
         /* Return to Vendor (RTV) & Debit Notes View */
@@ -767,7 +803,7 @@ export function PurchasesTab() {
                     </td>
                   </tr>
                 ) : (
-                  filteredReturns.map(ret => (
+                  pagedReturns.map(ret => (
                     <tr key={ret?.id || Math.random()} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="p-3.5 pl-4 font-mono font-bold text-blue-600 dark:text-blue-400">
                         {ret?.debitNoteNumber || 'N/A'}
@@ -825,6 +861,14 @@ export function PurchasesTab() {
               </tbody>
             </table>
           </div>
+
+          <Pagination
+            currentPage={returnsPage}
+            totalItems={filteredReturns.length}
+            pageSize={5}
+            onPageChange={setReturnsPage}
+            itemLabel="debit notes"
+          />
         </div>
       )}
 

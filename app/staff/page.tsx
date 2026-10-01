@@ -31,6 +31,7 @@ import { Avatar } from "../../components/ui/Avatar";
 import { Modal } from "../../components/ui/Modal";
 import { Input, Select } from "../../components/ui/Input";
 import { Breadcrumb } from "../../components/ui/Breadcrumb";
+import { Pagination, usePagination } from "../../components/ui/Pagination";
 
 export default function StaffPage() {
   const {
@@ -139,6 +140,24 @@ export default function StaffPage() {
       (s.email ? s.email.toLowerCase().includes(search.toLowerCase()) : false);
     return matchesBranch && matchesSearch;
   });
+
+  // Sort staff recent first (by numeric ID descending)
+  const sortedStaff = React.useMemo(() => {
+    return [...filteredStaff].sort((a, b) => String(b.id || "").localeCompare(String(a.id || ""), undefined, { numeric: true }));
+  }, [filteredStaff]);
+  const { currentPage: staffPage, setCurrentPage: setStaffPage, paginatedItems: pagedStaff } = usePagination(sortedStaff, 5);
+
+  // Sort daily attendance recent first
+  const sortedAttendance = React.useMemo(() => {
+    return [...attendance].sort((a, b) => String(b.id || "").localeCompare(String(a.id || ""), undefined, { numeric: true }));
+  }, [attendance]);
+  const { currentPage: attPage, setCurrentPage: setAttPage, paginatedItems: pagedAttendance } = usePagination(sortedAttendance, 5);
+
+  // Sort partners recent first
+  const sortedPartners = React.useMemo(() => {
+    return [...partners].sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
+  }, [partners]);
+  const { currentPage: partnerPage, setCurrentPage: setPartnerPage, paginatedItems: pagedPartners } = usePagination(sortedPartners, 5);
 
   const handleOpenAddModal = () => {
     setName("");
@@ -534,7 +553,7 @@ export default function StaffPage() {
 
           {/* Directory Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredStaff.map((member) => (
+            {pagedStaff.map((member) => (
               <motion.div
                 key={member.id}
                 layout
@@ -613,6 +632,13 @@ export default function StaffPage() {
               </motion.div>
             ))}
           </div>
+          <Pagination
+            currentPage={staffPage}
+            totalItems={sortedStaff.length}
+            pageSize={5}
+            onPageChange={setStaffPage}
+            itemLabel="staff members"
+          />
         </>
       )}
 
@@ -700,7 +726,7 @@ export default function StaffPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-                  {attendance.map((rec) => {
+                  {pagedAttendance.map((rec) => {
                     const member = staff.find((s) => s.id === rec.staffId);
                     const branch = member
                       ? branches.find((b) => b.id === member.branchId)
@@ -751,6 +777,13 @@ export default function StaffPage() {
                 </tbody>
               </table>
             </div>
+            <Pagination
+              currentPage={attPage}
+              totalItems={sortedAttendance.length}
+              pageSize={5}
+              onPageChange={setAttPage}
+              itemLabel="attendance records"
+            />
           </div>
         </>
       )}
@@ -769,43 +802,52 @@ export default function StaffPage() {
               No partner accounts created yet.
             </p>
           ) : (
-            <div className="responsive-table-wrapper">
-              <table className="w-full min-w-[500px] text-left text-xs sm:text-sm">
-                <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[11px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
-                  <tr>
-                    <th className="py-3.5 px-4 rounded-l-xl">Username</th>
-                    <th className="py-3.5 px-4">Role Permission</th>
-                    <th className="py-3.5 px-4 text-right rounded-r-xl">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-                  {partners.map((p) => (
-                    <tr
-                      key={p.id}
-                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
-                    >
-                      <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-slate-100">
-                        {p.username}
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
-                        <Badge variant="neutral">Partner Mode</Badge>
-                      </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <button
-                          onClick={() => handleDeletePartner(p.id)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors"
-                          title="Delete Partner Account"
-                        >
-                          <Trash2 className="w-4.5 h-4.5" />
-                        </button>
-                      </td>
+            <>
+              <div className="responsive-table-wrapper">
+                <table className="w-full min-w-[500px] text-left text-xs sm:text-sm">
+                  <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[11px] font-bold text-slate-500 dark:text-slate-400 tracking-wider">
+                    <tr>
+                      <th className="py-3.5 px-4 rounded-l-xl">Username</th>
+                      <th className="py-3.5 px-4">Role Permission</th>
+                      <th className="py-3.5 px-4 text-right rounded-r-xl">
+                        Actions
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
+                    {pagedPartners.map((p) => (
+                      <tr
+                        key={p.id}
+                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                      >
+                        <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-slate-100">
+                          {p.username}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
+                          <Badge variant="neutral">Partner Mode</Badge>
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <button
+                            onClick={() => handleDeletePartner(p.id)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors"
+                            title="Delete Partner Account"
+                          >
+                            <Trash2 className="w-4.5 h-4.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Pagination
+                currentPage={partnerPage}
+                totalItems={sortedPartners.length}
+                pageSize={5}
+                onPageChange={setPartnerPage}
+                itemLabel="partner accounts"
+              />
+            </>
           )}
         </div>
       )}

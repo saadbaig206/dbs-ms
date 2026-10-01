@@ -19,6 +19,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { Input, Select } from '../../components/ui/Input';
 import { Breadcrumb } from '../../components/ui/Breadcrumb';
+import { Pagination, usePagination } from '../../components/ui/Pagination';
 import { getLocalDateString } from '../../lib/utils/date';
 
 export default function AppointmentsPage() {
@@ -192,6 +193,18 @@ export default function AppointmentsPage() {
 
     return matchesBranch && matchesSearch && matchesStatus && matchesDate && matchesCategory;
   });
+
+  // Sort appointments most recent first (by date descending, then ID descending)
+  const sortedAppointments = useMemo(() => {
+    return [...filteredAppointments].sort((a, b) => {
+      if (a.date && b.date && a.date !== b.date) {
+        return b.date.localeCompare(a.date);
+      }
+      return (b.id || '').localeCompare(a.id || '', undefined, { numeric: true });
+    });
+  }, [filteredAppointments]);
+
+  const { currentPage, setCurrentPage, paginatedItems: pagedAppointments } = usePagination(sortedAppointments, 5);
 
   const handleCreateAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -414,14 +427,14 @@ export default function AppointmentsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-              {filteredAppointments.length === 0 ? (
+              {sortedAppointments.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-12 text-center text-slate-400 text-sm">
                     No appointments match your search criteria.
                   </td>
                 </tr>
               ) : (
-                filteredAppointments.map((apt) => (
+                pagedAppointments.map((apt) => (
                   <tr key={apt.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                     <td className="py-3.5 px-4 font-mono text-slate-500 font-bold">
                       {apt.id}
@@ -529,6 +542,13 @@ export default function AppointmentsPage() {
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={currentPage}
+          totalItems={sortedAppointments.length}
+          pageSize={5}
+          onPageChange={setCurrentPage}
+          itemLabel="appointments"
+        />
       </div>
 
       {/* New Booking Modal Form */}
