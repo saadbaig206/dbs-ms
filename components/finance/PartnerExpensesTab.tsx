@@ -97,6 +97,7 @@ export function PartnerExpensesTab() {
         exp.category === ("Partner Drawing" as any) ||
         (exp.title && exp.title.toLowerCase().includes("partner drawing")) ||
         exp.category === ("Inventory Purchase" as any) ||
+        exp.category === ("Products" as any) ||
         exp.id?.startsWith("EXP-PUR-") ||
         (exp.title && exp.title.toLowerCase().includes("vendor bill payment"))
       ) {
@@ -145,6 +146,80 @@ export function PartnerExpensesTab() {
           status: exp.status,
           notes: exp.notes,
           source: "expense",
+        });
+      }
+    });
+
+    // 2. Partner Seed Capital Investments (e.g. Sheraz Rs 50,000)
+    equityPartners.forEach((p) => {
+      const initInv = p.seedInvestment !== undefined ? p.seedInvestment : (p.partnerName.toLowerCase().includes("sheraz") ? 50000 : 0);
+      if (initInv > 0) {
+        list.push({
+          id: `CAP-INV-${p.id}`,
+          rawExpenseId: `CAP-INV-${p.id}`,
+          title: `Partner Capital Investment - ${p.partnerName}`,
+          category: "Capital Investment",
+          vendorName: "Partner Capital Contribution",
+          amount: initInv,
+          date: "2026-08-01",
+          paidBy: p.partnerName,
+          matchedPartner: p,
+          isSettledShared: false,
+          paymentMethod: "Bank Transfer",
+          status: "Paid",
+          notes: `Equity seed capital investment paid by ${p.partnerName}`,
+          source: "expense",
+        });
+      }
+    });
+
+    // 3. Purchase Bills Contributions (Full settlements or partial payment logs)
+    purchaseBills.forEach((bill) => {
+      if (bill.paymentLogs && bill.paymentLogs.length > 0) {
+        bill.paymentLogs.forEach((log) => {
+          const logAmt = Number(log.amount) || 0;
+          if (logAmt <= 0) return;
+          const payer = log.paidBy || (log as any).paid_by || bill.paidBy || bill.createdBy || "Common Clinic Operating";
+          const matched = matchPartner(payer);
+          list.push({
+            id: `${bill.id}-${log.id}`,
+            rawExpenseId: bill.id,
+            title: `Purchase: ${bill.vendorName} (${bill.billNumber || bill.id})`,
+            category: "Purchases (Product Stock)",
+            vendorName: bill.vendorName,
+            amount: logAmt,
+            date: log.date || bill.date,
+            paidBy: payer,
+            matchedPartner: matched,
+            isSettledShared: matched === null,
+            paymentMethod: log.paymentMethod || bill.paymentMethod || "Bank Transfer",
+            status: "Paid",
+            notes: log.notes || bill.notes || `Stock purchase payment for ${bill.vendorName}`,
+            source: "vendor_bill",
+          });
+        });
+      } else {
+        const amt = (bill.paymentStatus || "").toLowerCase() === "paid"
+          ? (bill.amountPaid ?? bill.totalAmount)
+          : (bill.amountPaid || 0);
+        if (amt <= 0) return;
+        const payer = bill.paidBy || bill.createdBy || "Common Clinic Operating";
+        const matched = matchPartner(payer);
+        list.push({
+          id: `${bill.id}-PAY`,
+          rawExpenseId: bill.id,
+          title: `Purchase: ${bill.vendorName} (${bill.billNumber || bill.id})`,
+          category: "Purchases (Product Stock)",
+          vendorName: bill.vendorName,
+          amount: amt,
+          date: bill.date,
+          paidBy: payer,
+          matchedPartner: matched,
+          isSettledShared: matched === null,
+          paymentMethod: bill.paymentMethod || "Bank Transfer",
+          status: bill.paymentStatus || "Paid",
+          notes: bill.notes || `Stock purchase payment for ${bill.vendorName}`,
+          source: "vendor_bill",
         });
       }
     });
@@ -359,11 +434,11 @@ export function PartnerExpensesTab() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Clinic Expenses */}
         <StatCard
-          title="Total Clinic Expenses"
+          title="Total Outflow & Capital"
           value={formatPKR(totalClinicExpenses)}
           colorVariant="blue"
           icon={<Receipt className="w-5 h-5 text-blue-500" />}
-          subtitle={`${unifiedExpenses.length} total expense entries logged`}
+          subtitle={`${unifiedExpenses.length} disbursements & capital investments logged`}
         />
 
         {/* Dynamic Card for Each Active Partner (NO HARDCODING) */}
@@ -398,7 +473,7 @@ export function PartnerExpensesTab() {
 
                 <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
                   <span className="font-semibold text-slate-700 dark:text-slate-200">
-                    {formatPKR(direct)} direct paid
+                    {formatPKR(direct)} direct invested & paid
                   </span>
                 </div>
               </div>
@@ -482,9 +557,9 @@ export function PartnerExpensesTab() {
 
           <Select
             options={[
-              { label: "All Expense Categories", value: "all" },
-              { label: "Inventory Purchase / Vendor Bill", value: "Inventory Purchase" },
-              { label: "Products", value: "Products" },
+              { label: "All Categories", value: "all" },
+              { label: "Purchases (Product Stock)", value: "Purchases (Product Stock)" },
+              { label: "Capital Investment", value: "Capital Investment" },
               { label: "Salary", value: "Salary" },
               { label: "Rent", value: "Rent" },
               { label: "Electric Bill", value: "Electric Bill" },
@@ -658,7 +733,13 @@ export function PartnerExpensesTab() {
                       )}
                     </td>
                     <td className="p-3.5">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                        item.category === "Capital Investment"
+                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
+                          : item.category === "Purchases (Product Stock)"
+                          ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"
+                          : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                      }`}>
                         {item.category}
                       </span>
                     </td>

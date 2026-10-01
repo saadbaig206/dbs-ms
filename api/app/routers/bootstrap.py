@@ -157,7 +157,15 @@ async def get_bootstrap_data(
 
     if role in ("admin", "partner"):
         try:
-            e_query = select(ExpenseItem)
+            e_query = select(ExpenseItem).where(
+                or_(ExpenseItem.category.is_(None), ~ExpenseItem.category.ilike("Inventory Purchase")),
+                ~ExpenseItem.category.ilike("Products%"),
+                ~ExpenseItem.category.ilike("Purchase%"),
+                ~ExpenseItem.id.ilike("EXP-PUR-%"),
+                ~ExpenseItem.id.ilike("PIT-%"),
+                ~ExpenseItem.title.ilike("Vendor Bill Payment:%"),
+                ~ExpenseItem.title.ilike("%Purchase Bill%")
+            )
             if user_branch_id:
                 e_query = e_query.where(ExpenseItem.branch_id == user_branch_id)
             e_res = await db.execute(e_query.order_by(ExpenseItem.id.desc()).limit(150))

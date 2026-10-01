@@ -321,6 +321,9 @@ export interface PartnerEquityReportItem {
   netCapitalBalance: number;
   marketBrandStake: number;
   drawingsCount: number;
+  expenseContributions?: number;
+  purchaseContributions?: number;
+  seedInvestment?: number;
 }
 
 export interface PartnerDrawing {

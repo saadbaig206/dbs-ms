@@ -26,6 +26,7 @@ import {
   Clock,
   RotateCcw,
   Package,
+  ShoppingBag,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useClinic } from "../../lib/context/ClinicContext";
@@ -423,7 +424,7 @@ export default function FinanceReportsPage() {
 
   const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false);
   const [expTitle, setExpTitle] = useState("");
-  const [expCategory, setExpCategory] = useState<ExpenseCategory>("Products");
+  const [expCategory, setExpCategory] = useState<ExpenseCategory>("Other");
   const [expAmount, setExpAmount] = useState<string>("");
   const [expPaymentMethod, setExpPaymentMethod] = useState<
     "Bank Transfer" | "Cash" | "Card" | "Cheque"
@@ -461,7 +462,7 @@ export default function FinanceReportsPage() {
   const [selectedExp, setSelectedExp] = useState<any>(null);
   const [editExpTitle, setEditExpTitle] = useState("");
   const [editExpCategory, setEditExpCategory] =
-    useState<ExpenseCategory>("Products");
+    useState<ExpenseCategory>("Other");
   const [editExpAmount, setEditExpAmount] = useState("");
   const [editExpPaymentMethod, setEditExpPaymentMethod] = useState<
     "Bank Transfer" | "Cash" | "Card" | "Cheque"
@@ -617,6 +618,9 @@ export default function FinanceReportsPage() {
     totalExpenseAmount,
     operationalExpenseAmount,
     purchaseExpenseAmount,
+    netOperatingProfit,
+    isOperatingProfit,
+    netOperatingMargin,
     cashRevenue,
     cashCount,
     cashPct,
@@ -757,6 +761,7 @@ export default function FinanceReportsPage() {
         ? clientDuesSum
         : (txnRemainingDues > 0 ? txnRemainingDues : calculatedDiffDue),
     );
+
     const totalCollections = cashRev + cardRev + onlineRev;
     const baseCollDenominator = totalCollections > 0 ? totalCollections : 1;
     const cashPct =
@@ -773,11 +778,35 @@ export default function FinanceReportsPage() {
 
     for (let i = 0; i < expenses.length; i++) {
       const e = expenses[i];
-      // Only include settled Paid expenses, and exclude auto-logged purchase bills to avoid double-counting
-      if ((e.status || "").toLowerCase() !== "paid") continue;
-      if (e.category === "Inventory Purchase") continue;
+      const cat = (e.category || "").toLowerCase();
+      const title = (e.title || "").toLowerCase();
+      const id = (e.id || "").toUpperCase();
 
-      const amt = e.amount || 0;
+      // Completely exclude purchase bills and stock procurements from operational expenses
+      if (
+        cat === "inventory purchase" ||
+        cat === "products" ||
+        cat === "purchases" ||
+        cat === "purchase" ||
+        id.startsWith("EXP-PUR-") ||
+        id.startsWith("PIT-") ||
+        id.includes("-PUR-") ||
+        title.startsWith("vendor bill") ||
+        title.includes("purchase bill") ||
+        title.includes("supplier order") ||
+        Boolean(e.productName)
+      ) continue;
+
+      const actual = e.actualAmount ?? e.amount ?? 0;
+      const paid =
+        e.amountPaid !== undefined && e.amountPaid !== null
+          ? e.amountPaid
+          : ((e.status || "").toLowerCase() === "paid" ? actual : 0);
+
+      // Only count settled outflow
+      if (paid <= 0 && (e.status || "").toLowerCase() !== "paid") continue;
+      const amt = paid > 0 ? paid : actual;
+
       totalOpExp += amt;
 
       if (e.date) {
@@ -827,6 +856,10 @@ export default function FinanceReportsPage() {
     const curCombinedExp = curOpExp + curPurchExp;
     const prevCombinedExp = prevOpExp + prevPurchExp;
 
+    const netOperatingProfit = totalRev - totalOpExp;
+    const isOperatingProfit = netOperatingProfit >= 0;
+    const netOperatingMargin = totalRev > 0 ? (netOperatingProfit / totalRev) * 100 : 0;
+
     const curMargin =
       curRev > 0 ? ((curRev - curCombinedExp) / curRev) * 100 : 0;
     const prevMargin =
@@ -846,6 +879,9 @@ export default function FinanceReportsPage() {
       totalExpenseAmount: totalCombinedExp,
       operationalExpenseAmount: totalOpExp,
       purchaseExpenseAmount: totalPurchExp,
+      netOperatingProfit,
+      isOperatingProfit,
+      netOperatingMargin,
       cashRevenue: cashRev,
       cashCount,
       cashPct,
@@ -916,6 +952,24 @@ export default function FinanceReportsPage() {
 
   const filteredExpenses = useMemo(() => {
     return expenses.filter((e) => {
+      // Exclude product purchases & inventory vendor bills from operational expenses
+      const cat = (e.category || "").toLowerCase();
+      const title = (e.title || "").toLowerCase();
+      const id = (e.id || "").toUpperCase();
+      const isPurchase =
+        cat === "inventory purchase" ||
+        cat === "products" ||
+        cat === "purchases" ||
+        cat === "purchase" ||
+        id.startsWith("EXP-PUR-") ||
+        id.startsWith("PIT-") ||
+        id.includes("-PUR-") ||
+        title.startsWith("vendor bill") ||
+        title.includes("purchase bill") ||
+        title.includes("supplier order") ||
+        Boolean(e.productName);
+      if (isPurchase) return false;
+
       const query = expSearch.toLowerCase().trim();
 
       let matchesSearch = true;
@@ -1212,7 +1266,10 @@ export default function FinanceReportsPage() {
                       e.date >= reportStartDate &&
                       e.date <= reportEndDate &&
                       e.status === "Paid" &&
-                      e.category !== "Inventory Purchase",
+                      e.category !== "Inventory Purchase" &&
+                      e.category !== "Products" &&
+                      !e.id?.startsWith("EXP-PUR-") &&
+                      !e.title?.toLowerCase().startsWith("vendor bill payment"),
                   );
                   const filteredPurchases = purchaseBills.filter(
                     (b: any) =>
@@ -1579,7 +1636,39 @@ export default function FinanceReportsPage() {
                             `,
                       )
                       .join("")}
-                            ${filteredExps.length === 0 ? '<tr><td colspan="5" style="text-align: center; color: #94a3b8;">No expenses in range.</td></tr>' : ""}
+                            ${filteredExps.length === 0 ? '<tr><td colspan="5" style="text-align: center; color: #94a3b8;">No operational expenses in range.</td></tr>' : ""}
+                          </tbody>
+                        </table>
+
+                        <h2>Product & Stock Purchases</h2>
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Vendor / Order</th>
+                              <th>Date</th>
+                              <th>Method</th>
+                              <th>Status</th>
+                              <th class="text-right">Amount Paid</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            ${filteredPurchases
+                      .map(
+                        (b: any) => `
+                              <tr>
+                                <td>
+                                  <span style="font-weight: bold; display: block;">${escapeHtml(b.vendorName || "Vendor Bill")}</span>
+                                  <span style="font-size: 10px; color: #333333;">${escapeHtml(b.billNumber || b.id || "Purchase Bill")}</span>
+                                </td>
+                                <td>${escapeHtml(b.date || "")}</td>
+                                <td>${escapeHtml(b.paymentMethod || "Bank Transfer")}</td>
+                                <td>${escapeHtml(b.paymentStatus || "Paid")}</td>
+                                <td class="text-right font-mono font-bold">${formatFinancial(-(b.amountPaid || 0))}</td>
+                              </tr>
+                            `,
+                      )
+                      .join("")}
+                            ${filteredPurchases.length === 0 ? '<tr><td colspan="5" style="text-align: center; color: #94a3b8;">No purchases in range.</td></tr>' : ""}
                           </tbody>
                         </table>
                       </body>
@@ -1621,9 +1710,9 @@ export default function FinanceReportsPage() {
           {activeTab === "transactions" && (
             <div className="space-y-6">
               {/* Financial KPI Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard
-                  title="Gross Revenue (POS & Appointments)"
+                  title="Gross Revenue (POS & Inflow)"
                   value={formatPKR(totalRevenue)}
                   trend={revTrend}
                   trendDirection={revTrendDirection}
@@ -1632,19 +1721,25 @@ export default function FinanceReportsPage() {
                   subtitle={`${new Date().toLocaleString("en-US", { month: "short" })} Rev: ${formatPKR(curMonthRev, { decimals: false })}`}
                 />
                 <StatCard
-                  title="Discounts & Promotions Given"
-                  value={formatPKR(totalDiscounts)}
-                  trend={discTrend}
-                  trendDirection={discTrendDirection}
+                  title="Operational Overheads"
+                  value={formatPKR(operationalExpenseAmount)}
                   colorVariant="blue"
                   icon={<CreditCard className="w-5 h-5" />}
-                  subtitle={`${totalRevenue > 0 ? ((totalDiscounts / totalRevenue) * 100).toFixed(1) : "0.0"}% of gross revenue`}
+                  subtitle="Staff salaries, utilities & clinic overheads"
                 />
                 <StatCard
-                  title="Net Operating Profit Margin"
-                  value={`${totalRevenue > 0 ? (((totalRevenue - totalExpenseAmount) / totalRevenue) * 100).toFixed(1) : "0.0"}%`}
+                  title={isOperatingProfit ? "Net Operating Profit" : "Net Operating Loss"}
+                  value={`${isOperatingProfit ? "+" : "-"}${formatPKR(Math.abs(netOperatingProfit))}`}
                   colorVariant="blue"
                   icon={<TrendingUp className="w-5 h-5" />}
+                  subtitle={`Revenue (${formatPKR(totalRevenue, { decimals: false })}) - Overheads (${formatPKR(operationalExpenseAmount, { decimals: false })})`}
+                />
+                <StatCard
+                  title="Net Operating Margin"
+                  value={`${netOperatingMargin.toFixed(1)}%`}
+                  colorVariant="blue"
+                  icon={<TrendingUp className="w-5 h-5" />}
+                  subtitle={`Discounts given: ${formatPKR(totalDiscounts, { decimals: false })}`}
                 />
               </div>
 
@@ -1829,11 +1924,16 @@ export default function FinanceReportsPage() {
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
                   <div>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                      Recent Payment Transactions
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                        Recent Payment Transactions
+                      </h3>
+                      <Badge variant={isOperatingProfit ? "success" : "danger"} size="sm">
+                        {isOperatingProfit ? "Net Profit" : "Net Loss"}: {isOperatingProfit ? "+" : "-"}{formatPKR(Math.abs(netOperatingProfit))}
+                      </Badge>
+                    </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      Itemized client invoices and settlement history.
+                      Itemized client invoices and settlement history • Operating Net: <span className={`font-semibold font-mono ${isOperatingProfit ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>{isOperatingProfit ? "+" : "-"}{formatPKR(Math.abs(netOperatingProfit))}</span>
                     </p>
                   </div>
 
@@ -2075,25 +2175,78 @@ export default function FinanceReportsPage() {
 
           {activeTab === "expenses" && (
             <div className="space-y-6">
-              {/* Total Card */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Total Recorded Operational Expenses
-                  </span>
-                  <h2 className="text-3xl font-black text-slate-900 dark:text-slate-100 font-mono mt-1">
-                    {formatPKR(totalExpenseAmount)}
-                  </h2>
+              {/* Overview Metric Cards: Operational vs Purchases */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Operational Expenses
+                    </span>
+                    <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 font-mono mt-1">
+                      {formatPKR(operationalExpenseAmount)}
+                    </h2>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Clinic overheads, salaries, rent & utilities
+                    </p>
+                  </div>
+                  <div className="mt-3">
+                    <Badge variant="primary" size="sm">
+                      {filteredExpenses.length} Active Operational Entries
+                    </Badge>
+                  </div>
                 </div>
-                <Badge variant="primary" size="md">
-                  {expenses.length} Active Entries
-                </Badge>
+
+                <div className="bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/60 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <span className="text-xs font-semibold text-blue-700 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <ShoppingBag className="w-3.5 h-3.5" />
+                      Purchases (Product Procurement)
+                    </span>
+                    <h2 className="text-2xl sm:text-3xl font-black text-blue-950 dark:text-blue-100 font-mono mt-1">
+                      {formatPKR(purchaseExpenseAmount)}
+                    </h2>
+                    <p className="text-[11px] text-blue-600/80 dark:text-blue-400/80 mt-1">
+                      Separated vendor orders, stock & medicine inventory
+                    </p>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <Badge variant="info" size="sm">
+                      {purchaseBills.length} Purchase Bills
+                    </Badge>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("purchases")}
+                      className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      View Purchases Tab →
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Combined Clinic Outflow
+                    </span>
+                    <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 font-mono mt-1">
+                      {formatPKR(totalExpenseAmount)}
+                    </h2>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Total Operational Expenses + Purchases
+                    </p>
+                  </div>
+                  <div className="mt-3">
+                    <Badge variant="neutral" size="sm">
+                      Net Operating Outflow
+                    </Badge>
+                  </div>
+                </div>
               </div>
 
               {/* Filter & Search Bar */}
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <Input
-                  placeholder="Search expenses by title, vendor, product, or added by..."
+                  placeholder="Search operational expenses by title, staff, or notes..."
                   value={expSearch}
                   onChange={(e) => setExpSearch(e.target.value)}
                   icon={<Search className="w-4 h-4" />}
@@ -2120,7 +2273,6 @@ export default function FinanceReportsPage() {
                       { label: "Electric Bill", value: "Electric Bill" },
                       { label: "Water Bill", value: "Water Bill" },
                       { label: "Rent", value: "Rent" },
-                      { label: "Products", value: "Products" },
                       { label: "Machines", value: "Machines" },
                       { label: "Marketing", value: "Marketing" },
                       { label: "Other", value: "Other" },
@@ -2164,8 +2316,7 @@ export default function FinanceReportsPage() {
 
                         const isVendorExpense = !!(
                           exp.vendorName ||
-                          exp.paymentType ||
-                          exp.category === "Products"
+                          exp.paymentType
                         );
                         const approvals = exp.deletionApprovals || [];
                         const totalApprovers = Math.max(1, partners.length + 1);
@@ -2533,13 +2684,12 @@ export default function FinanceReportsPage() {
                             "Electric Bill",
                             "Water Bill",
                             "Rent",
-                            "Products",
                             "Machines",
                             "Marketing",
                             "Other",
                           ].map((cat) => {
                             const amt = expenses
-                              .filter((e) => e.category === cat)
+                              .filter((e) => e.category === cat && !e.id?.startsWith("EXP-PUR-"))
                               .reduce((sum, e) => sum + e.amount, 0);
                             return (
                               <tr key={cat}>
@@ -2551,6 +2701,29 @@ export default function FinanceReportsPage() {
                             );
                           })}
                         </tbody>
+                        <tfoot className="border-t border-slate-200 dark:border-slate-700 font-bold text-xs sm:text-sm">
+                          <tr className="bg-blue-50/50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300">
+                            <td className="py-2.5 px-4 flex items-center justify-between">
+                              <span>Purchases (Product & Stock Orders)</span>
+                              <button
+                                type="button"
+                                onClick={() => setActiveTab("purchases")}
+                                className="text-[11px] underline font-semibold text-blue-600 dark:text-blue-400"
+                              >
+                                View in Purchases →
+                              </button>
+                            </td>
+                            <td className="py-2.5 px-4 text-right font-mono font-bold text-blue-600 dark:text-blue-400">
+                              -{formatPKR(purchaseExpenseAmount)}
+                            </td>
+                          </tr>
+                          <tr className="bg-slate-100/60 dark:bg-slate-800/60 text-slate-900 dark:text-slate-100">
+                            <td className="py-2.5 px-4 font-black">Total Combined Outflow (Operational + Purchases)</td>
+                            <td className="py-2.5 px-4 text-right font-mono font-black text-rose-600">
+                              -{formatPKR(totalExpenseAmount)}
+                            </td>
+                          </tr>
+                        </tfoot>
                       </table>
                     </div>
                   </div>
@@ -2570,9 +2743,23 @@ export default function FinanceReportsPage() {
         maxWidth="lg"
       >
         <form onSubmit={handleAddExpense} className="space-y-4">
+          <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between">
+            <span>Buying product inventory or clinic stock?</span>
+            <button
+              type="button"
+              onClick={() => {
+                setIsAddExpenseModalOpen(false);
+                setActiveTab("purchases");
+              }}
+              className="font-bold underline hover:text-blue-800 dark:hover:text-blue-200 ml-2 shrink-0 cursor-pointer"
+            >
+              Use Purchases Tab →
+            </button>
+          </div>
+
           <Input
             label="Expense Title"
-            placeholder="e.g. Allergan Botox Stock Shipment"
+            placeholder="e.g. Clinic Cleaning Supplies, Courier, Tea & Refreshments"
             value={expTitle}
             onChange={(e) => setExpTitle(e.target.value)}
             required
@@ -2586,7 +2773,6 @@ export default function FinanceReportsPage() {
                 { label: "Electric Bill", value: "Electric Bill" },
                 { label: "Water Bill", value: "Water Bill" },
                 { label: "Rent", value: "Rent" },
-                { label: "Products", value: "Products" },
                 { label: "Machines", value: "Machines" },
                 { label: "Marketing", value: "Marketing" },
                 { label: "Other", value: "Other" },
@@ -2662,7 +2848,7 @@ export default function FinanceReportsPage() {
         <form onSubmit={handleEditExpenseSubmit} className="space-y-4">
           <Input
             label="Expense Title"
-            placeholder="e.g. Allergan Botox Stock Shipment"
+            placeholder="e.g. Clinic Cleaning Supplies, Courier, Tea & Refreshments"
             value={editExpTitle}
             onChange={(e) => setEditExpTitle(e.target.value)}
             required
@@ -2676,7 +2862,6 @@ export default function FinanceReportsPage() {
                 { label: "Electric Bill", value: "Electric Bill" },
                 { label: "Water Bill", value: "Water Bill" },
                 { label: "Rent", value: "Rent" },
-                { label: "Products", value: "Products" },
                 { label: "Machines", value: "Machines" },
                 { label: "Marketing", value: "Marketing" },
                 { label: "Other", value: "Other" },

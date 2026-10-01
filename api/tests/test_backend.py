@@ -1019,16 +1019,23 @@ async def test_staff_purchase_and_expense_attributed_to_dr_zaini(client: AsyncCl
     assert len(pur_data["paymentLogs"]) > 0
     assert pur_data["paymentLogs"][0]["paid_by"] == "Dr. Zaini"
 
-    # Verify associated ExpenseItem was created with Dr. Zaini
+    # Verify purchase is kept separate from regular ExpenseItem (operational expenses)
     from app.models.expense import ExpenseItem
+    from app.models.purchase import PurchaseBill
     exp_res = await db.execute(
         select(ExpenseItem).where(ExpenseItem.title.ilike("%Aesthetic Pharma Supply%"))
     )
     exp = exp_res.scalars().first()
-    assert exp is not None
-    assert exp.added_by == "Dr. Zaini"
-    assert exp.paid_by == "Dr. Zaini"
-    assert exp.status == "Paid"
+    assert exp is None, "Purchases must not be created as regular operational ExpenseItems"
+
+    bill_res = await db.execute(
+        select(PurchaseBill).where(PurchaseBill.id == pur_data["id"])
+    )
+    bill = bill_res.scalars().first()
+    assert bill is not None
+    assert bill.created_by == "Dr. Zaini"
+    assert bill.paid_by == "Dr. Zaini"
+    assert bill.payment_status == "Paid"
 
     # 4. Staff pays remaining due on a bill
     # Create partial bill first
@@ -1082,6 +1089,102 @@ async def test_staff_purchase_and_expense_attributed_to_dr_zaini(client: AsyncCl
     assert staff_exp_data["addedBy"] == "Dr. Zaini"
     assert staff_exp_data["paidBy"] == "Dr. Zaini"
     assert staff_exp_data["status"] == "Paid"
+
+
+@pytest.mark.asyncio
+async def test_partner_purchases_contribution_in_total_invested(client: AsyncClient, db: AsyncSession):
+    login_response = await client.post("/api/v1/auth/login", json={
+        "email": "admin@gmail.com",
+        "password": "admin"
+    })
+    token = login_response.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Fetch initial equity
+    eq_res = await client.get("/api/v1/partners/equity", headers=headers)
+    assert eq_res.status_code == 200
+    initial_equity = eq_res.json()
+    partners = initial_equity["partners"]
+    sheraz_before = next((p for p in partners if "sheraz" in p["partnerName"].lower()), None)
+    zaini_before = next((p for p in partners if "zaini" in p["partnerName"].lower()), None)
+
+    # 1. Partner Sheraz pays a purchase bill in full on creation
+    pur_payload = {
+        "vendorName": "Sheraz Derma Vendor",
+        "invoiceNumber": f"BILL-SHZ-TEST",
+        "items": [
+            {
+                "itemName": "Hydra Serum Premium",
+                "category": "Products",
+                "quantity": 5,
+                "unitCost": 4000.0,
+                "sellingPrice": 7000.0
+            }
+        ],
+        "date": "2026-10-01",
+        "paymentStatus": "Paid",
+        "amountPaid": 20000.0,
+        "paymentMethod": "Online",
+        "paidBy": "Sheraz",
+        "notes": "Sheraz funded purchase stock"
+    }
+    pur_res = await client.post("/api/v1/purchases", json=pur_payload, headers=headers)
+    assert pur_res.status_code == 200
+
+    # 2. Check that Sheraz's totalInvested and purchaseContributions increased by 20,000
+    eq_res2 = await client.get("/api/v1/partners/equity", headers=headers)
+    assert eq_res2.status_code == 200
+    partners2 = eq_res2.json()["partners"]
+    sheraz_after = next((p for p in partners2 if "sheraz" in p["partnerName"].lower()), None)
+
+    if sheraz_before and sheraz_after:
+        assert sheraz_after["purchaseContributions"] >= sheraz_before.get("purchaseContributions", 0.0) + 20000.0
+        assert sheraz_after["totalInvested"] >= sheraz_before["totalInvested"] + 20000.0
+        assert sheraz_after["netCapitalBalance"] >= sheraz_before["netCapitalBalance"] + 20000.0
+
+    # 3. Create a partial purchase bill and pay remaining part as Dr. Zaini
+    partial_payload = {
+        "vendorName": "Zaini Bio Tech",
+        "invoiceNumber": "BILL-ZAI-PART",
+        "items": [
+            {
+                "itemName": "Hyaluronic Acid Vials",
+                "category": "Products",
+                "quantity": 10,
+                "unitCost": 1000.0,
+                "sellingPrice": 2500.0
+            }
+        ],
+        "date": "2026-10-01",
+        "paymentStatus": "Partial",
+        "amountPaid": 3000.0,
+        "paymentMethod": "Cash",
+        "paidBy": "Cash",  # Shared cash on bill creation
+        "notes": "Shared clinic cash initial deposit"
+    }
+    part_res = await client.post("/api/v1/purchases", json=partial_payload, headers=headers)
+    assert part_res.status_code == 200
+    bill_id = part_res.json()["id"]
+
+    # Dr. Zaini settles partial remaining 7,000 out of pocket
+    pay_res = await client.post(f"/api/v1/purchases/bills/{bill_id}/pay", json={
+        "amount": 7000.0,
+        "paymentMethod": "Bank Transfer",
+        "paidBy": "Dr. Zaini",
+        "notes": "Dr. Zaini personal capital settlement"
+    }, headers=headers)
+    assert pay_res.status_code == 200
+
+    # 4. Check that Dr. Zaini's purchaseContributions and totalInvested increased by 7,000
+    eq_res3 = await client.get("/api/v1/partners/equity", headers=headers)
+    assert eq_res3.status_code == 200
+    partners3 = eq_res3.json()["partners"]
+    zaini_after = next((p for p in partners3 if "zaini" in p["partnerName"].lower()), None)
+
+    if zaini_before and zaini_after:
+        assert zaini_after["purchaseContributions"] >= zaini_before.get("purchaseContributions", 0.0) + 7000.0
+        assert zaini_after["totalInvested"] >= zaini_before["totalInvested"] + 7000.0
+
 
 
 

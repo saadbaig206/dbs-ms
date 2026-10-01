@@ -178,7 +178,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       isOpen={isOpen}
       onClose={handleClose}
       title="Record Clinic Expense"
-      description="Quickly record petty cash, vendor payments, or operational clinic expenses"
+      description="Quickly record petty cash, utility bills, or operational clinic expenses"
       maxWidth="lg"
     >
       {successMsg ? (
@@ -191,6 +191,17 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between">
+            <span>Procuring product stock or supplier orders?</span>
+            <a
+              href="/purchases"
+              onClick={handleClose}
+              className="font-bold underline hover:text-blue-800 dark:hover:text-blue-200 ml-2 shrink-0 cursor-pointer"
+            >
+              Use Purchases Tab →
+            </a>
+          </div>
+
           {errorMsg && (
             <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs font-semibold">
               {errorMsg}
@@ -211,7 +222,6 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               label="Category"
               options={[
                 { label: 'Other / Miscellaneous', value: 'Other' },
-                { label: 'Products & Consumables', value: 'Products' },
                 { label: 'Marketing & Ads', value: 'Marketing' },
                 { label: 'Electric Bill', value: 'Electric Bill' },
                 { label: 'Water Bill', value: 'Water Bill' },

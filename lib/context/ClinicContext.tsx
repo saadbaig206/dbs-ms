@@ -1379,7 +1379,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Partner Equity
   const refreshPartnerEquity = async () => {
     try {
-      const data = await fetchSafe<PartnerEquityOverview | null>('/partners/equity', null);
+      const data = await fetchSafe<PartnerEquityOverview | null>(`/partners/equity?_t=${Date.now()}`, null);
       if (data) {
         setPartnerEquity(data);
       }

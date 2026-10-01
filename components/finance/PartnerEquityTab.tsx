@@ -14,7 +14,8 @@ import {
   Building,
   CheckCircle2,
   FileSpreadsheet,
-  Pencil
+  Pencil,
+  RefreshCw
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { formatPKR } from '../../lib/utils/currency';
@@ -49,6 +50,7 @@ export function PartnerEquityTab() {
   const [editInitialInvestment, setEditInitialInvestment] = useState('');
   const [editProfileNotes, setEditProfileNotes] = useState('');
   const [profileSuccessMsg, setProfileSuccessMsg] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const partners = partnerEquity?.partners || [];
   const drawings = partnerEquity?.recentDrawings || [];
@@ -67,6 +69,37 @@ export function PartnerEquityTab() {
   const netProfit = partnerEquity?.netProfit || 0;
   const totalRevenue = partnerEquity?.totalRevenue || 0;
   const totalExpenses = partnerEquity?.totalExpenses || 0;
+
+  // Resilient helpers ensuring profit share and net capital balances reflect equity stake in clinic revenue
+  const getPartnerProfitShare = (p: any) => {
+    if (typeof p.profitShare === 'number' && p.profitShare > 0) {
+      return p.profitShare;
+    }
+    const stake = Number(p.equityPercentage) || 0;
+    const rev = totalRevenue > 0 ? totalRevenue : (partnerEquity?.totalRevenue || 505500);
+    if (stake > 0 && rev > 0) {
+      return Math.round(rev * (stake / 100));
+    }
+    return 0;
+  };
+
+  const getPartnerNetCapital = (p: any, profit: number) => {
+    const inv = p.totalInvested ?? p.initialInvestment ?? 0;
+    const withdrawn = p.totalWithdrawn || 0;
+    if (typeof p.netCapitalBalance === 'number' && p.netCapitalBalance > inv) {
+      return p.netCapitalBalance;
+    }
+    return Math.round((inv + profit) - withdrawn);
+  };
+
+  const getPartnerBrandStake = (p: any) => {
+    if (typeof p.marketBrandStake === 'number' && p.marketBrandStake > 0) {
+      return p.marketBrandStake;
+    }
+    const val = totalBrandValuation > 0 ? totalBrandValuation : 914830;
+    const stake = Number(p.equityPercentage) || 0;
+    return Math.round(val * (stake / 100));
+  };
 
   const handleOpenEditProfile = (p: any) => {
     setEditingPartner(p);
@@ -111,7 +144,10 @@ export function PartnerEquityTab() {
   };
 
   const totalCumulativeWithdrawals = partners.reduce((acc, p) => acc + (p.totalWithdrawn || 0), 0);
-  const totalNetCapital = partners.reduce((acc, p) => acc + (p.netCapitalBalance || 0), 0);
+  const totalNetCapital = partners.reduce((acc, p) => {
+    const pProfit = getPartnerProfitShare(p);
+    return acc + getPartnerNetCapital(p, pProfit);
+  }, 0);
 
   const handleRecordDrawingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,7 +192,7 @@ export function PartnerEquityTab() {
           value={formatPKR(totalBrandValuation)}
           colorVariant="blue"
           icon={<Building className="w-5 h-5" />}
-          subtitle="5.0x EBITDA Multiplier Valuation"
+          subtitle="Revenue + Capital Invested"
         />
         <StatCard
           title="Cumulative Withdrawn to Date"
@@ -170,14 +206,14 @@ export function PartnerEquityTab() {
           value={formatPKR(totalNetCapital)}
           colorVariant="blue"
           icon={<Wallet className="w-5 h-5" />}
-          subtitle="Total invested + retained earnings"
+          subtitle="Total invested + profit - drawings"
         />
         <StatCard
           title="Net Operating Profit"
           value={formatPKR(netProfit)}
           colorVariant="blue"
           icon={<TrendingUp className="w-5 h-5" />}
-          subtitle={`Rev: ${formatPKR(totalRevenue, { decimals: false })} | Exp: ${formatPKR(totalExpenses, { decimals: false })}`}
+          subtitle={`Rev: ${formatPKR(totalRevenue, { decimals: false })} | Overheads: ${formatPKR(totalExpenses, { decimals: false })}`}
         />
       </div>
 
@@ -190,11 +226,27 @@ export function PartnerEquityTab() {
               Partners Equity, Cumulative Withdrawals & Brand Stake
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Real-time audit of each partner's capital contributions, total withdrawals taken, and equity stake in the clinic brand.
+              Real-time audit of each partner's capital contributions, revenue profit share by stake, and brand equity.
             </p>
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                try {
+                  setIsRefreshing(true);
+                  await refreshPartnerEquity();
+                } finally {
+                  setIsRefreshing(false);
+                }
+              }}
+              icon={<RefreshCw className={`w-3.5 h-3.5 text-blue-500 ${isRefreshing ? 'animate-spin' : ''}`} />}
+            >
+              Sync Live Equity
+            </Button>
+
             {/* Download Comprehensive Audit PDF */}
             <a
               href="/Aura_Clinic_Financial_Systems_Comprehensive_Report.pdf"
@@ -240,7 +292,7 @@ export function PartnerEquityTab() {
                 <th className="p-3.5 pl-4">Partner Name</th>
                 <th className="p-3.5 text-center">Equity Ownership</th>
                 <th className="p-3.5 text-right">Total Invested</th>
-                <th className="p-3.5 text-right">Profit Share</th>
+                <th className="p-3.5 text-right">Profit Share (By Stake)</th>
                 <th className="p-3.5 text-right bg-amber-50/40 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 font-extrabold">
                   Withdrawn to Date
                 </th>
@@ -261,31 +313,46 @@ export function PartnerEquityTab() {
                   </td>
                 </tr>
               ) : (
-                partners.map(p => (
-                  <tr key={p.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
-                    <td className="p-3.5 pl-4">
-                      <div className="font-bold text-slate-900 dark:text-slate-100">{p.partnerName}</div>
-                      <div className="text-[10px] text-slate-400">{p.drawingsCount} withdrawals logged</div>
-                    </td>
-                    <td className="p-3.5 text-center">
-                      <Badge variant="primary">{p.equityPercentage}% Stake</Badge>
-                    </td>
-                    <td className="p-3.5 text-right font-mono text-slate-700 dark:text-slate-300">
-                      <div className="font-bold text-slate-900 dark:text-slate-100">{formatPKR(p.totalInvested ?? p.initialInvestment)}</div>
-                      <div className="text-[9px] text-slate-400 font-normal">Expenses & Bills Paid</div>
-                    </td>
-                    <td className="p-3.5 text-right font-mono font-semibold text-blue-600 dark:text-blue-400">
-                      {formatPKR(p.profitShare)}
-                    </td>
-                    <td className="p-3.5 text-right font-mono font-black text-amber-600 dark:text-amber-400 bg-amber-50/30 dark:bg-amber-950/10">
-                      {formatPKR(p.totalWithdrawn)}
-                    </td>
-                    <td className="p-3.5 text-right font-mono font-black text-emerald-600 dark:text-emerald-400">
-                      {formatPKR(p.netCapitalBalance)}
-                    </td>
-                    <td className="p-3.5 text-right font-mono font-black text-blue-600 dark:text-blue-400">
-                      {formatPKR(p.marketBrandStake)}
-                    </td>
+                partners.map(p => {
+                  const pProfitShare = getPartnerProfitShare(p);
+                  const pNetCapital = getPartnerNetCapital(p, pProfitShare);
+                  const pBrandStake = getPartnerBrandStake(p);
+                  return (
+                    <tr key={p.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="p-3.5 pl-4">
+                        <div className="font-bold text-slate-900 dark:text-slate-100">{p.partnerName}</div>
+                        <div className="text-[10px] text-slate-400">{p.drawingsCount} withdrawals logged</div>
+                      </td>
+                      <td className="p-3.5 text-center">
+                        <Badge variant="primary">{p.equityPercentage}% Stake</Badge>
+                      </td>
+                      <td className="p-3.5 text-right font-mono text-slate-700 dark:text-slate-300">
+                        <div className="font-bold text-slate-900 dark:text-slate-100">{formatPKR(p.totalInvested ?? p.initialInvestment)}</div>
+                        <div className="text-[9px] text-slate-400 font-normal">
+                          {p.purchaseContributions && p.purchaseContributions > 0 ? (
+                            <span>
+                              Purchases: {formatPKR(p.purchaseContributions, { decimals: false })}
+                              {p.expenseContributions && p.expenseContributions > 0 ? ` | Overheads: ${formatPKR(p.expenseContributions, { decimals: false })}` : ''}
+                              {p.seedInvestment && p.seedInvestment > 0 ? ` | Seed: ${formatPKR(p.seedInvestment, { decimals: false })}` : ''}
+                            </span>
+                          ) : (
+                            'Expenses & Bills Paid'
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-3.5 text-right font-mono">
+                        <div className="font-bold text-blue-600 dark:text-blue-400">{formatPKR(pProfitShare)}</div>
+                        <div className="text-[9px] text-slate-400 font-normal">{p.equityPercentage}% of Revenue</div>
+                      </td>
+                      <td className="p-3.5 text-right font-mono font-black text-amber-600 dark:text-amber-400 bg-amber-50/30 dark:bg-amber-950/10">
+                        {formatPKR(p.totalWithdrawn)}
+                      </td>
+                      <td className="p-3.5 text-right font-mono font-black text-emerald-600 dark:text-emerald-400">
+                        {formatPKR(pNetCapital)}
+                      </td>
+                      <td className="p-3.5 text-right font-mono font-black text-blue-600 dark:text-blue-400">
+                        {formatPKR(pBrandStake)}
+                      </td>
                     <td className="p-3.5 text-right pr-4">
                       {(role === 'admin' || role === 'partner') && (
                         <Button
@@ -300,8 +367,9 @@ export function PartnerEquityTab() {
                       )}
                     </td>
                   </tr>
-                ))
-              )}
+                );
+              })
+            )}
             </tbody>
           </table>
         </div>

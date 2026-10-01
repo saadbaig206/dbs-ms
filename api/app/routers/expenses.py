@@ -23,9 +23,13 @@ async def list_expenses(
     user_branch_id: Optional[str] = Depends(get_user_branch_id)
 ):
     query = select(ExpenseItem).where(
-        or_(ExpenseItem.category != "Inventory Purchase", ExpenseItem.category.is_(None)),
+        or_(ExpenseItem.category.is_(None), ~ExpenseItem.category.ilike("Inventory Purchase")),
+        ~ExpenseItem.category.ilike("Products%"),
+        ~ExpenseItem.category.ilike("Purchase%"),
         ~ExpenseItem.id.ilike("EXP-PUR-%"),
-        ~ExpenseItem.title.ilike("Vendor Bill Payment:%")
+        ~ExpenseItem.id.ilike("PIT-%"),
+        ~ExpenseItem.title.ilike("Vendor Bill Payment:%"),
+        ~ExpenseItem.title.ilike("%Purchase Bill%")
     )
     if search:
         pattern = f"%{search}%"

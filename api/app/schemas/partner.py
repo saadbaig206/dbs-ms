@@ -36,6 +36,9 @@ class PartnerEquityReportItem(CamelModel):
     net_capital_balance: float
     market_brand_stake: float
     drawings_count: int
+    expense_contributions: float = 0.0
+    purchase_contributions: float = 0.0
+    seed_investment: float = 0.0
 
 class PartnerEquityOverviewResponse(CamelModel):
     total_revenue: float

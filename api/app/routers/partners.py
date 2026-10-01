@@ -1,7 +1,7 @@
 import secrets
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -9,6 +9,7 @@ from app.core.deps import get_db, get_admin_or_partner_user, get_admin_user
 from app.models.partner import PartnerProfile, PartnerDrawing
 from app.models.transaction import FinancialTransaction
 from app.models.expense import ExpenseItem
+from app.models.purchase import PurchaseBill
 from app.models.user import User
 from app.schemas.partner import (
     PartnerProfileInput,
@@ -54,15 +55,40 @@ def is_payer_match(payer: Optional[str], partner_name: str, user_email: Optional
         return True
     return False
 
-def calculate_partner_investments(profiles: list, paid_expenses: list) -> dict:
+def calculate_partner_investments(
+    profiles: list,
+    paid_expenses: list,
+    purchase_bills: Optional[list] = None,
+    return_breakdown: bool = False
+) -> dict:
     """
-    Calculates invested capital for each active partner based strictly on direct expenses they paid out of pocket or initial investments.
+    Calculates invested capital for each active partner based strictly on:
+    1. Initial/seed equity investments
+    2. Direct operational expenses paid out of pocket
+    3. Direct contributions towards purchase bills (either partial logs or full bill payments)
     General clinic expenses paid from shared clinic cash/drawer are not attributed to individual partner capital accounts.
     """
-    direct_investments = {p.id: float(p.initial_investment or 0.0) for p in profiles}
+    seed_inv = {p.id: float(p.initial_investment or 0.0) for p in profiles}
+    exp_inv = {p.id: 0.0 for p in profiles}
+    pur_inv = {p.id: 0.0 for p in profiles}
 
+    # 1. Operational expenses directly paid by partners
     for e in paid_expenses:
         if e.category == "Partner Drawing" or "Partner Drawing" in (e.title or ""):
+            continue
+        cat = (e.category or '').lower()
+        title = (e.title or '').lower()
+        eid = (e.id or '').upper()
+        if (
+            cat in ('inventory purchase', 'products', 'purchases', 'purchase')
+            or eid.startswith('EXP-PUR-')
+            or eid.startswith('PIT-')
+            or '-PUR-' in eid
+            or 'vendor bill' in title
+            or 'purchase bill' in title
+            or 'supplier order' in title
+            or getattr(e, 'product_name', None)
+        ):
             continue
 
         if e.payment_logs and isinstance(e.payment_logs, list) and len(e.payment_logs) > 0:
@@ -75,7 +101,7 @@ def calculate_partner_investments(profiles: list, paid_expenses: list) -> dict:
                 log_payer = log.get("paidBy") or log.get("paid_by") or e.paid_by
                 matched_p = next((p for p in profiles if is_payer_match(log_payer, p.partner_name, getattr(p, "user_email", None))), None)
                 if matched_p:
-                    direct_investments[matched_p.id] += log_amt
+                    exp_inv[matched_p.id] += log_amt
             continue
 
         amt = float(e.amount_paid if e.amount_paid is not None else (e.amount if (e.status or "").lower() == "paid" else 0.0))
@@ -83,11 +109,46 @@ def calculate_partner_investments(profiles: list, paid_expenses: list) -> dict:
             continue
         matched_p = next((p for p in profiles if is_payer_match(e.paid_by, p.partner_name, getattr(p, "user_email", None))), None)
         if matched_p:
-            direct_investments[matched_p.id] += amt
+            exp_inv[matched_p.id] += amt
+
+    # 2. Purchase bill contributions (either partial payment logs or full payments)
+    if purchase_bills:
+        for b in purchase_bills:
+            if b.payment_logs and isinstance(b.payment_logs, list) and len(b.payment_logs) > 0:
+                for log in b.payment_logs:
+                    if not isinstance(log, dict):
+                        continue
+                    log_amt = float(log.get("amount", 0.0))
+                    if log_amt <= 0:
+                        continue
+                    log_payer = log.get("paid_by") or log.get("paidBy") or b.paid_by or b.created_by
+                    matched_p = next((p for p in profiles if is_payer_match(log_payer, p.partner_name, getattr(p, "user_email", None))), None)
+                    if matched_p:
+                        pur_inv[matched_p.id] += log_amt
+                continue
+
+            amt = float(b.amount_paid if b.amount_paid is not None else (b.total_amount if (b.payment_status or "").lower() == "paid" else 0.0))
+            if amt <= 0:
+                continue
+            payer = b.paid_by or b.created_by
+            matched_p = next((p for p in profiles if is_payer_match(payer, p.partner_name, getattr(p, "user_email", None))), None)
+            if matched_p:
+                pur_inv[matched_p.id] += amt
+
+    if return_breakdown:
+        return {
+            p.id: {
+                "total": round(seed_inv[p.id] + exp_inv[p.id] + pur_inv[p.id], 2),
+                "seed": round(seed_inv[p.id], 2),
+                "expenses": round(exp_inv[p.id], 2),
+                "purchases": round(pur_inv[p.id], 2),
+            }
+            for p in profiles
+        }
 
     total_investments = {}
     for p in profiles:
-        total_investments[p.id] = round(direct_investments[p.id], 2)
+        total_investments[p.id] = round(seed_inv[p.id] + exp_inv[p.id] + pur_inv[p.id], 2)
 
     return total_investments
 
@@ -96,10 +157,14 @@ router = APIRouter()
 
 @router.get("/equity", response_model=PartnerEquityOverviewResponse)
 async def get_partner_equity_overview(
+    response: Response,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_admin_or_partner_user)
 ):
     """Retrieve full partner equity balances, cumulative withdrawals to date, and market brand valuation."""
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
     # 1. Dynamically sync all eligible admin & partner users (excluding admin@gmail.com and staff@gmail.com)
     users_res = await db.execute(
         select(User).where(
@@ -181,39 +246,53 @@ async def get_partner_equity_overview(
     ]
     operational_exp = 0.0
     for e in eligible_expenses:
-        if e.category == 'Inventory Purchase':
+        cat = (e.category or '').lower()
+        title = (e.title or '').lower()
+        eid = (e.id or '').upper()
+        if (
+            cat in ('inventory purchase', 'products', 'purchases', 'purchase')
+            or eid.startswith('EXP-PUR-')
+            or eid.startswith('PIT-')
+            or '-PUR-' in eid
+            or 'vendor bill' in title
+            or 'purchase bill' in title
+            or 'supplier order' in title
+            or getattr(e, 'product_name', None)
+        ):
             continue
         if e.payment_logs and isinstance(e.payment_logs, list) and len(e.payment_logs) > 0:
             operational_exp += sum(float(l.get('amount', 0.0)) for l in e.payment_logs if isinstance(l, dict))
         else:
             operational_exp += float(e.amount_paid if e.amount_paid is not None else (e.amount if (e.status or '').lower() == 'paid' else 0.0))
 
-    # Include settled purchase bills (stock & product purchases)
-    from app.models.purchase import PurchaseBill
-    pb_res = await db.execute(select(PurchaseBill))
-    purchase_bills = pb_res.scalars().all()
-    purchase_exp = sum(b.amount_paid or 0.0 for b in purchase_bills)
-
-    total_exp = operational_exp + purchase_exp
-    net_profit = max(0.0, total_rev - total_exp)
+    # Net operating profit is Revenue minus operational overhead expenses
+    net_operating_profit = max(0.0, total_rev - operational_exp)
     
     # 3. All drawings
     drw_res = await db.execute(select(PartnerDrawing).order_by(PartnerDrawing.date.desc(), PartnerDrawing.id.desc()))
     all_drawings = drw_res.scalars().all()
 
-    # 4. Total dynamic invested across all partners (including partial salary payouts)
-    partner_investments = calculate_partner_investments(profiles, eligible_expenses)
-    total_dynamic_invested = sum(partner_investments.values())
-    estimated_brand_valuation = (net_profit * 5.0) + total_dynamic_invested
+    # Query purchase bills for partner purchase investment attribution
+    pb_res = await db.execute(select(PurchaseBill))
+    purchase_bills = pb_res.scalars().all()
+
+    # 4. Total dynamic invested across all partners (including seed, direct expenses, and full/partial purchase contributions)
+    breakdown_investments = calculate_partner_investments(profiles, eligible_expenses, purchase_bills, return_breakdown=True)
+    total_dynamic_invested = sum(b["total"] for b in breakdown_investments.values())
+
+    # Estimated Brand Valuation: Total Clinic Revenue + Total Capital Invested (no multiplier)
+    estimated_brand_valuation = round(total_rev + total_dynamic_invested, 2)
 
     partner_reports: List[PartnerEquityReportItem] = []
     for p in profiles:
         partner_draws = [d for d in all_drawings if d.partner_id == p.id]
         total_withdrawn = sum(d.amount for d in partner_draws)
-        profit_share = net_profit * (p.equity_percentage / 100.0)
-        partner_inv = partner_investments.get(p.id, 0.0)
-        net_capital = (partner_inv + profit_share) - total_withdrawn
-        brand_stake = estimated_brand_valuation * (p.equity_percentage / 100.0)
+        # Allocate profit share from revenue according to partner's equity stake
+        profit_share = round(total_rev * (p.equity_percentage / 100.0), 2)
+        b = breakdown_investments.get(p.id, {"total": 0.0, "seed": 0.0, "expenses": 0.0, "purchases": 0.0})
+        partner_inv = b["total"]
+        net_capital = round((partner_inv + profit_share) - total_withdrawn, 2)
+        brand_stake = round(estimated_brand_valuation * (p.equity_percentage / 100.0), 2)
 
         partner_reports.append(PartnerEquityReportItem(
             id=p.id,
@@ -225,7 +304,10 @@ async def get_partner_equity_overview(
             total_withdrawn=total_withdrawn,
             net_capital_balance=net_capital,
             market_brand_stake=brand_stake,
-            drawings_count=len(partner_draws)
+            drawings_count=len(partner_draws),
+            expense_contributions=b["expenses"],
+            purchase_contributions=b["purchases"],
+            seed_investment=b["seed"]
         ))
 
     recent_drawings_resp = [
@@ -243,8 +325,8 @@ async def get_partner_equity_overview(
 
     return PartnerEquityOverviewResponse(
         total_revenue=total_rev,
-        total_expenses=total_exp,
-        net_profit=net_profit,
+        total_expenses=operational_exp,
+        net_profit=net_operating_profit,
         estimated_brand_valuation=estimated_brand_valuation,
         partners=partner_reports,
         recent_drawings=recent_drawings_resp
@@ -303,12 +385,12 @@ async def record_partner_drawing(
     drw_res = await db.execute(select(PartnerDrawing).where(PartnerDrawing.partner_id == profile.id))
     partner_draws = drw_res.scalars().all()
     total_withdrawn = sum(d.amount for d in partner_draws)
-    profit_share = net_profit * (profile.equity_percentage / 100.0)
+    profit_share = round(total_rev * (profile.equity_percentage / 100.0), 2)
 
-    # Dynamic invested calculation for this partner
+    # Dynamic invested calculation for this partner including purchase bill investments
     all_prof_res = await db.execute(select(PartnerProfile))
     all_profs = all_prof_res.scalars().all()
-    partner_investments = calculate_partner_investments(all_profs, eligible_expenses)
+    partner_investments = calculate_partner_investments(all_profs, eligible_expenses, purchase_bills)
     partner_inv = partner_investments.get(profile.id, 0.0)
 
     net_capital = (partner_inv + profit_share) - total_withdrawn
