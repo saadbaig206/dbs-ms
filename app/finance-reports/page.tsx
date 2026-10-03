@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   DollarSign,
   TrendingUp,
+  TrendingDown,
   CreditCard,
   Lock,
   Search,
@@ -27,10 +28,24 @@ import {
   RotateCcw,
   Package,
   ShoppingBag,
+  BarChart3,
+  Layers,
 } from "lucide-react";
 import { clsx } from "clsx";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  Legend as RechartsLegend,
+} from "recharts";
 import { useClinic } from "../../lib/context/ClinicContext";
-import { formatPKR, formatUserName } from "../../lib/utils/currency";
+import { formatPKR, formatPKRCompact, formatUserName } from "../../lib/utils/currency";
 import { escapeHtml } from "../../lib/utils/sanitize";
 import { ExpenseCategory } from "../../lib/types/clinic";
 import { StatCard } from "../../components/cards/StatCard";
@@ -256,6 +271,11 @@ export default function FinanceReportsPage() {
   const [activeTab, setActiveTab] = useState<
     "transactions" | "purchases" | "expenses" | "equity" | "partner-expenses" | "reports"
   >("transactions");
+
+  const [isClientMounted, setIsClientMounted] = useState(false);
+  useEffect(() => {
+    setIsClientMounted(true);
+  }, []);
 
   // Refund / Sales Return Modal State
   const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
@@ -809,10 +829,14 @@ export default function FinanceReportsPage() {
       ) continue;
 
       const actual = e.actualAmount ?? e.amount ?? 0;
-      const paid =
-        e.amountPaid !== undefined && e.amountPaid !== null
-          ? e.amountPaid
-          : ((e.status || "").toLowerCase() === "paid" ? actual : 0);
+      let paid = 0;
+      if (e.paymentLogs && Array.isArray(e.paymentLogs) && e.paymentLogs.length > 0) {
+        paid = e.paymentLogs.reduce((acc: number, l: any) => acc + (Number(l?.amount) || 0), 0);
+      } else if (e.amountPaid !== undefined && e.amountPaid !== null) {
+        paid = Number(e.amountPaid) || 0;
+      } else if ((e.status || "").toLowerCase() === "paid") {
+        paid = actual;
+      }
 
       // Only count settled outflow
       if (paid <= 0 && (e.status || "").toLowerCase() !== "paid") continue;
@@ -923,6 +947,180 @@ export default function FinanceReportsPage() {
           ? `${marginTargetDiff.toFixed(1)}% below target (70%)`
           : `Target reached! (70%)`,
     };
+  }, [transactions, expenses, purchaseBills]);
+
+  const monthlyAnalyticsData = useMemo(() => {
+    const months = [
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    const curYear = new Date().getFullYear();
+
+    const monthMap: Record<
+      number,
+      {
+        monthIndex: number;
+        monthName: string;
+        fullMonthName: string;
+        revenue: number;
+        opExpenses: number;
+        purchExpenses: number;
+        totalExpenses: number;
+        netProfit: number;
+        margin: number;
+        categoryBreakdown: Record<string, number>;
+        topCategory: string;
+        txnCount: number;
+        expCount: number;
+        hasActivity: boolean;
+      }
+    > = {};
+
+    for (let m = 0; m < 12; m++) {
+      monthMap[m] = {
+        monthIndex: m,
+        monthName: months[m],
+        fullMonthName: `${new Date(curYear, m, 1).toLocaleString("en-US", { month: "long" })} ${curYear}`,
+        revenue: 0,
+        opExpenses: 0,
+        purchExpenses: 0,
+        totalExpenses: 0,
+        netProfit: 0,
+        margin: 0,
+        categoryBreakdown: {},
+        topCategory: "None",
+        txnCount: 0,
+        expCount: 0,
+        hasActivity: false,
+      };
+    }
+
+    // 1. Transactions (Revenue)
+    for (let i = 0; i < transactions.length; i++) {
+      const t = transactions[i];
+      const status = (t.status || "").toLowerCase();
+      if (status === "refunded" || status === "cancelled") continue;
+      const isDebtSettlement =
+        t.transactionType === "Debt_Settlement" ||
+        t.serviceName === "Client Debt Settlement";
+      if (isDebtSettlement) continue;
+
+      if (!t.date) continue;
+      const parts = t.date.split("-");
+      if (parts.length < 2) continue;
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      if (y !== curYear || m < 0 || m > 11) continue;
+
+      const gTotal = t.grandTotal || 0;
+      const isPartialOrPending =
+        t.paymentStatus === "Partial" ||
+        t.paymentStatus === "Unpaid" ||
+        t.status === "Pending" ||
+        (t.remainingDue !== undefined && t.remainingDue !== null && t.remainingDue > 0);
+
+      const paidAmt =
+        t.amountPaid !== undefined && t.amountPaid !== null
+          ? t.amountPaid
+          : (isPartialOrPending && t.remainingDue !== undefined && t.remainingDue !== null
+            ? Math.max(0, gTotal - t.remainingDue)
+            : (isPartialOrPending ? 0 : gTotal));
+
+      monthMap[m].revenue += paidAmt;
+      monthMap[m].txnCount += 1;
+      monthMap[m].hasActivity = true;
+    }
+
+    // 2. Operational Expenses
+    for (let i = 0; i < expenses.length; i++) {
+      const e = expenses[i];
+      const cat = (e.category || "").toLowerCase();
+      const id = (e.id || "").toUpperCase();
+      const title = (e.title || "").toLowerCase();
+      if (
+        cat === "inventory purchase" ||
+        cat === "products" ||
+        cat === "purchases" ||
+        cat === "purchase" ||
+        cat === "partner drawing" ||
+        id.startsWith("EXP-PUR-") ||
+        id.startsWith("EXP-DRW-") ||
+        id.startsWith("PIT-") ||
+        id.includes("-PUR-") ||
+        title.includes("partner drawing") ||
+        title.startsWith("vendor bill") ||
+        title.includes("purchase bill") ||
+        title.includes("supplier order") ||
+        Boolean((e as any).productName)
+      ) continue;
+
+      if (!e.date) continue;
+      const parts = e.date.split("-");
+      if (parts.length < 2) continue;
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      if (y !== curYear || m < 0 || m > 11) continue;
+
+      const actual = e.actualAmount ?? e.amount ?? 0;
+      let paid = 0;
+      if (e.paymentLogs && Array.isArray(e.paymentLogs) && e.paymentLogs.length > 0) {
+        paid = e.paymentLogs.reduce((acc: number, l: any) => acc + (Number(l?.amount) || 0), 0);
+      } else if (e.amountPaid !== undefined && e.amountPaid !== null) {
+        paid = Number(e.amountPaid) || 0;
+      } else if ((e.status || "").toLowerCase() === "paid") {
+        paid = actual;
+      }
+
+      if (paid <= 0 && (e.status || "").toLowerCase() !== "paid") continue;
+      const amt = paid > 0 ? paid : actual;
+
+      monthMap[m].opExpenses += amt;
+      monthMap[m].expCount += 1;
+      monthMap[m].hasActivity = true;
+
+      const displayCat = e.category || "General";
+      monthMap[m].categoryBreakdown[displayCat] = (monthMap[m].categoryBreakdown[displayCat] || 0) + amt;
+    }
+
+    // 3. Purchase Bills (Stock / Inventory Purchases)
+    for (let i = 0; i < purchaseBills.length; i++) {
+      const b = purchaseBills[i];
+      if (!b.date) continue;
+      const parts = b.date.split("-");
+      if (parts.length < 2) continue;
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      if (y !== curYear || m < 0 || m > 11) continue;
+
+      const paid =
+        b.amountPaid !== undefined && b.amountPaid !== null
+          ? b.amountPaid
+          : b.paymentStatus === "Paid"
+            ? b.totalAmount || 0
+            : 0;
+
+      if (paid <= 0) continue;
+      monthMap[m].purchExpenses += paid;
+      monthMap[m].hasActivity = true;
+    }
+
+    // 4. Summarize and format
+    return Object.values(monthMap).map((item) => {
+      item.totalExpenses = item.opExpenses + item.purchExpenses;
+      item.netProfit = item.revenue - item.opExpenses;
+      item.margin = item.revenue > 0 ? (item.netProfit / item.revenue) * 100 : 0;
+
+      let topCat = "None";
+      let topAmt = 0;
+      for (const [c, a] of Object.entries(item.categoryBreakdown)) {
+        if (a > topAmt) {
+          topAmt = a;
+          topCat = c;
+        }
+      }
+      item.topCategory = topCat;
+      return item;
+    });
   }, [transactions, expenses, purchaseBills]);
 
   const filteredTxns = useMemo(() => {
@@ -2808,28 +3006,586 @@ export default function FinanceReportsPage() {
               </div>
 
               {/* Active Report Visual Panel */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 shadow-sm space-y-6">
-                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
                   <div>
-                    <span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">
-                      Executive Analytics
+                    <span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest flex items-center gap-1.5">
+                      <BarChart3 className="w-3.5 h-3.5" />
+                      Executive Analytics & Audits
                     </span>
                     <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-0.5">
-                      {activeReport} Audit & Breakdown (2026)
+                      {activeReport} Audit & Trajectory (2026)
                     </h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      {activeReport === "Profit" && "Real-time monthly operating profit, overhead outflows, and profit margins."}
+                      {activeReport === "Expense" && "Month-by-month cash outflows across operating overheads and inventory purchases."}
+                      {activeReport === "Revenue" && "Monthly gross collections, payment tender breakdowns, and billing receipts."}
+                    </p>
                   </div>
                   <Badge variant="success" size="md">
                     Verified Fiscal Data
                   </Badge>
                 </div>
 
-                {/* Data Summaries instead of Visual Charts */}
-                {(activeReport === "Revenue" || activeReport === "Profit") && (
-                  <div className="space-y-4">
-                    <p className="text-xs text-slate-500">
-                      Overview of gross receipts, discounts applied, and
-                      resulting net revenue.
-                    </p>
+                {/* 1. SEPARATE PROFIT REPORT: Graph, KPIs, and Monthly Table */}
+                {activeReport === "Profit" && (
+                  <div className="space-y-6">
+                    {/* Top Profit KPI Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Gross Revenue
+                        </span>
+                        <span className="text-xl font-bold font-mono text-blue-600 dark:text-blue-400 mt-1 block">
+                          {formatPKR(totalRevenue)}
+                        </span>
+                        <span className="text-[11px] text-slate-400 mt-1 block">
+                          POS receipts & treatment billing
+                        </span>
+                      </div>
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Operating Overheads
+                        </span>
+                        <span className="text-xl font-bold font-mono text-rose-600 dark:text-rose-400 mt-1 block">
+                          -{formatPKR(operationalExpenseAmount)}
+                        </span>
+                        <span className="text-[11px] text-slate-400 mt-1 block">
+                          Staff salaries, rent, utilities
+                        </span>
+                      </div>
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Net Operating Profit
+                        </span>
+                        <span className={`text-xl font-bold font-mono mt-1 block ${isOperatingProfit ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                          {isOperatingProfit ? "+" : "-"}{formatPKR(Math.abs(netOperatingProfit))}
+                        </span>
+                        <span className="text-[11px] text-slate-400 mt-1 block">
+                          Realized operational surplus
+                        </span>
+                      </div>
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Operating Margin
+                        </span>
+                        <span className="text-xl font-bold font-mono text-indigo-600 dark:text-indigo-400 mt-1 block">
+                          {netOperatingMargin.toFixed(1)}%
+                        </span>
+                        <span className="text-[11px] text-slate-400 mt-1 block">
+                          Net operating profit / revenue
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Monthly Profit Visual Graph */}
+                    <div className="p-6 bg-slate-50/50 dark:bg-slate-800/20 border border-slate-100 dark:border-slate-800/80 rounded-2xl space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                            <TrendingUp className="w-4 h-4 text-emerald-500" />
+                            Monthly Profit & Revenue Trajectory (2026)
+                          </h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Comparative monthly visual of gross inflow, operational expenses, and net profit.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs">
+                          <span className="flex items-center gap-1.5 font-medium text-slate-600 dark:text-slate-300">
+                            <span className="w-3 h-3 rounded-xs bg-blue-500 inline-block" /> Revenue
+                          </span>
+                          <span className="flex items-center gap-1.5 font-medium text-slate-600 dark:text-slate-300">
+                            <span className="w-3 h-3 rounded-xs bg-rose-500 inline-block" /> Overheads
+                          </span>
+                          <span className="flex items-center gap-1.5 font-medium text-slate-600 dark:text-slate-300">
+                            <span className="w-3 h-3 rounded-xs bg-emerald-500 inline-block" /> Net Profit
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="w-full h-80 pt-2">
+                        {isClientMounted ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              data={monthlyAnalyticsData}
+                              margin={{ top: 15, right: 15, left: 10, bottom: 5 }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94A3B8" opacity={0.2} />
+                              <XAxis
+                                dataKey="monthName"
+                                stroke="#64748B"
+                                fontSize={11}
+                                tickLine={false}
+                                axisLine={{ stroke: '#E2E8F0' }}
+                              />
+                              <YAxis
+                                stroke="#64748B"
+                                fontSize={11}
+                                tickLine={false}
+                                axisLine={{ stroke: '#E2E8F0' }}
+                                tickFormatter={(v) => formatPKRCompact(v)}
+                              />
+                              <RechartsTooltip
+                                formatter={(value: any, name: any) => [formatPKR(Number(value)), name]}
+                                contentStyle={{
+                                  backgroundColor: "#0F172A",
+                                  borderRadius: "12px",
+                                  border: "none",
+                                  color: "#FFF",
+                                  fontSize: "12px",
+                                  boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+                                }}
+                                labelStyle={{ fontWeight: "bold", color: "#94A3B8", marginBottom: "4px" }}
+                              />
+                              <Bar
+                                dataKey="revenue"
+                                name="Gross Revenue"
+                                fill="#3B82F6"
+                                radius={[4, 4, 0, 0]}
+                                maxBarSize={28}
+                              />
+                              <Bar
+                                dataKey="opExpenses"
+                                name="Operating Overheads"
+                                fill="#F43F5E"
+                                radius={[4, 4, 0, 0]}
+                                maxBarSize={28}
+                              />
+                              <Bar
+                                dataKey="netProfit"
+                                name="Net Operating Profit"
+                                fill="#10B981"
+                                radius={[4, 4, 0, 0]}
+                                maxBarSize={28}
+                              />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-slate-100/50 dark:bg-slate-800/40 rounded-xl">
+                            <span className="text-xs text-slate-400">Loading Profit Chart...</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Monthly Profit Ledger Table */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                          <TrendingUp className="w-4 h-4 text-emerald-500" />
+                          Monthly Operating Profit & Margin Ledger (2026)
+                        </h4>
+                        <span className="text-xs font-semibold text-slate-500">
+                          12-Month Fiscal Breakdown
+                        </span>
+                      </div>
+
+                      <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                        <table className="w-full text-left text-xs sm:text-sm">
+                          <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[10px] font-bold text-slate-400 tracking-wider">
+                            <tr>
+                              <th className="py-3 px-4">Month</th>
+                              <th className="py-3 px-4 text-right">Gross Inflow (PKR)</th>
+                              <th className="py-3 px-4 text-right">Operating Overheads (PKR)</th>
+                              <th className="py-3 px-4 text-right">Net Operating Profit (PKR)</th>
+                              <th className="py-3 px-4 text-right">Margin (%)</th>
+                              <th className="py-3 px-4 text-center">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
+                            {monthlyAnalyticsData.map((row) => {
+                              const isPos = row.netProfit > 0;
+                              const isZero = row.netProfit === 0 && row.revenue === 0 && row.opExpenses === 0;
+                              return (
+                                <tr key={row.monthIndex} className={row.hasActivity ? "bg-blue-50/20 dark:bg-blue-950/10" : ""}>
+                                  <td className="py-3 px-4 font-bold flex items-center gap-2">
+                                    <span className={`w-2 h-2 rounded-full ${row.hasActivity ? "bg-blue-500" : "bg-slate-300 dark:bg-slate-700"}`} />
+                                    {row.fullMonthName}
+                                  </td>
+                                  <td className="py-3 px-4 text-right font-mono font-semibold text-slate-900 dark:text-slate-100">
+                                    {formatPKR(row.revenue)}
+                                  </td>
+                                  <td className="py-3 px-4 text-right font-mono font-semibold text-rose-600 dark:text-rose-400">
+                                    {row.opExpenses > 0 ? `-${formatPKR(row.opExpenses)}` : formatPKR(0)}
+                                  </td>
+                                  <td className={`py-3 px-4 text-right font-mono font-black ${isPos ? "text-emerald-600 dark:text-emerald-400" : row.netProfit < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-400"}`}>
+                                    {isPos ? `+${formatPKR(row.netProfit)}` : row.netProfit < 0 ? `-${formatPKR(Math.abs(row.netProfit))}` : formatPKR(0)}
+                                  </td>
+                                  <td className="py-3 px-4 text-right font-mono font-semibold">
+                                    {row.revenue > 0 ? `${row.margin.toFixed(1)}%` : "0.0%"}
+                                  </td>
+                                  <td className="py-3 px-4 text-center">
+                                    {isZero ? (
+                                      <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">No Activity</span>
+                                    ) : isPos ? (
+                                      <Badge variant="success" size="sm">Profitable</Badge>
+                                    ) : row.netProfit === 0 ? (
+                                      <Badge variant="warning" size="sm">Break-Even</Badge>
+                                    ) : (
+                                      <Badge variant="danger" size="sm">Deficit</Badge>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot className="border-t-2 border-slate-200 dark:border-slate-700 font-bold text-xs sm:text-sm bg-slate-50/80 dark:bg-slate-800/80">
+                            <tr>
+                              <td className="py-3.5 px-4 font-black text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                                Annual Fiscal Total
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono font-black text-blue-600 dark:text-blue-400">
+                                {formatPKR(totalRevenue)}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono font-black text-rose-600 dark:text-rose-400">
+                                -{formatPKR(operationalExpenseAmount)}
+                              </td>
+                              <td className={`py-3.5 px-4 text-right font-mono font-black ${isOperatingProfit ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                                {isOperatingProfit ? `+${formatPKR(netOperatingProfit)}` : `-${formatPKR(Math.abs(netOperatingProfit))}`}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono font-black text-indigo-600 dark:text-indigo-400">
+                                {netOperatingMargin.toFixed(1)}%
+                              </td>
+                              <td className="py-3.5 px-4 text-center">
+                                <Badge variant={isOperatingProfit ? "success" : "danger"} size="sm">
+                                  {isOperatingProfit ? "Net Profit" : "Net Deficit"}
+                                </Badge>
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. SEPARATE EXPENSE REPORT: Graph, KPIs, Monthly Table, and Category Table */}
+                {activeReport === "Expense" && (
+                  <div className="space-y-6">
+                    {/* Top Expense KPI Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Operational Overheads
+                        </span>
+                        <span className="text-xl font-bold font-mono text-rose-600 dark:text-rose-400 mt-1 block">
+                          {formatPKR(operationalExpenseAmount)}
+                        </span>
+                        <span className="text-[11px] text-slate-400 mt-1 block">
+                          Salaries, utilities, clinic rent
+                        </span>
+                      </div>
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Stock & Product Purchases
+                        </span>
+                        <span className="text-xl font-bold font-mono text-blue-600 dark:text-blue-400 mt-1 block">
+                          {formatPKR(purchaseExpenseAmount)}
+                        </span>
+                        <span className="text-[11px] text-slate-400 mt-1 block">
+                          Vendor inventory procurement
+                        </span>
+                      </div>
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Total Combined Outflow
+                        </span>
+                        <span className="text-xl font-bold font-mono text-slate-900 dark:text-slate-100 mt-1 block">
+                          {formatPKR(totalExpenseAmount)}
+                        </span>
+                        <span className="text-[11px] text-slate-400 mt-1 block">
+                          All operational + stock disbursements
+                        </span>
+                      </div>
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Expense Records
+                        </span>
+                        <span className="text-xl font-bold font-mono text-indigo-600 dark:text-indigo-400 mt-1 block">
+                          {expenses.length} Records
+                        </span>
+                        <span className="text-[11px] text-slate-400 mt-1 block">
+                          Verified audit entries
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Monthly Expense Visual Graph */}
+                    <div className="p-6 bg-slate-50/50 dark:bg-slate-800/20 border border-slate-100 dark:border-slate-800/80 rounded-2xl space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                            <CreditCard className="w-4 h-4 text-rose-500" />
+                            Monthly Expense Distribution (2026)
+                          </h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Breakdown of operational overheads vs. inventory stock purchases month by month.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs">
+                          <span className="flex items-center gap-1.5 font-medium text-slate-600 dark:text-slate-300">
+                            <span className="w-3 h-3 rounded-xs bg-indigo-500 inline-block" /> Operating Overheads
+                          </span>
+                          <span className="flex items-center gap-1.5 font-medium text-slate-600 dark:text-slate-300">
+                            <span className="w-3 h-3 rounded-xs bg-sky-500 inline-block" /> Stock Purchases
+                          </span>
+                          <span className="flex items-center gap-1.5 font-medium text-slate-600 dark:text-slate-300">
+                            <span className="w-3 h-3 rounded-xs bg-rose-500 inline-block" /> Total Outflow
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="w-full h-80 pt-2">
+                        {isClientMounted ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              data={monthlyAnalyticsData}
+                              margin={{ top: 15, right: 15, left: 10, bottom: 5 }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94A3B8" opacity={0.2} />
+                              <XAxis
+                                dataKey="monthName"
+                                stroke="#64748B"
+                                fontSize={11}
+                                tickLine={false}
+                                axisLine={{ stroke: '#E2E8F0' }}
+                              />
+                              <YAxis
+                                stroke="#64748B"
+                                fontSize={11}
+                                tickLine={false}
+                                axisLine={{ stroke: '#E2E8F0' }}
+                                tickFormatter={(v) => formatPKRCompact(v)}
+                              />
+                              <RechartsTooltip
+                                formatter={(value: any, name: any) => [formatPKR(Number(value)), name]}
+                                contentStyle={{
+                                  backgroundColor: "#0F172A",
+                                  borderRadius: "12px",
+                                  border: "none",
+                                  color: "#FFF",
+                                  fontSize: "12px",
+                                  boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+                                }}
+                                labelStyle={{ fontWeight: "bold", color: "#94A3B8", marginBottom: "4px" }}
+                              />
+                              <Bar
+                                dataKey="opExpenses"
+                                name="Operating Overheads"
+                                fill="#6366F1"
+                                radius={[4, 4, 0, 0]}
+                                maxBarSize={28}
+                              />
+                              <Bar
+                                dataKey="purchExpenses"
+                                name="Stock Purchases"
+                                fill="#0EA5E9"
+                                radius={[4, 4, 0, 0]}
+                                maxBarSize={28}
+                              />
+                              <Bar
+                                dataKey="totalExpenses"
+                                name="Total Outflow"
+                                fill="#F43F5E"
+                                radius={[4, 4, 0, 0]}
+                                maxBarSize={28}
+                              />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-slate-100/50 dark:bg-slate-800/40 rounded-xl">
+                            <span className="text-xs text-slate-400">Loading Expense Chart...</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Monthly Expense Ledger Table */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                          <CreditCard className="w-4 h-4 text-rose-500" />
+                          Monthly Expense Ledger (2026)
+                        </h4>
+                        <span className="text-xs font-semibold text-slate-500">
+                          12-Month Outflow Breakdown
+                        </span>
+                      </div>
+
+                      <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                        <table className="w-full text-left text-xs sm:text-sm">
+                          <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[10px] font-bold text-slate-400 tracking-wider">
+                            <tr>
+                              <th className="py-3 px-4">Month</th>
+                              <th className="py-3 px-4 text-right">Operating Overheads</th>
+                              <th className="py-3 px-4 text-right">Stock Purchases</th>
+                              <th className="py-3 px-4 text-right">Total Outflow (PKR)</th>
+                              <th className="py-3 px-4">Top Cost Driver</th>
+                              <th className="py-3 px-4 text-right">Annual Share</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
+                            {monthlyAnalyticsData.map((row) => {
+                              const sharePct = totalExpenseAmount > 0 ? (row.totalExpenses / totalExpenseAmount) * 100 : 0;
+                              return (
+                                <tr key={row.monthIndex} className={row.hasActivity ? "bg-rose-50/20 dark:bg-rose-950/10" : ""}>
+                                  <td className="py-3 px-4 font-bold flex items-center gap-2">
+                                    <span className={`w-2 h-2 rounded-full ${row.hasActivity ? "bg-rose-500" : "bg-slate-300 dark:bg-slate-700"}`} />
+                                    {row.fullMonthName}
+                                  </td>
+                                  <td className="py-3 px-4 text-right font-mono font-semibold text-slate-700 dark:text-slate-300">
+                                    {row.opExpenses > 0 ? formatPKR(row.opExpenses) : "Rs 0.00"}
+                                  </td>
+                                  <td className="py-3 px-4 text-right font-mono font-semibold text-blue-600 dark:text-blue-400">
+                                    {row.purchExpenses > 0 ? formatPKR(row.purchExpenses) : "Rs 0.00"}
+                                  </td>
+                                  <td className="py-3 px-4 text-right font-mono font-bold text-rose-600 dark:text-rose-400">
+                                    {row.totalExpenses > 0 ? `-${formatPKR(row.totalExpenses)}` : "Rs 0.00"}
+                                  </td>
+                                  <td className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-300">
+                                    {row.topCategory !== "None" ? row.topCategory : <span className="text-slate-400 italic">No Outflow</span>}
+                                  </td>
+                                  <td className="py-3 px-4 text-right font-mono font-semibold">
+                                    {sharePct > 0 ? `${sharePct.toFixed(1)}%` : "0.0%"}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot className="border-t-2 border-slate-200 dark:border-slate-700 font-bold text-xs sm:text-sm bg-slate-50/80 dark:bg-slate-800/80">
+                            <tr>
+                              <td className="py-3.5 px-4 font-black text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                                Annual Fiscal Total
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono font-black text-slate-900 dark:text-slate-100">
+                                {formatPKR(operationalExpenseAmount)}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono font-black text-blue-600 dark:text-blue-400">
+                                {formatPKR(purchaseExpenseAmount)}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono font-black text-rose-600 dark:text-rose-400">
+                                -{formatPKR(totalExpenseAmount)}
+                              </td>
+                              <td className="py-3.5 px-4 text-slate-500 font-semibold text-xs">
+                                All Active Categories
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono font-black text-slate-900 dark:text-slate-100">
+                                100.0%
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Category Breakdown Table */}
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                          <Layers className="w-4 h-4 text-indigo-500" />
+                          Category-Wise Operating Outflow Breakdown
+                        </h4>
+                        <span className="text-xs font-semibold text-slate-500">
+                          Annual Category Distribution
+                        </span>
+                      </div>
+                      <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                        <table className="w-full text-left text-xs sm:text-sm">
+                          <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[10px] font-bold text-slate-400 tracking-wider">
+                            <tr>
+                              <th className="py-2.5 px-4">Expense Category</th>
+                              <th className="py-2.5 px-4 text-right">Total Outflow (PKR)</th>
+                              <th className="py-2.5 px-4 text-right">Share of Overheads</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-semibold text-slate-700 dark:text-slate-300">
+                            {[
+                              "Salary",
+                              "Electric Bill",
+                              "Water Bill",
+                              "Rent",
+                              "Machines",
+                              "Marketing",
+                              "Other",
+                            ].map((cat) => {
+                              const catExps = expenses.filter((e) => {
+                                const c = (e.category || "").toLowerCase();
+                                const target = cat.toLowerCase();
+                                return c === target && !e.id?.startsWith("EXP-PUR-");
+                              });
+                              const amt = catExps.reduce((sum, e) => {
+                                const actual = e.actualAmount ?? e.amount ?? 0;
+                                let paid = 0;
+                                if (e.paymentLogs && Array.isArray(e.paymentLogs) && e.paymentLogs.length > 0) {
+                                  paid = e.paymentLogs.reduce((acc: number, l: any) => acc + (Number(l?.amount) || 0), 0);
+                                } else if (e.amountPaid !== undefined && e.amountPaid !== null) {
+                                  paid = Number(e.amountPaid) || 0;
+                                } else if ((e.status || "").toLowerCase() === "paid") {
+                                  paid = actual;
+                                }
+                                if (paid <= 0 && (e.status || "").toLowerCase() !== "paid") return sum;
+                                return sum + (paid > 0 ? paid : actual);
+                              }, 0);
+                              const pct = operationalExpenseAmount > 0 ? (amt / operationalExpenseAmount) * 100 : 0;
+                              return (
+                                <tr key={cat}>
+                                  <td className="py-2.5 px-4 font-bold flex items-center justify-between">
+                                    <span>{cat}</span>
+                                    {pct > 0 && (
+                                      <span className="text-[10px] text-slate-400 font-normal">
+                                        {catExps.length} entries
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-2.5 px-4 text-right font-mono text-rose-600 font-bold">
+                                    {amt > 0 ? `-${formatPKR(amt)}` : "Rs 0.00"}
+                                  </td>
+                                  <td className="py-2.5 px-4 text-right font-mono text-slate-600 dark:text-slate-400">
+                                    {pct > 0 ? `${pct.toFixed(1)}%` : "0.0%"}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot className="border-t border-slate-200 dark:border-slate-700 font-bold text-xs sm:text-sm">
+                            <tr className="bg-blue-50/50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300">
+                              <td className="py-2.5 px-4 flex items-center justify-between">
+                                <span>Purchases (Product & Stock Orders)</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveTab("purchases")}
+                                  className="text-[11px] underline font-semibold text-blue-600 dark:text-blue-400 cursor-pointer"
+                                >
+                                  View in Purchases →
+                                </button>
+                              </td>
+                              <td className="py-2.5 px-4 text-right font-mono font-bold text-blue-600 dark:text-blue-400">
+                                -{formatPKR(purchaseExpenseAmount)}
+                              </td>
+                              <td className="py-2.5 px-4 text-right font-mono font-semibold text-blue-600">
+                                Separate Stock Ledger
+                              </td>
+                            </tr>
+                            <tr className="bg-slate-100/60 dark:bg-slate-800/60 text-slate-900 dark:text-slate-100">
+                              <td className="py-2.5 px-4 font-black">Total Combined Outflow (Operational + Purchases)</td>
+                              <td className="py-2.5 px-4 text-right font-mono font-black text-rose-600">
+                                -{formatPKR(totalExpenseAmount)}
+                              </td>
+                              <td className="py-2.5 px-4 text-right font-mono font-black">
+                                100.0%
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. SEPARATE REVENUE REPORT: Graph, KPIs, and Channel Breakdown */}
+                {activeReport === "Revenue" && (
+                  <div className="space-y-6">
+                    {/* Top Revenue KPI Cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
                         <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
@@ -2838,27 +3594,109 @@ export default function FinanceReportsPage() {
                         <span className="text-xl font-bold font-mono text-slate-900 dark:text-slate-100 mt-1 block">
                           {formatPKR(totalRevenue + totalDiscounts)}
                         </span>
+                        <span className="text-[11px] text-slate-400 mt-1 block">
+                          Before discount subtractions
+                        </span>
                       </div>
                       <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
                         <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                          Total Discounts
+                          Total Discounts Granted
                         </span>
                         <span className="text-xl font-bold font-mono text-rose-600 mt-1 block">
                           -{formatPKR(totalDiscounts)}
                         </span>
+                        <span className="text-[11px] text-slate-400 mt-1 block">
+                          Promotional price adjustments
+                        </span>
                       </div>
                       <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
                         <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                          Net Revenue
+                          Net Collected Revenue
                         </span>
                         <span className="text-xl font-bold font-mono text-emerald-600 mt-1 block">
                           {formatPKR(totalRevenue)}
                         </span>
+                        <span className="text-[11px] text-slate-400 mt-1 block">
+                          Actual receipts in clinic accounts
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Monthly Revenue Inflow Graph */}
+                    <div className="p-6 bg-slate-50/50 dark:bg-slate-800/20 border border-slate-100 dark:border-slate-800/80 rounded-2xl space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                            <Banknote className="w-4 h-4 text-blue-500" />
+                            Monthly Revenue Inflow Trajectory (2026)
+                          </h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Monthly cash receipts and POS collections throughout the fiscal year.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="w-full h-72 pt-2">
+                        {isClientMounted ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart
+                              data={monthlyAnalyticsData}
+                              margin={{ top: 15, right: 15, left: 10, bottom: 5 }}
+                            >
+                              <defs>
+                                <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.4} />
+                                  <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.0} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94A3B8" opacity={0.2} />
+                              <XAxis
+                                dataKey="monthName"
+                                stroke="#64748B"
+                                fontSize={11}
+                                tickLine={false}
+                                axisLine={{ stroke: '#E2E8F0' }}
+                              />
+                              <YAxis
+                                stroke="#64748B"
+                                fontSize={11}
+                                tickLine={false}
+                                axisLine={{ stroke: '#E2E8F0' }}
+                                tickFormatter={(v) => formatPKRCompact(v)}
+                              />
+                              <RechartsTooltip
+                                formatter={(value: any) => [formatPKR(Number(value)), "Revenue"]}
+                                contentStyle={{
+                                  backgroundColor: "#0F172A",
+                                  borderRadius: "12px",
+                                  border: "none",
+                                  color: "#FFF",
+                                  fontSize: "12px",
+                                  boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+                                }}
+                                labelStyle={{ fontWeight: "bold", color: "#94A3B8", marginBottom: "4px" }}
+                              />
+                              <Area
+                                type="monotone"
+                                dataKey="revenue"
+                                stroke="#3B82F6"
+                                strokeWidth={3}
+                                fillOpacity={1}
+                                fill="url(#revenueGradient)"
+                                name="Revenue"
+                              />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-slate-100/50 dark:bg-slate-800/40 rounded-xl">
+                            <span className="text-xs text-slate-400">Loading Revenue Chart...</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     {/* Payment Channel Breakdown Table */}
-                    <div className="mt-6 space-y-3">
+                    <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                           <Banknote className="w-4 h-4 text-emerald-500" />
@@ -2873,18 +3711,10 @@ export default function FinanceReportsPage() {
                           <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[10px] font-bold text-slate-400 tracking-wider">
                             <tr>
                               <th className="py-2.5 px-4">Payment Channel</th>
-                              <th className="py-2.5 px-4">
-                                Destination Account
-                              </th>
-                              <th className="py-2.5 px-4 text-center">
-                                Invoices
-                              </th>
-                              <th className="py-2.5 px-4 text-right">
-                                Total Collected (PKR)
-                              </th>
-                              <th className="py-2.5 px-4 text-right">
-                                Revenue Share
-                              </th>
+                              <th className="py-2.5 px-4">Destination Account</th>
+                              <th className="py-2.5 px-4 text-center">Invoices</th>
+                              <th className="py-2.5 px-4 text-right">Total Collected (PKR)</th>
+                              <th className="py-2.5 px-4 text-right">Revenue Share</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
@@ -2945,73 +3775,6 @@ export default function FinanceReportsPage() {
                           </tbody>
                         </table>
                       </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeReport === "Expense" && (
-                  <div className="space-y-4">
-                    <p className="text-xs text-slate-500">
-                      Overhead and expenditure distribution grouped by
-                      operational category.
-                    </p>
-                    <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
-                      <table className="w-full text-left text-xs sm:text-sm">
-                        <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[10px] font-bold text-slate-400 tracking-wider">
-                          <tr>
-                            <th className="py-2.5 px-4">Expense Category</th>
-                            <th className="py-2.5 px-4 text-right">
-                              Total Outflow (PKR)
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-semibold text-slate-700 dark:text-slate-300">
-                          {[
-                            "Salary",
-                            "Electric Bill",
-                            "Water Bill",
-                            "Rent",
-                            "Machines",
-                            "Marketing",
-                            "Other",
-                          ].map((cat) => {
-                            const amt = expenses
-                              .filter((e) => e.category === cat && !e.id?.startsWith("EXP-PUR-"))
-                              .reduce((sum, e) => sum + e.amount, 0);
-                            return (
-                              <tr key={cat}>
-                                <td className="py-2.5 px-4 font-bold">{cat}</td>
-                                <td className="py-2.5 px-4 text-right font-mono text-rose-600 font-bold">
-                                  -{formatPKR(amt)}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                        <tfoot className="border-t border-slate-200 dark:border-slate-700 font-bold text-xs sm:text-sm">
-                          <tr className="bg-blue-50/50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300">
-                            <td className="py-2.5 px-4 flex items-center justify-between">
-                              <span>Purchases (Product & Stock Orders)</span>
-                              <button
-                                type="button"
-                                onClick={() => setActiveTab("purchases")}
-                                className="text-[11px] underline font-semibold text-blue-600 dark:text-blue-400"
-                              >
-                                View in Purchases →
-                              </button>
-                            </td>
-                            <td className="py-2.5 px-4 text-right font-mono font-bold text-blue-600 dark:text-blue-400">
-                              -{formatPKR(purchaseExpenseAmount)}
-                            </td>
-                          </tr>
-                          <tr className="bg-slate-100/60 dark:bg-slate-800/60 text-slate-900 dark:text-slate-100">
-                            <td className="py-2.5 px-4 font-black">Total Combined Outflow (Operational + Purchases)</td>
-                            <td className="py-2.5 px-4 text-right font-mono font-black text-rose-600">
-                              -{formatPKR(totalExpenseAmount)}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
                     </div>
                   </div>
                 )}

@@ -229,10 +229,18 @@ export default function DashboardPage() {
         }
       }
 
+      const isPartialOrPending =
+        t.paymentStatus === "Partial" ||
+        t.paymentStatus === "Unpaid" ||
+        t.status === "Pending" ||
+        (t.remainingDue !== undefined && t.remainingDue !== null && t.remainingDue > 0);
+
       const paidAmt =
         t.amountPaid !== undefined && t.amountPaid !== null
           ? t.amountPaid
-          : t.grandTotal || 0;
+          : (isPartialOrPending && t.remainingDue !== undefined && t.remainingDue !== null
+            ? Math.max(0, (t.grandTotal || 0) - t.remainingDue)
+            : (isPartialOrPending ? 0 : (t.grandTotal || 0)));
 
       if (
         t.paymentSplits &&
@@ -273,8 +281,6 @@ export default function DashboardPage() {
 
     for (let i = 0; i < expenses.length; i++) {
       const e = expenses[i];
-      // Only include settled Paid operational overheads; strictly exclude inventory purchases and partner drawings
-      if ((e.status || "").toLowerCase() !== "paid") continue;
       const cat = (e.category || "").toLowerCase();
       const id = (e.id || "").toUpperCase();
       const title = (e.title || "").toLowerCase();
@@ -295,7 +301,20 @@ export default function DashboardPage() {
         Boolean((e as any).productName)
       ) continue;
 
-      const amt = e.amount || 0;
+      const actual = e.actualAmount ?? e.amount ?? 0;
+      let paid = 0;
+      if (e.paymentLogs && Array.isArray(e.paymentLogs) && e.paymentLogs.length > 0) {
+        paid = e.paymentLogs.reduce((acc: number, l: any) => acc + (Number(l?.amount) || 0), 0);
+      } else if (e.amountPaid !== undefined && e.amountPaid !== null) {
+        paid = Number(e.amountPaid) || 0;
+      } else if ((e.status || "").toLowerCase() === "paid") {
+        paid = actual;
+      }
+
+      // Only count settled cash outflow
+      if (paid <= 0 && (e.status || "").toLowerCase() !== "paid") continue;
+      const amt = paid > 0 ? paid : actual;
+
       totExp += amt;
       if (e.date) {
         const parts = e.date.split("-");
@@ -568,11 +587,11 @@ export default function DashboardPage() {
             <StatCard
               title="Net Operating Profit"
               value={formatPKR(netProfit)}
-              trend="Net after operating overheads"
+              trend="Net Profit"
               trendDirection={netProfit >= 0 ? "up" : "down"}
               colorVariant="blue"
               icon={<Sparkles className="w-5 h-5" />}
-              subtitle="revenue minus operating overheads"
+              subtitle="Revenue minus overheads"
             />
           </>
         ) : (
@@ -610,7 +629,7 @@ export default function DashboardPage() {
             />
           </>
         )}
-        {role === "partner" ? (
+        {role === "partner" || role === "admin" ? (
           <Link
             href="/finance-reports"
             className="cursor-pointer block transition hover:-translate-y-0.5"
@@ -618,11 +637,11 @@ export default function DashboardPage() {
             <StatCard
               title="Operating Overheads"
               value={formatPKR(totalExpenses)}
-              trend="All-time clinic overheads"
+              trend="Overheads"
               trendDirection="neutral"
               colorVariant="blue"
               icon={<DollarSign className="w-5 h-5" />}
-              subtitle="salaries, utilities & clinic overheads"
+              subtitle="Staff, bills & clinic costs"
             />
           </Link>
         ) : (

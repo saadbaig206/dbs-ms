@@ -54,21 +54,21 @@ export const StatCard: React.FC<StatCardProps> = ({
         </div>
       </div>
 
-      <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/60 mt-3">
+      <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/60 mt-3 min-w-0">
         {trend && (
-          <div className="flex items-center gap-1 text-xs font-bold">
+          <div className="flex items-center gap-1 text-xs font-bold shrink-0">
             {trendDirection === 'up' && (
-              <span className="flex items-center gap-0.5 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-full">
-                <TrendingUp className="w-3 h-3" /> {trend}
+              <span className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
+                <TrendingUp className="w-3 h-3 shrink-0" /> <span>{trend}</span>
               </span>
             )}
             {trendDirection === 'down' && (
-              <span className="flex items-center gap-0.5 text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded-full">
-                <TrendingDown className="w-3 h-3" /> {trend}
+              <span className="inline-flex items-center gap-1 text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
+                <TrendingDown className="w-3 h-3 shrink-0" /> <span>{trend}</span>
               </span>
             )}
             {trendDirection === 'neutral' && (
-              <span className="text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+              <span className="inline-flex items-center text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
                 {trend}
               </span>
             )}
@@ -76,7 +76,10 @@ export const StatCard: React.FC<StatCardProps> = ({
         )}
 
         {subtitle && (
-          <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
+          <span
+            className="text-[11px] text-slate-400 dark:text-slate-500 font-medium truncate text-right ml-auto min-w-0"
+            title={typeof subtitle === 'string' ? subtitle : undefined}
+          >
             {subtitle}
           </span>
         )}
