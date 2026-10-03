@@ -16,7 +16,8 @@ import {
   Layers,
   ArrowDownLeft,
   RotateCcw,
-  Printer
+  Printer,
+  TrendingUp
 } from 'lucide-react';
 import { useClinic } from '../../lib/context/ClinicContext';
 import { formatPKR } from '../../lib/utils/currency';
@@ -51,7 +52,8 @@ export function PurchasesTab() {
     inventory = [],
     partnerEquity,
     refreshPartnerEquity,
-    userEmail
+    userEmail,
+    transactions = []
   } = useClinic();
 
   const returns = useMemo(() => Array.isArray(contextReturns) ? contextReturns : [], [contextReturns]);
@@ -170,6 +172,79 @@ export function PurchasesTab() {
   const totalDistinctProducts = useMemo(() => {
     return safeItems.length;
   }, [safeItems]);
+
+  // Map of procured products to their weighted average unit costs
+  const productCostMap = useMemo(() => {
+    const map = new Map<string, { totalCost: number; totalQty: number; latestUnitCost: number }>();
+    safeItems.forEach(item => {
+      const key = (item.itemName || '').trim().toLowerCase();
+      if (!key) return;
+      const existing = map.get(key) || { totalCost: 0, totalQty: 0, latestUnitCost: item.unitCost || 0 };
+      existing.totalCost += (item.totalCost || ((item.unitCost || 0) * (item.quantity || 1)) || 0);
+      existing.totalQty += (item.quantity || 1);
+      existing.latestUnitCost = item.unitCost || existing.latestUnitCost;
+      map.set(key, existing);
+    });
+    return map;
+  }, [safeItems]);
+
+  // Realized profit earned from the sale of procured products
+  const productSalesMetrics = useMemo(() => {
+    let totalRevenue = 0;
+    let totalCost = 0;
+    let totalSoldUnits = 0;
+
+    const safeTxns = Array.isArray(transactions) ? transactions : [];
+
+    safeTxns.forEach(txn => {
+      const status = (txn.status || '').toLowerCase();
+      if (status === 'refunded' || status === 'cancelled') return;
+      if (txn.transactionType === 'Debt_Settlement') return;
+
+      const items = Array.isArray(txn.items) ? txn.items : [];
+      if (items.length === 0) return;
+
+      const rawSubtotal = txn.amount || items.reduce((sum, it) => sum + ((it.price || 0) * (it.quantity || 1)), 0);
+      const discountFactor = rawSubtotal > 0 && txn.discount ? Math.max(0, 1 - (txn.discount / rawSubtotal)) : 1;
+      const refundScale = (status === 'partial refund' && txn.amountPaid !== undefined && txn.grandTotal) 
+        ? Math.max(0, Math.min(1, txn.amountPaid / txn.grandTotal)) 
+        : 1;
+
+      items.forEach(it => {
+        const nameKey = (it.name || '').trim().toLowerCase();
+        const costInfo = productCostMap.get(nameKey);
+        const isProductItem = Boolean(it.isProduct || costInfo !== undefined);
+
+        if (!isProductItem) return;
+
+        const qty = it.quantity || 1;
+        const itemPrice = it.price || 0;
+        const itemRevenue = itemPrice * qty * discountFactor * refundScale;
+
+        let unitCost = 0;
+        if (costInfo && costInfo.totalQty > 0) {
+          unitCost = costInfo.totalCost / costInfo.totalQty;
+        } else if (costInfo) {
+          unitCost = costInfo.latestUnitCost;
+        }
+
+        const itemCost = unitCost * qty * refundScale;
+
+        totalRevenue += itemRevenue;
+        totalCost += itemCost;
+        totalSoldUnits += qty;
+      });
+    });
+
+    const profit = Math.round(totalRevenue - totalCost);
+
+    return {
+      totalProfit: profit,
+      totalRevenue: Math.round(totalRevenue),
+      totalCost: Math.round(totalCost),
+      totalSoldUnits
+    };
+  }, [transactions, productCostMap]);
 
   // Filtered Itemized Products
   const filteredItems = useMemo(() => {
@@ -421,7 +496,7 @@ export function PurchasesTab() {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           title="Total Stock Procured"
           value={formatPKR(totalStockPurchased)}
@@ -449,6 +524,17 @@ export function PurchasesTab() {
           colorVariant="blue"
           icon={<Layers className="w-5 h-5" />}
           subtitle="Individual stock batches"
+        />
+        <StatCard
+          title="Profit from Product Sales"
+          value={formatPKR(productSalesMetrics.totalProfit)}
+          colorVariant="blue"
+          icon={<TrendingUp className="w-5 h-5" />}
+          subtitle={
+            productSalesMetrics.totalSoldUnits > 0
+              ? `${productSalesMetrics.totalSoldUnits} sold | Rev: ${formatPKR(productSalesMetrics.totalRevenue, { decimals: false })}`
+              : "Net profit from sold stock"
+          }
         />
       </div>
 

@@ -48,8 +48,6 @@ export function PartnerEquityTab() {
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const [editingPartner, setEditingPartner] = useState<any>(null);
   const [editEquityPercent, setEditEquityPercent] = useState('');
-  const [editInitialInvestment, setEditInitialInvestment] = useState('');
-  const [editProfileNotes, setEditProfileNotes] = useState('');
   const [profileSuccessMsg, setProfileSuccessMsg] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -100,20 +98,9 @@ export function PartnerEquityTab() {
     return Math.round((inv + profit) - withdrawn);
   };
 
-  const getPartnerBrandStake = (p: any) => {
-    if (typeof p.marketBrandStake === 'number' && p.marketBrandStake > 0) {
-      return p.marketBrandStake;
-    }
-    const val = totalBrandValuation > 0 ? totalBrandValuation : 914830;
-    const stake = Number(p.equityPercentage) || 0;
-    return Math.round(val * (stake / 100));
-  };
-
   const handleOpenEditProfile = (p: any) => {
     setEditingPartner(p);
     setEditEquityPercent(String(p.equityPercentage || 0));
-    setEditInitialInvestment(String(p.totalInvested ?? p.initialInvestment ?? 0));
-    setEditProfileNotes('');
     setErrorMsg(null);
     setIsEditProfileModalOpen(true);
   };
@@ -122,13 +109,8 @@ export function PartnerEquityTab() {
     e.preventDefault();
     if (!editingPartner) return;
     const eqNum = Number(editEquityPercent);
-    const initInvNum = Number(editInitialInvestment);
     if (isNaN(eqNum) || eqNum < 0 || eqNum > 100) {
       setErrorMsg('Equity percentage must be between 0% and 100%.');
-      return;
-    }
-    if (isNaN(initInvNum) || initInvNum < 0) {
-      setErrorMsg('Initial investment must be a valid non-negative number.');
       return;
     }
     try {
@@ -136,16 +118,14 @@ export function PartnerEquityTab() {
       setErrorMsg(null);
       await updatePartnerProfile({
         partnerName: editingPartner.partnerName,
-        equityPercentage: eqNum,
-        initialInvestment: initInvNum,
-        notes: editProfileNotes.trim() || undefined
+        equityPercentage: eqNum
       });
       setIsEditProfileModalOpen(false);
       setEditingPartner(null);
-      setProfileSuccessMsg(`Updated equity & capital details for ${editingPartner.partnerName}!`);
+      setProfileSuccessMsg(`Updated equity percentage for ${editingPartner.partnerName}!`);
       setTimeout(() => setProfileSuccessMsg(null), 4000);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to update partner profile.');
+      setErrorMsg(err.message || 'Failed to update partner equity.');
     } finally {
       setIsSubmitting(false);
     }
@@ -231,10 +211,10 @@ export function PartnerEquityTab() {
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <Users className="w-4 h-4 text-blue-500" />
-              Partners Equity, Cumulative Withdrawals & Brand Stake
+              Partners Equity & Cumulative Withdrawals
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Real-time audit of each partner's capital contributions, revenue profit share by stake, and brand equity.
+              Real-time audit of each partner's capital contributions, revenue profit share by stake, and available to take balance.
             </p>
           </div>
 
@@ -305,10 +285,7 @@ export function PartnerEquityTab() {
                   Withdrawn to Date
                 </th>
                 <th className="p-3.5 text-right font-bold text-emerald-700 dark:text-emerald-400">
-                  Net Capital Balance
-                </th>
-                <th className="p-3.5 text-right font-bold text-blue-700 dark:text-blue-400">
-                  Brand Value Stake
+                  Available to Take
                 </th>
                 <th className="p-3.5 text-right pr-4">Action</th>
               </tr>
@@ -316,7 +293,7 @@ export function PartnerEquityTab() {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {partners.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-10 text-slate-400">
+                  <td colSpan={7} className="text-center py-10 text-slate-400">
                     No partner equity profiles configured yet.
                   </td>
                 </tr>
@@ -324,7 +301,6 @@ export function PartnerEquityTab() {
                 partners.map(p => {
                   const pProfitShare = getPartnerProfitShare(p);
                   const pNetCapital = getPartnerNetCapital(p, pProfitShare);
-                  const pBrandStake = getPartnerBrandStake(p);
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="p-3.5 pl-4">
@@ -357,9 +333,6 @@ export function PartnerEquityTab() {
                       </td>
                       <td className="p-3.5 text-right font-mono font-black text-emerald-600 dark:text-emerald-400">
                         {formatPKR(pNetCapital)}
-                      </td>
-                      <td className="p-3.5 text-right font-mono font-black text-blue-600 dark:text-blue-400">
-                        {formatPKR(pBrandStake)}
                       </td>
                     <td className="p-3.5 text-right pr-4">
                       {(role === 'admin' || role === 'partner') && (
@@ -478,7 +451,7 @@ export function PartnerEquityTab() {
             options={[
               { label: '-- Select Partner --', value: '' },
               ...partners.map(p => ({
-                label: `${p.partnerName} (${p.equityPercentage}% Stake — Net Balance: ${formatPKR(p.netCapitalBalance)})`,
+                label: `${p.partnerName} (${p.equityPercentage}% Stake — Available to Take: ${formatPKR(p.netCapitalBalance)})`,
                 value: p.id
               }))
             ]}
@@ -494,7 +467,7 @@ export function PartnerEquityTab() {
                   <span className="font-bold text-blue-700 dark:text-blue-300 text-sm">{activePartner.equityPercentage}%</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Net Capital Balance</span>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Available to Take</span>
                   <span className="font-mono font-black text-slate-900 dark:text-slate-100">{formatPKR(activePartner.netCapitalBalance)}</span>
                 </div>
                 <div>
@@ -561,11 +534,11 @@ export function PartnerEquityTab() {
         </form>
       </Modal>
 
-      {/* Edit Partner Capital & Equity Modal */}
+      {/* Edit Partner Equity Modal */}
       <Modal
         isOpen={isEditProfileModalOpen}
         onClose={() => setIsEditProfileModalOpen(false)}
-        title={`Configure Capital & Equity: ${editingPartner?.partnerName || ''}`}
+        title={`Edit Equity Percentage: ${editingPartner?.partnerName || ''}`}
         maxWidth="md"
       >
         <form onSubmit={handleUpdateProfileSubmit} className="space-y-4 pt-2">
@@ -578,19 +551,9 @@ export function PartnerEquityTab() {
           <div className="p-3 bg-blue-50/70 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-900 text-xs text-blue-900 dark:text-blue-200 space-y-1">
             <span className="font-bold block">Dynamic Capital Accounting</span>
             <p className="text-slate-600 dark:text-slate-400">
-              Partner invested amount is automatically aggregated in real-time from all clinic expenses and vendor bills paid by this partner. You only need to configure their equity ownership stake (%) here.
+              Partner invested capital is automatically computed in real-time from expenses and purchases. Only equity ownership percentage (%) can be edited here.
             </p>
           </div>
-
-          <Input
-            label="Initial Baseline Capital Investment (Rs)"
-            type="number"
-            min="0"
-            step="1000"
-            placeholder="e.g. 50000"
-            value={editInitialInvestment}
-            onChange={e => setEditInitialInvestment(e.target.value)}
-          />
 
           <Input
             label="Equity Ownership Percentage (%)"
@@ -599,15 +562,9 @@ export function PartnerEquityTab() {
             step="0.1"
             min="0"
             max="100"
+            placeholder="e.g. 50"
             value={editEquityPercent}
             onChange={e => setEditEquityPercent(e.target.value)}
-          />
-
-          <Input
-            label="Notes / Agreement Details"
-            placeholder="e.g. Partnership agreement dated 2026"
-            value={editProfileNotes}
-            onChange={e => setEditProfileNotes(e.target.value)}
           />
 
           <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
@@ -623,7 +580,7 @@ export function PartnerEquityTab() {
               variant="primary"
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Saving...' : 'Save Configuration'}
+              {isSubmitting ? 'Saving...' : 'Save Equity Percentage'}
             </Button>
           </div>
         </form>

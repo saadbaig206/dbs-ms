@@ -5,7 +5,7 @@ from app.schemas.base import CamelModel
 class PartnerProfileInput(CamelModel):
     partner_name: str
     equity_percentage: float = Field(ge=0, le=100)
-    initial_investment: Optional[float] = 0.0
+    initial_investment: Optional[float] = None
     notes: Optional[str] = None
 
 class PartnerDrawingInput(CamelModel):

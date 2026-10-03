@@ -495,7 +495,8 @@ async def upsert_partner_profile(
         profile.equity_percentage = profile_in.equity_percentage
         if profile_in.initial_investment is not None and profile_in.initial_investment >= 0:
             profile.initial_investment = profile_in.initial_investment
-        profile.notes = profile_in.notes
+        if profile_in.notes is not None:
+            profile.notes = profile_in.notes
     else:
         p_id = f"PRT-{secrets.token_hex(2).upper()}"
         profile = PartnerProfile(
