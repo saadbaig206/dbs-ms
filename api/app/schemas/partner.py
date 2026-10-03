@@ -44,6 +44,8 @@ class PartnerEquityOverviewResponse(CamelModel):
     total_revenue: float
     total_expenses: float
     net_profit: float
+    cogs: Optional[float] = 0.0
+    gross_profit: Optional[float] = 0.0
     estimated_brand_valuation: float
     partners: List[PartnerEquityReportItem]
     recent_drawings: List[PartnerDrawingResponse]

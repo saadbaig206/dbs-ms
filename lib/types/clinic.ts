@@ -341,6 +341,8 @@ export interface PartnerEquityOverview {
   totalRevenue: number;
   totalExpenses: number;
   netProfit: number;
+  cogs?: number;
+  grossProfit?: number;
   estimatedBrandValuation: number;
   partners: PartnerEquityReportItem[];
   recentDrawings: PartnerDrawing[];

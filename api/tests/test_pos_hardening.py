@@ -199,11 +199,10 @@ async def test_financial_hardening_and_pos_lifecycle(client: AsyncClient):
     assert pay_bill_res.status_code == 200
     assert pay_bill_res.json()["paymentStatus"] == "Paid"
 
-    # Verify ExpenseItem generated for vendor payment
-    exp_res = await client.get("/api/v1/expenses", headers=admin_headers)
-    assert exp_res.status_code == 200
-    exp_list = exp_res.json()
-    assert any("MedSupply Global" in (e.get("title") or "") and e.get("amount") == 50000.0 for e in exp_list)
+    # Verify PurchaseBill payment logs and zero remaining due
+    bill_paid_data = pay_bill_res.json()
+    assert bill_paid_data["remainingDue"] == 0.0
+    assert len(bill_paid_data.get("paymentLogs") or []) >= 1
 
     # Test G: Appointment Deletion Lockout for Paid Appointments
     apt_res = await client.post("/api/v1/appointments", json={

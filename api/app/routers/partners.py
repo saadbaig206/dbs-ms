@@ -9,7 +9,7 @@ from app.core.deps import get_db, get_admin_or_partner_user, get_admin_user
 from app.models.partner import PartnerProfile, PartnerDrawing
 from app.models.transaction import FinancialTransaction
 from app.models.expense import ExpenseItem
-from app.models.purchase import PurchaseBill
+from app.models.purchase import PurchaseBill, PurchaseItem
 from app.models.user import User
 from app.schemas.partner import (
     PartnerProfileInput,
@@ -153,6 +153,91 @@ def calculate_partner_investments(
     return total_investments
 
 
+def calculate_clinic_performance(transactions: list, expenses: list, purchase_items: list):
+    """
+    Computes rigorous financial performance:
+    1. Collected Cash & Bank Revenue (excluding uncollected credit debts)
+    2. Cost of Goods Sold (COGS) for direct retail products & treatment consumables
+    3. Operational Overheads (excluding stock purchases and partner drawings)
+    4. Gross Profit & Net Operating Profit
+    """
+    active_sales = [
+        t for t in transactions 
+        if (t.status or '').lower() not in ('refunded', 'cancelled')
+        and getattr(t, 'transaction_type', 'Sale') != 'Debt_Settlement'
+        and t.service_name != 'Client Debt Settlement'
+    ]
+    debt_settlements = [
+        t for t in transactions 
+        if (t.status or '').lower() not in ('refunded', 'cancelled')
+        and (getattr(t, 'transaction_type', 'Sale') == 'Debt_Settlement' or t.service_name == 'Client Debt Settlement')
+    ]
+    collected_sales_rev = sum(float(t.amount_paid if t.amount_paid is not None else t.grand_total) for t in active_sales)
+    collected_debt_rev = sum(float(t.amount_paid if t.amount_paid is not None else t.grand_total) for t in debt_settlements)
+    total_rev = round(collected_sales_rev + collected_debt_rev, 2)
+
+    unit_cost_map = {}
+    for pi in purchase_items:
+        key = (pi.item_name or "").strip().lower()
+        if key and pi.unit_cost:
+            unit_cost_map[key] = float(pi.unit_cost)
+
+    total_cogs = 0.0
+    for t in active_sales:
+        if not t.items:
+            continue
+        for it in t.items:
+            if not isinstance(it, dict):
+                continue
+            name_key = (it.get("name") or "").strip().lower()
+            is_product = it.get("isProduct") or (name_key in unit_cost_map)
+            if is_product and name_key in unit_cost_map:
+                qty = int(it.get("quantity") or 1)
+                total_cogs += unit_cost_map[name_key] * qty
+
+    total_cogs = round(total_cogs, 2)
+    gross_profit = max(0.0, round(total_rev - total_cogs, 2))
+
+    eligible_expenses = [
+        e for e in expenses 
+        if (e.status or '').lower() == 'paid' 
+        or (e.payment_logs and isinstance(e.payment_logs, list) and len(e.payment_logs) > 0)
+    ]
+    operational_exp = 0.0
+    for e in eligible_expenses:
+        cat = (e.category or '').lower()
+        title = (e.title or '').lower()
+        eid = (e.id or '').upper()
+        if (
+            cat in ('inventory purchase', 'products', 'purchases', 'purchase', 'partner drawing')
+            or eid.startswith('EXP-PUR-')
+            or eid.startswith('EXP-DRW-')
+            or eid.startswith('PIT-')
+            or '-PUR-' in eid
+            or 'vendor bill' in title
+            or 'purchase bill' in title
+            or 'partner drawing' in title
+            or 'supplier order' in title
+            or getattr(e, 'product_name', None)
+        ):
+            continue
+        if e.payment_logs and isinstance(e.payment_logs, list) and len(e.payment_logs) > 0:
+            operational_exp += sum(float(l.get('amount', 0.0)) for l in e.payment_logs if isinstance(l, dict))
+        else:
+            operational_exp += float(e.amount_paid if e.amount_paid is not None else (e.amount if (e.status or '').lower() == 'paid' else 0.0))
+
+    operational_exp = round(operational_exp, 2)
+    net_operating_profit = max(0.0, round(gross_profit - operational_exp, 2))
+
+    return {
+        "total_revenue": total_rev,
+        "total_cogs": total_cogs,
+        "gross_profit": gross_profit,
+        "operational_expenses": operational_exp,
+        "net_operating_profit": net_operating_profit,
+        "eligible_expenses": eligible_expenses
+    }
+
 router = APIRouter()
 
 @router.get("/equity", response_model=PartnerEquityOverviewResponse)
@@ -226,49 +311,23 @@ async def get_partner_equity_overview(
 
     profiles = valid_profiles
 
-    # 2. Calculate Clinic Financial Performance (Sales revenue excluding Debt Settlements and refunds)
+    # 2. Calculate Clinic Financial Performance (Collected sales revenue, COGS, and Operational Overheads)
     txn_res = await db.execute(select(FinancialTransaction))
     transactions = txn_res.scalars().all()
-    active_txns = [
-        t for t in transactions 
-        if (t.status or '').lower() not in ('refunded', 'cancelled')
-        and getattr(t, 'transaction_type', 'Sale') != 'Debt_Settlement'
-        and t.service_name != 'Client Debt Settlement'
-    ]
-    total_rev = sum(t.grand_total for t in active_txns)
 
     exp_res = await db.execute(select(ExpenseItem))
     expenses = exp_res.scalars().all()
-    eligible_expenses = [
-        e for e in expenses 
-        if (e.status or '').lower() == 'paid' 
-        or (e.payment_logs and isinstance(e.payment_logs, list) and len(e.payment_logs) > 0)
-    ]
-    operational_exp = 0.0
-    for e in eligible_expenses:
-        cat = (e.category or '').lower()
-        title = (e.title or '').lower()
-        eid = (e.id or '').upper()
-        if (
-            cat in ('inventory purchase', 'products', 'purchases', 'purchase', 'partner drawing')
-            or eid.startswith('EXP-PUR-')
-            or eid.startswith('EXP-DRW-')
-            or eid.startswith('PIT-')
-            or '-PUR-' in eid
-            or 'vendor bill' in title
-            or 'purchase bill' in title
-            or 'partner drawing' in title
-            or 'supplier order' in title
-            or getattr(e, 'product_name', None)
-        ):
-            continue
-        if e.payment_logs and isinstance(e.payment_logs, list) and len(e.payment_logs) > 0:
-            operational_exp += sum(float(l.get('amount', 0.0)) for l in e.payment_logs if isinstance(l, dict))
-        else:
-            operational_exp += float(e.amount_paid if e.amount_paid is not None else (e.amount if (e.status or '').lower() == 'paid' else 0.0))
 
-    # Net operating profit is Revenue minus operational overhead expenses
-    net_operating_profit = max(0.0, total_rev - operational_exp)
+    pi_res = await db.execute(select(PurchaseItem))
+    purchase_items = pi_res.scalars().all()
+
+    perf = calculate_clinic_performance(transactions, expenses, purchase_items)
+    total_rev = perf["total_revenue"]
+    total_cogs = perf["total_cogs"]
+    gross_profit = perf["gross_profit"]
+    operational_exp = perf["operational_expenses"]
+    net_operating_profit = perf["net_operating_profit"]
+    eligible_expenses = perf["eligible_expenses"]
     
     # 3. All drawings
     drw_res = await db.execute(select(PartnerDrawing).order_by(PartnerDrawing.date.desc(), PartnerDrawing.id.desc()))
@@ -289,8 +348,8 @@ async def get_partner_equity_overview(
     for p in profiles:
         partner_draws = [d for d in all_drawings if d.partner_id == p.id]
         total_withdrawn = sum(d.amount for d in partner_draws)
-        # Allocate profit share from revenue according to partner's equity stake
-        profit_share = round(total_rev * (p.equity_percentage / 100.0), 2)
+        # Allocate profit share from Net Operating Profit according to partner's equity stake
+        profit_share = round(net_operating_profit * (p.equity_percentage / 100.0), 2)
         b = breakdown_investments.get(p.id, {"total": 0.0, "seed": 0.0, "expenses": 0.0, "purchases": 0.0})
         partner_inv = b["total"]
         net_capital = round((partner_inv + profit_share) - total_withdrawn, 2)
@@ -329,6 +388,8 @@ async def get_partner_equity_overview(
         total_revenue=total_rev,
         total_expenses=operational_exp,
         net_profit=net_operating_profit,
+        cogs=total_cogs,
+        gross_profit=gross_profit,
         estimated_brand_valuation=estimated_brand_valuation,
         partners=partner_reports,
         recent_drawings=recent_drawings_resp
@@ -352,56 +413,24 @@ async def record_partner_drawing(
     # Verify that drawing does not exceed partner's available net capital balance
     txn_res = await db.execute(select(FinancialTransaction))
     transactions = txn_res.scalars().all()
-    active_txns = [
-        t for t in transactions 
-        if (t.status or '').lower() not in ('refunded', 'cancelled')
-        and getattr(t, 'transaction_type', 'Sale') != 'Debt_Settlement'
-        and t.service_name != 'Client Debt Settlement'
-    ]
-    total_rev = sum(t.grand_total for t in active_txns)
 
     exp_res = await db.execute(select(ExpenseItem))
     expenses = exp_res.scalars().all()
-    eligible_expenses = [
-        e for e in expenses 
-        if (e.status or '').lower() == 'paid' 
-        or (e.payment_logs and isinstance(e.payment_logs, list) and len(e.payment_logs) > 0)
-    ]
-    operational_exp = 0.0
-    for e in eligible_expenses:
-        cat = (e.category or '').lower()
-        title = (e.title or '').lower()
-        eid = (e.id or '').upper()
-        if (
-            cat in ('inventory purchase', 'products', 'purchases', 'purchase', 'partner drawing')
-            or eid.startswith('EXP-PUR-')
-            or eid.startswith('EXP-DRW-')
-            or eid.startswith('PIT-')
-            or '-PUR-' in eid
-            or 'vendor bill' in title
-            or 'purchase bill' in title
-            or 'partner drawing' in title
-            or 'supplier order' in title
-            or getattr(e, 'product_name', None)
-        ):
-            continue
-        if e.payment_logs and isinstance(e.payment_logs, list) and len(e.payment_logs) > 0:
-            operational_exp += sum(float(l.get('amount', 0.0)) for l in e.payment_logs if isinstance(l, dict))
-        else:
-            operational_exp += float(e.amount_paid if e.amount_paid is not None else (e.amount if (e.status or '').lower() == 'paid' else 0.0))
 
-    from app.models.purchase import PurchaseBill
+    pi_res = await db.execute(select(PurchaseItem))
+    purchase_items = pi_res.scalars().all()
+
+    perf = calculate_clinic_performance(transactions, expenses, purchase_items)
+    net_operating_profit = perf["net_operating_profit"]
+    eligible_expenses = perf["eligible_expenses"]
+
     pb_res = await db.execute(select(PurchaseBill))
     purchase_bills = pb_res.scalars().all()
-    purchase_exp = sum(b.amount_paid or 0.0 for b in purchase_bills)
-
-    total_exp = operational_exp + purchase_exp
-    net_profit = max(0.0, total_rev - total_exp)
 
     drw_res = await db.execute(select(PartnerDrawing).where(PartnerDrawing.partner_id == profile.id))
     partner_draws = drw_res.scalars().all()
     total_withdrawn = sum(d.amount for d in partner_draws)
-    profit_share = round(total_rev * (profile.equity_percentage / 100.0), 2)
+    profit_share = round(net_operating_profit * (profile.equity_percentage / 100.0), 2)
 
     # Dynamic invested calculation for this partner including purchase bill investments
     all_prof_res = await db.execute(select(PartnerProfile))
@@ -409,7 +438,7 @@ async def record_partner_drawing(
     partner_investments = calculate_partner_investments(all_profs, eligible_expenses, purchase_bills)
     partner_inv = partner_investments.get(profile.id, 0.0)
 
-    net_capital = (partner_inv + profit_share) - total_withdrawn
+    net_capital = round((partner_inv + profit_share) - total_withdrawn, 2)
 
     if drawing_in.amount > net_capital:
         raise HTTPException(

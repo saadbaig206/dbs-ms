@@ -239,12 +239,9 @@ export default function DashboardPage() {
         Array.isArray(t.paymentSplits) &&
         t.paymentSplits.length > 0
       ) {
-        const origTotal = t.grandTotal || paidAmt || 1;
-        const scaleFactor =
-          paidAmt < origTotal && origTotal > 0 ? paidAmt / origTotal : 1;
         for (const s of t.paymentSplits) {
           const sMethod = (s.method || "").toLowerCase();
-          const sAmt = (Number(s.amount) || 0) * scaleFactor;
+          const sAmt = Number(s.amount) || 0;
           if (sMethod === "cash") {
             cashTot += sAmt;
             if (isCurrentMonth) monCash += sAmt;
@@ -276,9 +273,27 @@ export default function DashboardPage() {
 
     for (let i = 0; i < expenses.length; i++) {
       const e = expenses[i];
-      // Only include settled Paid expenses, and exclude auto-logged purchase bills to avoid double-counting
+      // Only include settled Paid operational overheads; strictly exclude inventory purchases and partner drawings
       if ((e.status || "").toLowerCase() !== "paid") continue;
-      if (e.category === "Inventory Purchase") continue;
+      const cat = (e.category || "").toLowerCase();
+      const id = (e.id || "").toUpperCase();
+      const title = (e.title || "").toLowerCase();
+      if (
+        cat === "inventory purchase" ||
+        cat === "products" ||
+        cat === "purchases" ||
+        cat === "purchase" ||
+        cat === "partner drawing" ||
+        id.startsWith("EXP-PUR-") ||
+        id.startsWith("EXP-DRW-") ||
+        id.startsWith("PIT-") ||
+        id.includes("-PUR-") ||
+        title.includes("partner drawing") ||
+        title.startsWith("vendor bill") ||
+        title.includes("purchase bill") ||
+        title.includes("supplier order") ||
+        Boolean((e as any).productName)
+      ) continue;
 
       const amt = e.amount || 0;
       totExp += amt;
@@ -290,29 +305,6 @@ export default function DashboardPage() {
             parseInt(parts[1], 10) - 1 === curMonth
           ) {
             monExp += amt;
-          }
-        }
-      }
-    }
-
-    // Integrate purchase bills (products and supplier stock)
-    for (let i = 0; i < purchaseBills.length; i++) {
-      const b = purchaseBills[i];
-      const paid =
-        b.amountPaid !== undefined && b.amountPaid !== null
-          ? b.amountPaid
-          : b.paymentStatus === "Paid"
-            ? b.totalAmount || 0
-            : 0;
-      totExp += paid;
-      if (b.date) {
-        const parts = b.date.split("-");
-        if (parts.length >= 2) {
-          if (
-            parseInt(parts[0], 10) === curYear &&
-            parseInt(parts[1], 10) - 1 === curMonth
-          ) {
-            monExp += paid;
           }
         }
       }
@@ -337,7 +329,7 @@ export default function DashboardPage() {
         0,
       ),
     };
-  }, [transactions, expenses, purchaseBills, clients, todayStr]);
+  }, [transactions, expenses, clients, todayStr]);
 
   if (!mounted) {
     return (
@@ -574,13 +566,13 @@ export default function DashboardPage() {
               />
             </Link>
             <StatCard
-              title="Total Profit"
+              title="Net Operating Profit"
               value={formatPKR(netProfit)}
-              trend="Net after expenses"
+              trend="Net after operating overheads"
               trendDirection={netProfit >= 0 ? "up" : "down"}
               colorVariant="blue"
               icon={<Sparkles className="w-5 h-5" />}
-              subtitle="revenue minus costs"
+              subtitle="revenue minus operating overheads"
             />
           </>
         ) : (
@@ -624,13 +616,13 @@ export default function DashboardPage() {
             className="cursor-pointer block transition hover:-translate-y-0.5"
           >
             <StatCard
-              title="Total Expense"
+              title="Operating Overheads"
               value={formatPKR(totalExpenses)}
-              trend="All-time clinic costs"
+              trend="All-time clinic overheads"
               trendDirection="neutral"
               colorVariant="blue"
               icon={<DollarSign className="w-5 h-5" />}
-              subtitle="POS & operating costs"
+              subtitle="salaries, utilities & clinic overheads"
             />
           </Link>
         ) : (

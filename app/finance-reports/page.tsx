@@ -182,6 +182,7 @@ export default function FinanceReportsPage() {
     expenses: allExpenses,
     purchaseBills: allPurchaseBills = [],
     clients: allClients = [],
+    inventory: allInventory = [],
     addExpense,
     updateExpense,
     deleteExpense,
@@ -245,6 +246,12 @@ export default function FinanceReportsPage() {
       (c: any) => !c.branchId || c.branchId === selectedBranchId,
     )
     : allClients;
+
+  const inventory = selectedBranchId
+    ? allInventory.filter(
+      (i: any) => !i.branchId || i.branchId === selectedBranchId,
+    )
+    : allInventory;
 
   const [activeTab, setActiveTab] = useState<
     "transactions" | "purchases" | "expenses" | "equity" | "partner-expenses" | "reports"
@@ -783,15 +790,18 @@ export default function FinanceReportsPage() {
       const title = (e.title || "").toLowerCase();
       const id = (e.id || "").toUpperCase();
 
-      // Completely exclude purchase bills and stock procurements from operational expenses
+      // Completely exclude purchase bills, stock procurements, and partner drawings from operational overheads
       if (
         cat === "inventory purchase" ||
         cat === "products" ||
         cat === "purchases" ||
         cat === "purchase" ||
+        cat === "partner drawing" ||
         id.startsWith("EXP-PUR-") ||
+        id.startsWith("EXP-DRW-") ||
         id.startsWith("PIT-") ||
         id.includes("-PUR-") ||
+        title.includes("partner drawing") ||
         title.startsWith("vendor bill") ||
         title.includes("purchase bill") ||
         title.includes("supplier order") ||
@@ -1274,10 +1284,13 @@ export default function FinanceReportsPage() {
                       e.date >= reportStartDate &&
                       e.date <= reportEndDate &&
                       e.status === "Paid" &&
-                      e.category !== "Inventory Purchase" &&
-                      e.category !== "Products" &&
+                      (e.category as string) !== "Inventory Purchase" &&
+                      (e.category as string) !== "Products" &&
+                      (e.category as string) !== "Partner Drawing" &&
                       !e.id?.startsWith("EXP-PUR-") &&
-                      !e.title?.toLowerCase().startsWith("vendor bill payment"),
+                      !e.id?.startsWith("EXP-DRW-") &&
+                      !e.title?.toLowerCase().startsWith("vendor bill payment") &&
+                      !e.title?.toLowerCase().includes("partner drawing"),
                   );
                   const filteredPurchases = purchaseBills.filter(
                     (b: any) =>
@@ -1286,7 +1299,20 @@ export default function FinanceReportsPage() {
                       (b.amountPaid || 0) > 0,
                   );
 
-                  const totalRev = salesTxns.reduce(
+                  // Collected Cash & Bank Revenue (realized receipts from sales + debt settlements)
+                  const collectedSalesRev = salesTxns.reduce(
+                    (acc, t) => acc + (t.amountPaid !== undefined && t.amountPaid !== null ? t.amountPaid : (t.status === "Pending" ? 0 : t.grandTotal)),
+                    0,
+                  );
+                  const debtSettlements = filteredTxns.filter(
+                    (t) => t.serviceName === "Client Debt Settlement" || (t as any).transactionType === "Debt_Settlement"
+                  );
+                  const collectedDebtRev = debtSettlements.reduce(
+                    (acc, t) => acc + (t.amountPaid !== undefined && t.amountPaid !== null ? t.amountPaid : t.grandTotal),
+                    0,
+                  );
+                  const totalCollectedRev = collectedSalesRev + collectedDebtRev;
+                  const totalInvoicedRev = salesTxns.reduce(
                     (acc, t) => acc + t.grandTotal,
                     0,
                   );
@@ -1298,8 +1324,150 @@ export default function FinanceReportsPage() {
                     (acc, b) => acc + (b.amountPaid || 0),
                     0,
                   );
-                  const totalExp = totalOpExp + totalPurchExp;
-                  const netProfit = totalRev - totalExp;
+                  // Align Net Operating Profit with Partner Equity: Collected Revenue - Operating Overheads
+                  const netOperatingProfit = totalCollectedRev - totalOpExp;
+                  // Net Operating Cash Flow accounts for physical inventory/stock asset procurement
+                  const netCashFlow = netOperatingProfit - totalPurchExp;
+
+                  // --- BALANCE SHEET VALUES (STATEMENT OF FINANCIAL POSITION AS OF reportEndDate) ---
+                  // Point-in-time cumulative calculations up to reportEndDate
+                  const asOfActiveTxns = transactions.filter((t) => {
+                    const status = (t.status || "").toLowerCase();
+                    return (
+                      (!t.date || t.date <= reportEndDate) &&
+                      status !== "refunded" &&
+                      status !== "cancelled"
+                    );
+                  });
+                  const asOfSalesTxns = asOfActiveTxns.filter(
+                    (t) =>
+                      t.transactionType !== "Debt_Settlement" &&
+                      t.serviceName !== "Client Debt Settlement",
+                  );
+                  const asOfDebtTxns = asOfActiveTxns.filter(
+                    (t) =>
+                      t.transactionType === "Debt_Settlement" ||
+                      t.serviceName === "Client Debt Settlement",
+                  );
+
+                  const asOfCollectedSalesRev = asOfSalesTxns.reduce(
+                    (acc, t) =>
+                      acc +
+                      (t.amountPaid !== undefined && t.amountPaid !== null
+                        ? t.amountPaid
+                        : t.status === "Pending"
+                          ? 0
+                          : t.grandTotal),
+                    0,
+                  );
+                  const asOfCollectedDebtRev = asOfDebtTxns.reduce(
+                    (acc, t) =>
+                      acc +
+                      (t.amountPaid !== undefined && t.amountPaid !== null
+                        ? t.amountPaid
+                        : t.grandTotal),
+                    0,
+                  );
+                  const asOfTotalCollectedRev = asOfCollectedSalesRev + asOfCollectedDebtRev;
+
+                  const asOfPaidExps = expenses.filter(
+                    (e) =>
+                      (!e.date || e.date <= reportEndDate) &&
+                      e.status === "Paid" &&
+                      (e.category as string) !== "Inventory Purchase" &&
+                      (e.category as string) !== "Products" &&
+                      (e.category as string) !== "Partner Drawing" &&
+                      !e.id?.startsWith("EXP-PUR-") &&
+                      !e.id?.startsWith("EXP-DRW-") &&
+                      !e.title?.toLowerCase().startsWith("vendor bill payment"),
+                  );
+                  const asOfTotalOpExp = asOfPaidExps.reduce(
+                    (acc, e) => acc + e.amount,
+                    0,
+                  );
+
+                  const asOfPaidPurchases = purchaseBills.filter(
+                    (b: any) =>
+                      (!b.date || b.date <= reportEndDate) &&
+                      (b.amountPaid || 0) > 0,
+                  );
+                  const asOfTotalPurchPaid = asOfPaidPurchases.reduce(
+                    (acc, b: any) => acc + (b.amountPaid || 0),
+                    0,
+                  );
+
+                  // Cumulative Realized Cash Operating Profit up to reportEndDate
+                  const cumRealizedProfit = asOfTotalCollectedRev - asOfTotalOpExp;
+
+                  // Accounts Receivable (patient credit balances as of reportEndDate)
+                  const accountsReceivable = clients.reduce(
+                    (acc: number, c: any) => acc + (c.outstandingBalance || 0),
+                    0,
+                  );
+
+                  const inventoryValuation = inventory.reduce(
+                    (acc: number, item: any) =>
+                      acc + ((item.quantity || 0) * (item.price || 0)),
+                    0,
+                  );
+
+                  const totalContributedCapital = (
+                    partnerEquity?.partners || []
+                  ).reduce(
+                    (acc: number, p: any) =>
+                      acc + (p.totalInvested ?? p.initialInvestment ?? 0),
+                    0,
+                  );
+
+                  const cumulativeDrawings = (
+                    partnerEquity?.partners || []
+                  ).reduce(
+                    (acc: number, p: any) => acc + (p.totalWithdrawn || 0),
+                    0,
+                  );
+
+                  // Liquid Cash & Bank Reserves = Contributed Capital + Collected Revenue - Paid Overheads - Stock Purchases Paid - Drawings
+                  const netCashDrawer =
+                    totalContributedCapital +
+                    asOfTotalCollectedRev -
+                    asOfTotalOpExp -
+                    asOfTotalPurchPaid -
+                    cumulativeDrawings;
+                  const cashAndEquivalents = Math.max(0, netCashDrawer);
+
+                  const totalCurrentAssets =
+                    cashAndEquivalents + accountsReceivable + inventoryValuation;
+                  const totalAssets = totalCurrentAssets;
+
+                  // Current Liabilities
+                  const accountsPayable = purchaseBills
+                    .filter((b: any) => !b.date || b.date <= reportEndDate)
+                    .reduce(
+                      (acc: number, b: any) => acc + (b.remainingDue || 0),
+                      0,
+                    );
+
+                  const accruedExpenses = expenses
+                    .filter(
+                      (e: any) =>
+                        (!e.date || e.date <= reportEndDate) &&
+                        (e.status || "").toLowerCase() !== "paid" &&
+                        e.category !== "Partner Drawing",
+                    )
+                    .reduce(
+                      (acc: number, e: any) =>
+                        acc + (e.remainingAmount ?? e.amount ?? 0),
+                      0,
+                    );
+
+                  const totalLiabilities = accountsPayable + accruedExpenses;
+
+                  // Retained Operating Earnings (Accrual basis = Realized Cash Profit + Client Receivables - Accrued Overheads)
+                  const retainedEarnings =
+                    cumRealizedProfit + accountsReceivable - accruedExpenses;
+                  const totalEquity =
+                    totalContributedCapital + retainedEarnings - cumulativeDrawings;
+                  const totalLiabilitiesAndEquity = totalLiabilities + totalEquity;
 
                   let pdfCashRev = 0;
                   let pdfCardRev = 0;
@@ -1524,22 +1692,28 @@ export default function FinanceReportsPage() {
                         <div class="grid">
                           <div class="grid-item">
                             <div class="card">
-                              <span class="card-title">Net Revenue</span>
-                              <span class="card-value">${formatFinancial(totalRev)}</span>
+                              <span class="card-title">Collected Revenue</span>
+                              <span class="card-value">${formatFinancial(totalCollectedRev)}</span>
                             </div>
                           </div>
                           <div class="grid-item">
                             <div class="card">
-                              <span class="card-title">Total Expenses</span>
-                              <span class="card-value">${formatFinancial(-totalExp)}</span>
+                              <span class="card-title">Operating Overheads</span>
+                              <span class="card-value">${formatFinancial(-totalOpExp)}</span>
                             </div>
                           </div>
                           <div class="grid-item">
                             <div class="card">
-                              <span class="card-title">Net Profit</span>
+                              <span class="card-title">Net Operating Profit</span>
                               <span class="card-value">
-                                <span class="double-underline">${formatFinancial(netProfit)}</span>
+                                <span class="double-underline">${formatFinancial(netOperatingProfit)}</span>
                               </span>
+                            </div>
+                          </div>
+                          <div class="grid-item">
+                            <div class="card">
+                              <span class="card-title">Stock Outflows (Asset)</span>
+                              <span class="card-value">${formatFinancial(-totalPurchExp)}</span>
                             </div>
                           </div>
                         </div>
@@ -1561,31 +1735,168 @@ export default function FinanceReportsPage() {
                               <td>Front Desk Cash Drawer (#1010)</td>
                               <td class="text-right">${pdfCashCount}</td>
                               <td class="text-right font-mono font-bold">${formatFinancial(pdfCashRev)}</td>
-                              <td class="text-right font-mono">${totalRev > 0 ? ((pdfCashRev / totalRev) * 100).toFixed(1) : "0.0"}%</td>
+                              <td class="text-right font-mono">${totalCollectedRev > 0 ? ((pdfCashRev / totalCollectedRev) * 100).toFixed(1) : "0.0"}%</td>
                             </tr>
                             <tr>
                               <td><strong>Card / POS Terminals</strong></td>
                               <td>Terminal Swipes & Merchant Holding (#1020)</td>
                               <td class="text-right">${pdfCardCount}</td>
                               <td class="text-right font-mono font-bold">${formatFinancial(pdfCardRev)}</td>
-                              <td class="text-right font-mono">${totalRev > 0 ? ((pdfCardRev / totalRev) * 100).toFixed(1) : "0.0"}%</td>
+                              <td class="text-right font-mono">${totalCollectedRev > 0 ? ((pdfCardRev / totalCollectedRev) * 100).toFixed(1) : "0.0"}%</td>
                             </tr>
                             <tr>
                               <td><strong>Online Payments</strong></td>
                               <td>Online Gateway & Digital Checkouts</td>
                               <td class="text-right">${pdfOnlineCount}</td>
                               <td class="text-right font-mono font-bold">${formatFinancial(pdfOnlineRev)}</td>
-                              <td class="text-right font-mono">${totalRev > 0 ? ((pdfOnlineRev / totalRev) * 100).toFixed(1) : "0.0"}%</td>
+                              <td class="text-right font-mono">${totalCollectedRev > 0 ? ((pdfOnlineRev / totalCollectedRev) * 100).toFixed(1) : "0.0"}%</td>
                             </tr>
                             <tr>
                               <td><strong>Uncollected Dues (A/R)</strong></td>
                               <td>Accounts Receivable / Client Ledger</td>
                               <td class="text-right">-</td>
-                              <td class="text-right font-mono font-bold">${formatFinancial(Math.max(0, totalRev - (pdfCashRev + pdfCardRev + pdfOnlineRev)))}</td>
-                              <td class="text-right font-mono">${totalRev > 0 ? ((Math.max(0, totalRev - (pdfCashRev + pdfCardRev + pdfOnlineRev)) / totalRev) * 100).toFixed(1) : "0.0"}%</td>
+                              <td class="text-right font-mono font-bold">${formatFinancial(Math.max(0, totalInvoicedRev - (pdfCashRev + pdfCardRev + pdfOnlineRev)))}</td>
+                              <td class="text-right font-mono">${totalInvoicedRev > 0 ? ((Math.max(0, totalInvoicedRev - (pdfCashRev + pdfCardRev + pdfOnlineRev)) / totalInvoicedRev) * 100).toFixed(1) : "0.0"}%</td>
                             </tr>
                           </tbody>
                         </table>
+
+                        <h2>Statement of Financial Position (Balance Sheet)</h2>
+                        <div style="font-size: 11px; color: #555555; margin-top: -10px; margin-bottom: 20px;">
+                          Cumulative to Date • Assets (${formatFinancial(totalAssets)}) = Liabilities & Equity (${formatFinancial(totalLiabilitiesAndEquity)})
+                        </div>
+
+                        <div class="grid" style="gap: 20px; margin-bottom: 30px; align-items: stretch;">
+                          <!-- ASSETS -->
+                          <div class="grid-item" style="border: 1.5px solid #000000; border-radius: 12px; padding: 18px; background: #ffffff;">
+                            <div style="display: flex; justify-content: space-between; border-bottom: 2px solid #000000; padding-bottom: 8px; margin-bottom: 12px;">
+                              <span style="font-size: 13px; font-weight: 900; text-transform: uppercase;">1. Clinic Assets</span>
+                              <span style="font-size: 11px; font-weight: 700; color: #666666;">Owned Resources</span>
+                            </div>
+
+                            <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #555555; margin-bottom: 6px; letter-spacing: 0.5px;">Current Assets</div>
+                            <table style="width: 100%; font-size: 11px; margin-bottom: 15px;">
+                              <tbody>
+                                <tr>
+                                  <td style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">
+                                    <strong style="display: block;">Cash & Bank Reserves</strong>
+                                    <span style="font-size: 9px; color: #666666;">Front desk drawer cash & bank liquidity</span>
+                                  </td>
+                                  <td class="text-right font-mono" style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">${formatFinancial(cashAndEquivalents)}</td>
+                                </tr>
+                                <tr>
+                                  <td style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">
+                                    <strong style="display: block;">Accounts Receivable (A/R)</strong>
+                                    <span style="font-size: 9px; color: #666666;">Patient credit & uncollected treatment balances</span>
+                                  </td>
+                                  <td class="text-right font-mono" style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">${formatFinancial(accountsReceivable)}</td>
+                                </tr>
+                                <tr>
+                                  <td style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">
+                                    <strong style="display: block;">Merchandise & Clinic Inventory</strong>
+                                    <span style="font-size: 9px; color: #666666;">Injectables, serums & retail stock on hand</span>
+                                  </td>
+                                  <td class="text-right font-mono" style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">${formatFinancial(inventoryValuation)}</td>
+                                </tr>
+                                <tr style="font-weight: 800; background: #fafafa;">
+                                  <td style="padding: 8px 6px; border-bottom: 2px solid #000000;">Total Current Assets</td>
+                                  <td class="text-right font-mono" style="padding: 8px 6px; border-bottom: 2px solid #000000;">${formatFinancial(totalCurrentAssets)}</td>
+                                </tr>
+                              </tbody>
+                            </table>
+
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; font-weight: 900; font-size: 14px; border-top: 2px solid #000000;">
+                              <span>TOTAL ASSETS</span>
+                              <span class="double-underline font-mono">${formatFinancial(totalAssets)}</span>
+                            </div>
+                          </div>
+
+                          <!-- LIABILITIES & EQUITY -->
+                          <div class="grid-item" style="border: 1.5px solid #000000; border-radius: 12px; padding: 18px; background: #ffffff;">
+                            <div style="display: flex; justify-content: space-between; border-bottom: 2px solid #000000; padding-bottom: 8px; margin-bottom: 12px;">
+                              <span style="font-size: 13px; font-weight: 900; text-transform: uppercase;">2. Liabilities & Equity</span>
+                              <span style="font-size: 11px; font-weight: 700; color: #666666;">Obligations & Net Worth</span>
+                            </div>
+
+                            <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #555555; margin-bottom: 6px; letter-spacing: 0.5px;">Current Liabilities (What Clinic Owes)</div>
+                            <table style="width: 100%; font-size: 11px; margin-bottom: 15px;">
+                              <tbody>
+                                <tr>
+                                  <td style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">
+                                    <strong style="display: block;">Accounts Payable (A/P)</strong>
+                                    <span style="font-size: 9px; color: #666666;">Vendor wholesale orders remaining due</span>
+                                  </td>
+                                  <td class="text-right font-mono" style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">${formatFinancial(accountsPayable)}</td>
+                                </tr>
+                                <tr>
+                                  <td style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">
+                                    <strong style="display: block;">Accrued Clinic Overheads</strong>
+                                    <span style="font-size: 9px; color: #666666;">Pending utility, rent & operational bills</span>
+                                  </td>
+                                  <td class="text-right font-mono" style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">${formatFinancial(accruedExpenses)}</td>
+                                </tr>
+                                <tr style="font-weight: 800; background: #fafafa;">
+                                  <td style="padding: 8px 6px; border-bottom: 1.5px solid #000000;">Total Liabilities</td>
+                                  <td class="text-right font-mono" style="padding: 8px 6px; border-bottom: 1.5px solid #000000;">${formatFinancial(totalLiabilities)}</td>
+                                </tr>
+                              </tbody>
+                            </table>
+
+                            <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #555555; margin-bottom: 6px; letter-spacing: 0.5px;">Partners' Equity (Ownership Net Worth)</div>
+                            <table style="width: 100%; font-size: 11px; margin-bottom: 15px;">
+                              <tbody>
+                                <tr>
+                                  <td style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">
+                                    <strong style="display: block;">Contributed Capital</strong>
+                                    <span style="font-size: 9px; color: #666666;">Partner seed capital & direct contributions</span>
+                                  </td>
+                                  <td class="text-right font-mono" style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">${formatFinancial(totalContributedCapital)}</td>
+                                </tr>
+                                <tr>
+                                  <td style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">
+                                    <strong style="display: block;">Retained Operating Profit (Realized)</strong>
+                                    <span style="font-size: 9px; color: #666666;">Cumulative realized net cash from clinic operations</span>
+                                  </td>
+                                  <td class="text-right font-mono" style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">${formatFinancial(cumRealizedProfit)}</td>
+                                </tr>
+                                ${accruedExpenses > 0 ? `
+                                <tr>
+                                  <td style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">
+                                    <strong style="display: block;">Less: Accrued Overheads Recognized</strong>
+                                    <span style="font-size: 9px; color: #666666;">Pending overheads recognized as liabilities</span>
+                                  </td>
+                                  <td class="text-right font-mono text-red-600" style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">(${formatFinancial(accruedExpenses)})</td>
+                                </tr>
+                                ` : ''}
+                                ${accountsReceivable > 0 ? `
+                                <tr>
+                                  <td style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">
+                                    <strong style="display: block;">Add: Accounts Receivable (A/R)</strong>
+                                    <span style="font-size: 9px; color: #666666;">Earned treatment revenue recognized as assets</span>
+                                  </td>
+                                  <td class="text-right font-mono text-emerald-600" style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">+${formatFinancial(accountsReceivable)}</td>
+                                </tr>
+                                ` : ''}
+                                <tr>
+                                  <td style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">
+                                    <strong style="display: block;">Less: Cumulative Partner Drawings</strong>
+                                    <span style="font-size: 9px; color: #666666;">Total distributions taken by partners</span>
+                                  </td>
+                                  <td class="text-right font-mono text-red-600" style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">(${formatFinancial(cumulativeDrawings)})</td>
+                                </tr>
+                                <tr style="font-weight: 800; background: #fafafa;">
+                                  <td style="padding: 8px 6px; border-bottom: 2px solid #000000;">Total Partners' Equity</td>
+                                  <td class="text-right font-mono" style="padding: 8px 6px; border-bottom: 2px solid #000000;">${formatFinancial(totalEquity)}</td>
+                                </tr>
+                              </tbody>
+                            </table>
+
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; font-weight: 900; font-size: 14px; border-top: 2px solid #000000;">
+                              <span>TOTAL LIABILITIES & EQUITY</span>
+                              <span class="double-underline font-mono">${formatFinancial(totalLiabilitiesAndEquity)}</span>
+                            </div>
+                          </div>
+                        </div>
 
                         <h2>Recent Sales Transactions</h2>
                         <table>
