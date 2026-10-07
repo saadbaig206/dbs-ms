@@ -63,7 +63,6 @@ function InvoicePrintContent({ data, clinicInfo, printTime }: { data: any; clini
       <div className="pt-3 pb-3 space-y-1">
         <p className="font-black font-bold uppercase tracking-wide">Customer Info</p>
         <p>Name : <span className="font-bold">{data.clientName || 'Valued Client'}</span></p>
-        {data.phone && <p>Phone : <span className="font-bold">{data.phone}</span></p>}
       </div>
 
       <div className="border-t border-dashed border-slate-400" />

@@ -46,6 +46,7 @@ import {
 } from "recharts";
 import { useClinic } from "../../lib/context/ClinicContext";
 import { formatPKR, formatPKRCompact, formatUserName } from "../../lib/utils/currency";
+import { formatDateDisplay } from "../../lib/utils/date";
 import { escapeHtml } from "../../lib/utils/sanitize";
 import { ExpenseCategory } from "../../lib/types/clinic";
 import { StatCard } from "../../components/cards/StatCard";
@@ -193,6 +194,7 @@ function FinanceDatePicker({
 
 export default function FinanceReportsPage() {
   const {
+    clinicInfo,
     transactions: allTransactions,
     expenses: allExpenses,
     purchaseBills: allPurchaseBills = [],
@@ -622,10 +624,10 @@ export default function FinanceReportsPage() {
   };
 
   const [activeReport, setActiveReport] = useState<
-    "Revenue" | "Expense" | "Profit"
+    "Revenue" | "Expense" | "Profit" | "Audit"
   >("Revenue");
 
-  const reportTabs = ["Revenue", "Expense", "Profit"] as const;
+  const reportTabs = ["Revenue", "Expense", "Profit", "Audit"] as const;
 
   const [reportStartDate, setReportStartDate] = useState(() => {
     const d = new Date();
@@ -638,6 +640,38 @@ export default function FinanceReportsPage() {
     const day = String(d.getDate()).padStart(2, "0");
     return `${d.getFullYear()}-${month}-${day}`;
   });
+
+  const handlePreset = (preset: "thisMonth" | "lastMonth" | "thisYear" | "allTime") => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const todayStr = `${year}-${month}-${day}`;
+
+    if (preset === "thisMonth") {
+      setReportStartDate(`${year}-${month}-01`);
+      setReportEndDate(todayStr);
+    } else if (preset === "lastMonth") {
+      const prevMonthDate = new Date(year, now.getMonth() - 1, 1);
+      const prevYear = prevMonthDate.getFullYear();
+      const prevMonth = String(prevMonthDate.getMonth() + 1).padStart(2, "0");
+      const lastDayPrevMonth = new Date(year, now.getMonth(), 0).getDate();
+      setReportStartDate(`${prevYear}-${prevMonth}-01`);
+      setReportEndDate(`${prevYear}-${prevMonth}-${String(lastDayPrevMonth).padStart(2, "0")}`);
+    } else if (preset === "thisYear") {
+      setReportStartDate(`${year}-01-01`);
+      setReportEndDate(todayStr);
+    } else if (preset === "allTime") {
+      setReportStartDate("2020-01-01");
+      setReportEndDate(todayStr);
+    }
+  };
+
+  const nowForPreset = new Date();
+  const curMonthStart = `${nowForPreset.getFullYear()}-${String(nowForPreset.getMonth() + 1).padStart(2, "0")}-01`;
+  const isThisMonth = reportStartDate === curMonthStart;
+  const isThisYear = reportStartDate === `${nowForPreset.getFullYear()}-01-01`;
+  const isAllTime = reportStartDate === "2020-01-01";
 
   // Calculators & Trends Memoized
   const {
@@ -1330,6 +1364,1445 @@ export default function FinanceReportsPage() {
     }
   };
 
+  const rangeMetrics = useMemo(() => {
+    let rangeTotalRev = 0;
+    let rangeTotalDisc = 0;
+    let rangeCashRev = 0;
+    let rangeCashCount = 0;
+    let rangeCardRev = 0;
+    let rangeCardCount = 0;
+    let rangeOnlineRev = 0;
+    let rangeOnlineCount = 0;
+    let rangeTxnCount = 0;
+    let rangeCollectedSales = 0;
+    let rangeCollectedDebt = 0;
+
+    const inRangeTxns = transactions.filter((t) => {
+      const status = (t.status || "").toLowerCase();
+      if (status === "refunded" || status === "cancelled") return false;
+      const dateStr = (t.date || "").trim().slice(0, 10);
+      if (reportStartDate && dateStr < reportStartDate) return false;
+      if (reportEndDate && dateStr > reportEndDate) return false;
+      return true;
+    });
+
+    for (const t of inRangeTxns) {
+      const isDebtSettlement =
+        t.transactionType === "Debt_Settlement" ||
+        t.serviceName === "Client Debt Settlement";
+      const gTotal = t.grandTotal || 0;
+      const disc = t.discount || 0;
+      const paidAmt =
+        t.amountPaid !== undefined && t.amountPaid !== null
+          ? t.amountPaid
+          : (t.status === "Pending" ? 0 : gTotal);
+
+      if (isDebtSettlement) {
+        rangeCollectedDebt += paidAmt;
+      } else {
+        rangeTotalRev += gTotal;
+        rangeTotalDisc += disc;
+        rangeTxnCount++;
+        rangeCollectedSales += paidAmt;
+      }
+
+      if (t.paymentSplits && t.paymentSplits.length > 0) {
+        for (const split of t.paymentSplits) {
+          const sMethod = (split.method || "").toLowerCase();
+          const sAmt = Number(split.amount) || 0;
+          if (sMethod === "cash") {
+            rangeCashRev += sAmt;
+            rangeCashCount++;
+          } else if (sMethod === "card" || sMethod.includes("pos")) {
+            rangeCardRev += sAmt;
+            rangeCardCount++;
+          } else {
+            rangeOnlineRev += sAmt;
+            rangeOnlineCount++;
+          }
+        }
+      } else {
+        const pm = (t.paymentMethod || "").toLowerCase();
+        if (pm === "cash") {
+          rangeCashRev += paidAmt;
+          rangeCashCount++;
+        } else if (pm === "card" || pm.includes("pos")) {
+          rangeCardRev += paidAmt;
+          rangeCardCount++;
+        } else {
+          rangeOnlineRev += paidAmt;
+          rangeOnlineCount++;
+        }
+      }
+    }
+
+    const rangeTotalCollected = rangeCollectedSales + rangeCollectedDebt;
+    const totalColl = rangeCashRev + rangeCardRev + rangeOnlineRev;
+    const collDenom = totalColl > 0 ? totalColl : 1;
+    const rangeCashPct = totalColl > 0 ? (rangeCashRev / collDenom) * 100 : 0;
+    const rangeCardPct = totalColl > 0 ? (rangeCardRev / collDenom) * 100 : 0;
+    const rangeOnlinePct = totalColl > 0 ? (rangeOnlineRev / collDenom) * 100 : 0;
+    const rangeUncollected = Math.max(0, rangeTotalRev - rangeCollectedSales);
+
+    let rangeOpExp = 0;
+    const inRangeExps = expenses.filter((e) => {
+      const cat = (e.category || "").toLowerCase();
+      const title = (e.title || "").toLowerCase();
+      const id = (e.id || "").toUpperCase();
+      if (
+        cat === "inventory purchase" ||
+        cat === "products" ||
+        cat === "purchases" ||
+        cat === "purchase" ||
+        cat === "partner drawing" ||
+        id.startsWith("EXP-PUR-") ||
+        id.startsWith("EXP-DRW-") ||
+        id.startsWith("PIT-") ||
+        id.includes("-PUR-") ||
+        title.includes("partner drawing") ||
+        title.startsWith("vendor bill") ||
+        title.includes("purchase bill") ||
+        title.includes("supplier order") ||
+        Boolean(e.productName)
+      ) return false;
+
+      const dateStr = (e.date || "").trim().slice(0, 10);
+      if (reportStartDate && dateStr < reportStartDate) return false;
+      if (reportEndDate && dateStr > reportEndDate) return false;
+      return true;
+    });
+
+    const rangeCategoryMap: Record<string, { count: number; amount: number }> = {};
+
+    for (const e of inRangeExps) {
+      const actual = e.actualAmount ?? e.amount ?? 0;
+      let paid = 0;
+      if (e.paymentLogs && Array.isArray(e.paymentLogs) && e.paymentLogs.length > 0) {
+        paid = e.paymentLogs.reduce((acc: number, l: any) => acc + (Number(l?.amount) || 0), 0);
+      } else if (e.amountPaid !== undefined && e.amountPaid !== null) {
+        paid = Number(e.amountPaid) || 0;
+      } else if ((e.status || "").toLowerCase() === "paid") {
+        paid = actual;
+      }
+      if (paid <= 0 && (e.status || "").toLowerCase() !== "paid") continue;
+      const amt = paid > 0 ? paid : actual;
+      rangeOpExp += amt;
+
+      const catName = e.category || "Other";
+      if (!rangeCategoryMap[catName]) rangeCategoryMap[catName] = { count: 0, amount: 0 };
+      rangeCategoryMap[catName].count++;
+      rangeCategoryMap[catName].amount += amt;
+    }
+
+    let rangePurchExp = 0;
+    let rangePurchDue = 0;
+    const inRangePurchases = purchaseBills.filter((b: any) => {
+      const dateStr = (b.date || "").trim().slice(0, 10);
+      if (reportStartDate && dateStr < reportStartDate) return false;
+      if (reportEndDate && dateStr > reportEndDate) return false;
+      return true;
+    });
+
+    for (const b of inRangePurchases) {
+      const paid =
+        b.amountPaid !== undefined && b.amountPaid !== null
+          ? b.amountPaid
+          : b.paymentStatus === "Paid"
+            ? b.totalAmount || 0
+            : 0;
+      rangePurchExp += paid;
+      rangePurchDue += (b.remainingDue || 0);
+    }
+
+    const rangeTotalExp = rangeOpExp + rangePurchExp;
+    const rangeNetProfit = rangeTotalCollected - rangeOpExp;
+    const rangeMargin = rangeTotalCollected > 0 ? (rangeNetProfit / rangeTotalCollected) * 100 : 0;
+    const rangeCashFlow = rangeNetProfit - rangePurchExp;
+
+    return {
+      inRangeTxns,
+      inRangeExps,
+      inRangePurchases,
+      rangeTotalRev,
+      rangeTotalDisc,
+      rangeGrossInvoiced: rangeTotalRev + rangeTotalDisc,
+      rangeCollectedSales,
+      rangeCollectedDebt,
+      rangeTotalCollected,
+      rangeCashRev,
+      rangeCashCount,
+      rangeCashPct,
+      rangeCardRev,
+      rangeCardCount,
+      rangeCardPct,
+      rangeOnlineRev,
+      rangeOnlineCount,
+      rangeOnlinePct,
+      rangeUncollected,
+      rangeTxnCount,
+      rangeOpExp,
+      rangePurchExp,
+      rangePurchDue,
+      rangeTotalExp,
+      rangeNetProfit,
+      rangeMargin,
+      rangeCashFlow,
+      rangeCategoryMap,
+    };
+  }, [transactions, expenses, purchaseBills, reportStartDate, reportEndDate]);
+
+  const getPdfButtonLabel = () => {
+    if (activeTab === "reports") {
+      if (activeReport === "Revenue") return "Revenue PDF";
+      if (activeReport === "Expense") return "Expense PDF";
+      if (activeReport === "Profit") return "Profit & Loss PDF";
+      if (activeReport === "Audit") return "Audit PDF";
+      return "PDF Report";
+    }
+    if (activeTab === "transactions") return "Ledger PDF";
+    if (activeTab === "purchases") return "Purchases PDF";
+    if (activeTab === "expenses") return "Expenses PDF";
+    if (activeTab === "equity") return "Equity PDF";
+    if (activeTab === "partner-expenses") return "Partner PDF";
+    return "PDF Report";
+  };
+
+  const handleExportPDF = (overrideType?: string) => {
+    const reportType = (
+      overrideType ||
+      (activeTab === "reports" ? activeReport.toLowerCase() : activeTab)
+    ).toLowerCase();
+
+    const branch = branches.find((b: any) => b.id === selectedBranchId);
+    const displayClinicName = branch
+      ? `${clinicInfo?.name || "DBS Aesthetic Clinic & Salon"} (${branch.name})`
+      : (clinicInfo?.name || "DBS Aesthetic Clinic & Salon");
+    const displayAddress = branch
+      ? branch.location
+      : (clinicInfo?.address || "Building 4, Sector F-7, Islamabad");
+    const displayPhone = branch
+      ? branch.phone || clinicInfo?.phone
+      : (clinicInfo?.phone || "+92 300 1234567");
+
+    const formatFinancial = (val: number) => {
+      const formatted = formatPKR(Math.abs(val), { decimals: false });
+      return val < 0 ? `(${formatted})` : formatted;
+    };
+
+    const periodStr = `${formatDateDisplay(reportStartDate)} to ${formatDateDisplay(reportEndDate)}`;
+    const todayStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+
+    const commonStyles = `
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        color: #0f172a;
+        background: #ffffff;
+        padding: 32px 36px;
+        margin: 0;
+        line-height: 1.45;
+      }
+      .header {
+        border-bottom: 2.5px solid #0f172a;
+        padding-bottom: 16px;
+        margin-bottom: 22px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 900;
+        letter-spacing: -0.5px;
+        text-transform: uppercase;
+        color: #0f172a;
+      }
+      .header p {
+        margin: 4px 0 0 0;
+        font-size: 12px;
+        color: #475569;
+        font-weight: 600;
+      }
+      .header .meta {
+        font-size: 11px;
+        color: #64748b;
+        margin-top: 3px;
+      }
+      .badge {
+        border: 2px solid #0f172a;
+        color: #0f172a;
+        font-size: 10px;
+        font-weight: 800;
+        padding: 6px 14px;
+        border-radius: 9999px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        white-space: nowrap;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+      .grid-3 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+      .grid-2 {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 14px;
+        margin-bottom: 20px;
+      }
+      .card {
+        background: #f8fafc;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        padding: 12px 14px;
+        page-break-inside: avoid;
+      }
+      .card-title {
+        font-size: 9.5px;
+        font-weight: 800;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        display: block;
+      }
+      .card-value {
+        font-size: 18px;
+        font-weight: 900;
+        margin-top: 4px;
+        display: block;
+        color: #0f172a;
+      }
+      h2 {
+        font-size: 13px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-top: 24px;
+        margin-bottom: 10px;
+        border-bottom: 2px solid #0f172a;
+        padding-bottom: 5px;
+        color: #0f172a;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 11px;
+        margin-bottom: 20px;
+      }
+      tr {
+        page-break-inside: avoid;
+      }
+      th {
+        background: #0f172a;
+        color: #ffffff;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 9.5px;
+        padding: 8px 10px;
+        text-align: left;
+        letter-spacing: 0.5px;
+      }
+      td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #e2e8f0;
+        color: #0f172a;
+      }
+      .text-right { text-align: right; }
+      .text-center { text-align: center; }
+      .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+      .font-bold { font-weight: 700; }
+      .double-underline { border-bottom: 3px double #0f172a; padding-bottom: 2px; }
+      .signatures {
+        margin-top: 32px;
+        padding-top: 16px;
+        border-top: 1px dashed #cbd5e1;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+        page-break-inside: avoid;
+      }
+      .sig-line {
+        border-top: 1.5px solid #0f172a;
+        margin-top: 32px;
+        padding-top: 6px;
+        text-align: center;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 9.5px;
+        color: #475569;
+      }
+      .footer-note {
+        text-align: center;
+        font-size: 9.5px;
+        color: #94a3b8;
+        margin-top: 24px;
+        border-top: 1px solid #e2e8f0;
+        padding-top: 8px;
+      }
+      @media print {
+        body { padding: 12px 18px; color: #000 !important; background: #fff !important; }
+        th { background: #0f172a !important; color: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .card { background: #f8fafc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      }
+    `;
+
+    let htmlBody = "";
+
+    // 1. REVENUE REPORT
+    if (reportType === "revenue") {
+      const salesTxns = rangeMetrics.inRangeTxns.filter(
+        (t) => t.transactionType !== "Debt_Settlement" && t.serviceName !== "Client Debt Settlement"
+      );
+      const debtTxns = rangeMetrics.inRangeTxns.filter(
+        (t) => t.transactionType === "Debt_Settlement" || t.serviceName === "Client Debt Settlement"
+      );
+
+      // Aggregate top treatments / services
+      const serviceAgg: Record<string, { name: string; count: number; total: number }> = {};
+      salesTxns.forEach((t) => {
+        const items = (t.items && t.items.length > 0)
+          ? t.items
+          : [{ name: t.serviceName || "Clinical Treatment", price: t.grandTotal, quantity: 1 }];
+        items.forEach((item: any) => {
+          const sName = item.name || "General Service";
+          if (!serviceAgg[sName]) {
+            serviceAgg[sName] = { name: sName, count: 0, total: 0 };
+          }
+          serviceAgg[sName].count += (item.quantity || 1);
+          serviceAgg[sName].total += (item.price || 0) * (item.quantity || 1);
+        });
+      });
+      const topServices = Object.values(serviceAgg).sort((a, b) => b.total - a.total);
+
+      htmlBody = `
+        <div class="header">
+          <div>
+            <h1>${escapeHtml(displayClinicName)}</h1>
+            <p>REVENUE & SALES PERFORMANCE REPORT</p>
+            <div class="meta">Timeframe: ${periodStr} • Generated: ${todayStr} • ${escapeHtml(displayAddress)}</div>
+          </div>
+          <div class="badge">Revenue Audit</div>
+        </div>
+
+        <div class="grid">
+          <div class="card">
+            <span class="card-title">Gross Invoiced Revenue</span>
+            <span class="card-value">${formatFinancial(rangeMetrics.rangeGrossInvoiced)}</span>
+          </div>
+          <div class="card">
+            <span class="card-title">Discounts Granted</span>
+            <span class="card-value" style="color: #dc2626;">-${formatFinancial(rangeMetrics.rangeTotalDisc)}</span>
+          </div>
+          <div class="card">
+            <span class="card-title">Net Realized Inflows</span>
+            <span class="card-value" style="color: #16a34a;"><span class="double-underline">${formatFinancial(rangeMetrics.rangeTotalCollected)}</span></span>
+          </div>
+          <div class="card">
+            <span class="card-title">Uncollected Receivables</span>
+            <span class="card-value" style="color: #ea580c;">${formatFinancial(rangeMetrics.rangeUncollected)}</span>
+          </div>
+        </div>
+
+        <h2>Collections by Payment Channel</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Payment Channel</th>
+              <th>Destination Account / Vault</th>
+              <th class="text-right">Invoices</th>
+              <th class="text-right">Total Collected</th>
+              <th class="text-right">Share (%)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Cash Receipts</strong></td>
+              <td>Front Desk Drawer Liquidity</td>
+              <td class="text-right">${rangeMetrics.rangeCashCount}</td>
+              <td class="text-right font-mono font-bold">${formatFinancial(rangeMetrics.rangeCashRev)}</td>
+              <td class="text-right font-mono">${rangeMetrics.rangeCashPct.toFixed(1)}%</td>
+            </tr>
+            <tr>
+              <td><strong>POS / Card Terminals</strong></td>
+              <td>Merchant Holding & Settlement</td>
+              <td class="text-right">${rangeMetrics.rangeCardCount}</td>
+              <td class="text-right font-mono font-bold">${formatFinancial(rangeMetrics.rangeCardRev)}</td>
+              <td class="text-right font-mono">${rangeMetrics.rangeCardPct.toFixed(1)}%</td>
+            </tr>
+            <tr>
+              <td><strong>Online / Bank Transfers</strong></td>
+              <td>Digital Gateway & Bank Transfers</td>
+              <td class="text-right">${rangeMetrics.rangeOnlineCount}</td>
+              <td class="text-right font-mono font-bold">${formatFinancial(rangeMetrics.rangeOnlineRev)}</td>
+              <td class="text-right font-mono">${rangeMetrics.rangeOnlinePct.toFixed(1)}%</td>
+            </tr>
+            ${debtTxns.length > 0 ? `
+            <tr>
+              <td><strong>Client Debt Recoveries</strong></td>
+              <td>Past Outstanding Balance Collections</td>
+              <td class="text-right">${debtTxns.length}</td>
+              <td class="text-right font-mono font-bold">${formatFinancial(rangeMetrics.rangeCollectedDebt)}</td>
+              <td class="text-right font-mono">${rangeMetrics.rangeTotalCollected > 0 ? ((rangeMetrics.rangeCollectedDebt / rangeMetrics.rangeTotalCollected) * 100).toFixed(1) : "0.0"}%</td>
+            </tr>
+            ` : ""}
+            <tr style="font-weight: 800; background: #f8fafc;">
+              <td>Total Realized Collections</td>
+              <td>Audited Operating Receipts</td>
+              <td class="text-right font-mono">${rangeMetrics.rangeTxnCount + debtTxns.length}</td>
+              <td class="text-right font-mono double-underline">${formatFinancial(rangeMetrics.rangeTotalCollected)}</td>
+              <td class="text-right font-mono">100.0%</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2>Top Services & Treatments Revenue</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Service / Package Name</th>
+              <th class="text-center">Units Sold</th>
+              <th class="text-right">Revenue Generated</th>
+              <th class="text-right">Share of Sales</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${topServices.slice(0, 10).map((s) => `
+              <tr>
+                <td style="font-weight: 700;">${escapeHtml(s.name)}</td>
+                <td class="text-center font-mono">${s.count}</td>
+                <td class="text-right font-mono font-bold">${formatFinancial(s.total)}</td>
+                <td class="text-right font-mono">${rangeMetrics.rangeTotalRev > 0 ? ((s.total / rangeMetrics.rangeTotalRev) * 100).toFixed(1) : "0.0"}%</td>
+              </tr>
+            `).join("")}
+            ${topServices.length === 0 ? '<tr><td colspan="4" class="text-center" style="color: #94a3b8;">No service transactions in selected date range.</td></tr>' : ""}
+          </tbody>
+        </table>
+
+        <h2>Detailed Sales Transactions Ledger (${periodStr})</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Invoice ID</th>
+              <th>Client Name</th>
+              <th>Date</th>
+              <th>Method</th>
+              <th>Status</th>
+              <th class="text-right">Amount Paid</th>
+              <th class="text-right">Grand Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rangeMetrics.inRangeTxns.map((t) => `
+              <tr>
+                <td style="font-weight: 700;">${escapeHtml(t.invoiceId || t.id)}</td>
+                <td style="font-weight: 600;">${escapeHtml(t.clientName || "Valued Client")}</td>
+                <td>${escapeHtml(t.date)}</td>
+                <td>${escapeHtml(t.paymentMethod || "Cash")}</td>
+                <td><span style="font-size: 9.5px; font-weight: 700; text-transform: uppercase;">${escapeHtml(t.paymentStatus || t.status)}</span></td>
+                <td class="text-right font-mono font-bold">${formatFinancial(t.amountPaid !== undefined && t.amountPaid !== null ? t.amountPaid : (t.status === "Pending" ? 0 : t.grandTotal))}</td>
+                <td class="text-right font-mono">${formatFinancial(t.grandTotal)}</td>
+              </tr>
+            `).join("")}
+            ${rangeMetrics.inRangeTxns.length === 0 ? '<tr><td colspan="7" class="text-center" style="color: #94a3b8;">No transactions recorded in selected timeframe.</td></tr>' : ""}
+          </tbody>
+        </table>
+      `;
+    }
+
+    // 2. EXPENSE REPORT
+    else if (reportType === "expense") {
+      htmlBody = `
+        <div class="header">
+          <div>
+            <h1>${escapeHtml(displayClinicName)}</h1>
+            <p>OPERATING OVERHEADS & PROCUREMENT EXPENSES REPORT</p>
+            <div class="meta">Timeframe: ${periodStr} • Generated: ${todayStr} • ${escapeHtml(displayAddress)}</div>
+          </div>
+          <div class="badge">Expense Audit</div>
+        </div>
+
+        <div class="grid">
+          <div class="card">
+            <span class="card-title">Operational Overheads Paid</span>
+            <span class="card-value" style="color: #dc2626;">-${formatFinancial(rangeMetrics.rangeOpExp)}</span>
+          </div>
+          <div class="card">
+            <span class="card-title">Stock Procurements Paid</span>
+            <span class="card-value" style="color: #2563eb;">-${formatFinancial(rangeMetrics.rangePurchExp)}</span>
+          </div>
+          <div class="card">
+            <span class="card-title">Total Cash Outflow</span>
+            <span class="card-value"><span class="double-underline">${formatFinancial(rangeMetrics.rangeTotalExp)}</span></span>
+          </div>
+          <div class="card">
+            <span class="card-title">Pending Vendor Liabilities</span>
+            <span class="card-value" style="color: #ea580c;">${formatFinancial(rangeMetrics.rangePurchDue)}</span>
+          </div>
+        </div>
+
+        <h2>Category-Wise Operating Outflow Distribution</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Expense Category</th>
+              <th class="text-center">Entries</th>
+              <th class="text-right">Total Outflow (PKR)</th>
+              <th class="text-right">Share of Overheads</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${Object.entries(rangeMetrics.rangeCategoryMap).map(([cat, data]) => `
+              <tr>
+                <td><strong>${escapeHtml(cat)}</strong></td>
+                <td class="text-center font-mono">${data.count}</td>
+                <td class="text-right font-mono font-bold" style="color: #dc2626;">-${formatFinancial(data.amount)}</td>
+                <td class="text-right font-mono">${rangeMetrics.rangeOpExp > 0 ? ((data.amount / rangeMetrics.rangeOpExp) * 100).toFixed(1) : "0.0"}%</td>
+              </tr>
+            `).join("")}
+            ${Object.keys(rangeMetrics.rangeCategoryMap).length === 0 ? '<tr><td colspan="4" class="text-center" style="color: #94a3b8;">No operating expenses recorded in selected timeframe.</td></tr>' : ""}
+            <tr style="font-weight: 800; background: #f8fafc;">
+              <td>Total Operational Overheads</td>
+              <td class="text-center font-mono">${rangeMetrics.inRangeExps.length}</td>
+              <td class="text-right font-mono double-underline">-${formatFinancial(rangeMetrics.rangeOpExp)}</td>
+              <td class="text-right font-mono">100.0%</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2>Operating Overheads Breakdown (${periodStr})</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Expense Title / Purpose</th>
+              <th>Category</th>
+              <th>Date</th>
+              <th>Method</th>
+              <th>Status</th>
+              <th class="text-right">Amount (PKR)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rangeMetrics.inRangeExps.map((e) => `
+              <tr>
+                <td><strong style="display: block;">${escapeHtml(e.title)}</strong><span style="font-size: 9.5px; color: #64748b;">${escapeHtml(e.vendorName || e.paidBy || "")}</span></td>
+                <td>${escapeHtml(e.category)}</td>
+                <td>${escapeHtml(e.date)}</td>
+                <td>${escapeHtml(e.paymentMethod)}</td>
+                <td><span style="font-size: 9.5px; font-weight: 700; text-transform: uppercase;">${escapeHtml(e.status)}</span></td>
+                <td class="text-right font-mono font-bold" style="color: #dc2626;">-${formatFinancial(e.amountPaid !== undefined && e.amountPaid !== null ? e.amountPaid : e.amount)}</td>
+              </tr>
+            `).join("")}
+            ${rangeMetrics.inRangeExps.length === 0 ? '<tr><td colspan="6" class="text-center" style="color: #94a3b8;">No operational expenses in range.</td></tr>' : ""}
+          </tbody>
+        </table>
+
+        <h2>Vendor Inventory & Stock Purchases (${periodStr})</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Vendor / Supplier</th>
+              <th>Bill #</th>
+              <th>Date</th>
+              <th>Method</th>
+              <th>Status</th>
+              <th class="text-right">Amount Paid</th>
+              <th class="text-right">Remaining Due</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rangeMetrics.inRangePurchases.map((b: any) => `
+              <tr>
+                <td><strong>${escapeHtml(b.vendorName || "Supplier Bill")}</strong></td>
+                <td style="font-family: monospace;">${escapeHtml(b.billNumber || b.id || "N/A")}</td>
+                <td>${escapeHtml(b.date || "")}</td>
+                <td>${escapeHtml(b.paymentMethod || "Bank Transfer")}</td>
+                <td><span style="font-size: 9.5px; font-weight: 700; text-transform: uppercase;">${escapeHtml(b.paymentStatus || "Paid")}</span></td>
+                <td class="text-right font-mono font-bold" style="color: #2563eb;">-${formatFinancial(b.amountPaid || 0)}</td>
+                <td class="text-right font-mono">${formatFinancial(b.remainingDue || 0)}</td>
+              </tr>
+            `).join("")}
+            ${rangeMetrics.inRangePurchases.length === 0 ? '<tr><td colspan="7" class="text-center" style="color: #94a3b8;">No stock purchases in range.</td></tr>' : ""}
+          </tbody>
+        </table>
+      `;
+    }
+
+    // 3. PROFIT & LOSS STATEMENT (P&L) REPORT
+    else if (reportType === "profit") {
+      const marginStatus = rangeMetrics.rangeMargin >= 35
+        ? "Excellent operational surplus & sustainable fiscal health"
+        : rangeMetrics.rangeMargin >= 20
+          ? "Solid positive operating margin meeting clinic targets"
+          : rangeMetrics.rangeMargin > 0
+            ? "Positive surplus; overhead containment recommended"
+            : "Operating cash deficit for selected timeframe";
+
+      htmlBody = `
+        <div class="header">
+          <div>
+            <h1>${escapeHtml(displayClinicName)}</h1>
+            <p>EXECUTIVE PROFIT & LOSS (P&L) STATEMENT</p>
+            <div class="meta">Timeframe: ${periodStr} • Generated: ${todayStr} • ${escapeHtml(displayAddress)}</div>
+          </div>
+          <div class="badge">P&L Statement</div>
+        </div>
+
+        <div class="grid">
+          <div class="card">
+            <span class="card-title">Realized Revenue</span>
+            <span class="card-value" style="color: #2563eb;">${formatFinancial(rangeMetrics.rangeTotalCollected)}</span>
+          </div>
+          <div class="card">
+            <span class="card-title">Operating Overheads</span>
+            <span class="card-value" style="color: #dc2626;">-${formatFinancial(rangeMetrics.rangeOpExp)}</span>
+          </div>
+          <div class="card">
+            <span class="card-title">Net Operating Profit</span>
+            <span class="card-value" style="color: ${rangeMetrics.rangeNetProfit >= 0 ? '#16a34a' : '#dc2626'};">
+              <span class="double-underline">${formatFinancial(rangeMetrics.rangeNetProfit)}</span>
+            </span>
+          </div>
+          <div class="card">
+            <span class="card-title">Operating Margin</span>
+            <span class="card-value" style="color: #4f46e5;">${rangeMetrics.rangeMargin.toFixed(1)}%</span>
+          </div>
+        </div>
+
+        <h2>Statement of Profit & Loss</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Financial Item & Account Code</th>
+              <th class="text-right">Subtotal</th>
+              <th class="text-right">Total (PKR)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="background: #f8fafc; font-weight: 800;">
+              <td colspan="3">1. OPERATING REVENUE (INFLOW)</td>
+            </tr>
+            <tr>
+              <td style="padding-left: 20px;">Gross Invoiced Treatment & Product Sales</td>
+              <td class="text-right font-mono">${formatFinancial(rangeMetrics.rangeGrossInvoiced)}</td>
+              <td></td>
+            </tr>
+            <tr>
+              <td style="padding-left: 20px;">Less: Promotional & Package Discounts</td>
+              <td class="text-right font-mono" style="color: #dc2626;">(${formatFinancial(rangeMetrics.rangeTotalDisc)})</td>
+              <td></td>
+            </tr>
+            <tr>
+              <td style="padding-left: 20px;">Realized Cash & Bank Sales Inflow</td>
+              <td class="text-right font-mono">${formatFinancial(rangeMetrics.rangeCollectedSales)}</td>
+              <td></td>
+            </tr>
+            ${rangeMetrics.rangeCollectedDebt > 0 ? `
+            <tr>
+              <td style="padding-left: 20px;">Add: Past Client Debt Collections Recovered</td>
+              <td class="text-right font-mono">+${formatFinancial(rangeMetrics.rangeCollectedDebt)}</td>
+              <td></td>
+            </tr>
+            ` : ""}
+            <tr style="font-weight: 700; background: #fafafa;">
+              <td style="padding-left: 20px;">Total Realized Operating Inflow</td>
+              <td></td>
+              <td class="text-right font-mono font-bold">${formatFinancial(rangeMetrics.rangeTotalCollected)}</td>
+            </tr>
+
+            <tr style="background: #f8fafc; font-weight: 800;">
+              <td colspan="3">2. OPERATING OVERHEADS (OUTFLOW)</td>
+            </tr>
+            ${Object.entries(rangeMetrics.rangeCategoryMap).map(([cat, data]) => `
+              <tr>
+                <td style="padding-left: 20px;">${escapeHtml(cat)} Overhead Expenditures</td>
+                <td class="text-right font-mono" style="color: #dc2626;">(${formatFinancial(data.amount)})</td>
+                <td></td>
+              </tr>
+            `).join("")}
+            <tr style="font-weight: 700; background: #fafafa;">
+              <td style="padding-left: 20px;">Total Operating Overheads</td>
+              <td></td>
+              <td class="text-right font-mono font-bold" style="color: #dc2626;">(${formatFinancial(rangeMetrics.rangeOpExp)})</td>
+            </tr>
+
+            <tr style="background: #f1f5f9; font-weight: 900; font-size: 12px;">
+              <td>3. NET OPERATING PROFIT (EBITDA SURPLUS)</td>
+              <td></td>
+              <td class="text-right font-mono double-underline" style="color: ${rangeMetrics.rangeNetProfit >= 0 ? '#16a34a' : '#dc2626'};">
+                ${formatFinancial(rangeMetrics.rangeNetProfit)}
+              </td>
+            </tr>
+
+            <tr style="background: #f8fafc; font-weight: 800;">
+              <td colspan="3">4. CAPITAL & STOCK ASSET PROCUREMENT</td>
+            </tr>
+            <tr>
+              <td style="padding-left: 20px;">Wholesale Inventory & Stock Procurements Paid</td>
+              <td></td>
+              <td class="text-right font-mono" style="color: #2563eb;">(${formatFinancial(rangeMetrics.rangePurchExp)})</td>
+            </tr>
+
+            <tr style="background: #f1f5f9; font-weight: 900; font-size: 12px;">
+              <td>5. NET CASH FLOW (AFTER INVENTORY PROCUREMENT)</td>
+              <td></td>
+              <td class="text-right font-mono double-underline" style="color: ${rangeMetrics.rangeCashFlow >= 0 ? '#16a34a' : '#dc2626'};">
+                ${formatFinancial(rangeMetrics.rangeCashFlow)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2>Operating Margin Analysis</h2>
+        <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <strong style="display: block; font-size: 13px;">Net Margin: ${rangeMetrics.rangeMargin.toFixed(1)}%</strong>
+              <span style="font-size: 11px; color: #475569;">${marginStatus}</span>
+            </div>
+            <div style="text-align: right; font-size: 11px; color: #64748b;">
+              Audit Benchmark: <strong>30.0%</strong>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // 4. TRANSACTIONS LEDGER REPORT
+    else if (reportType === "transactions") {
+      htmlBody = `
+        <div class="header">
+          <div>
+            <h1>${escapeHtml(displayClinicName)}</h1>
+            <p>FINANCIAL TRANSACTIONS & SALES INFLOW LEDGER</p>
+            <div class="meta">Timeframe: ${periodStr} • Generated: ${todayStr} • ${escapeHtml(displayAddress)}</div>
+          </div>
+          <div class="badge">Transactions Ledger</div>
+        </div>
+
+        <div class="grid">
+          <div class="card">
+            <span class="card-title">Ledger Entries Count</span>
+            <span class="card-value">${rangeMetrics.inRangeTxns.length}</span>
+          </div>
+          <div class="card">
+            <span class="card-title">Total Invoiced Value</span>
+            <span class="card-value">${formatFinancial(rangeMetrics.rangeGrossInvoiced)}</span>
+          </div>
+          <div class="card">
+            <span class="card-title">Realized Receipts</span>
+            <span class="card-value" style="color: #16a34a;"><span class="double-underline">${formatFinancial(rangeMetrics.rangeTotalCollected)}</span></span>
+          </div>
+          <div class="card">
+            <span class="card-title">Uncollected Balance</span>
+            <span class="card-value" style="color: #ea580c;">${formatFinancial(rangeMetrics.rangeUncollected)}</span>
+          </div>
+        </div>
+
+        <h2>Detailed Sales & Inflows Table (${periodStr})</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Invoice ID</th>
+              <th>Client Name</th>
+              <th>Date</th>
+              <th>Service / Package</th>
+              <th>Method</th>
+              <th>Status</th>
+              <th class="text-right">Amount Paid</th>
+              <th class="text-right">Grand Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rangeMetrics.inRangeTxns.map((t) => `
+              <tr>
+                <td style="font-weight: 700;">${escapeHtml(t.invoiceId || t.id)}</td>
+                <td style="font-weight: 600;">${escapeHtml(t.clientName || "Valued Client")}</td>
+                <td>${escapeHtml(t.date)}</td>
+                <td>${escapeHtml(t.serviceName || "Treatment")}</td>
+                <td>${escapeHtml(t.paymentMethod || "Cash")}</td>
+                <td><span style="font-size: 9.5px; font-weight: 700; text-transform: uppercase;">${escapeHtml(t.paymentStatus || t.status)}</span></td>
+                <td class="text-right font-mono font-bold">${formatFinancial(t.amountPaid !== undefined && t.amountPaid !== null ? t.amountPaid : (t.status === "Pending" ? 0 : t.grandTotal))}</td>
+                <td class="text-right font-mono">${formatFinancial(t.grandTotal)}</td>
+              </tr>
+            `).join("")}
+            ${rangeMetrics.inRangeTxns.length === 0 ? '<tr><td colspan="8" class="text-center" style="color: #94a3b8;">No transactions found in selected period.</td></tr>' : ""}
+          </tbody>
+        </table>
+      `;
+    }
+
+    // 5. PURCHASES REPORT
+    else if (reportType === "purchases") {
+      const totalPurchOrders = rangeMetrics.inRangePurchases.length;
+      const totalPurchValue = rangeMetrics.inRangePurchases.reduce((acc, b: any) => acc + (b.totalAmount || 0), 0);
+
+      htmlBody = `
+        <div class="header">
+          <div>
+            <h1>${escapeHtml(displayClinicName)}</h1>
+            <p>VENDOR PROCUREMENT & STOCK PURCHASES REPORT</p>
+            <div class="meta">Timeframe: ${periodStr} • Generated: ${todayStr} • ${escapeHtml(displayAddress)}</div>
+          </div>
+          <div class="badge">Purchases Report</div>
+        </div>
+
+        <div class="grid">
+          <div class="card">
+            <span class="card-title">Stock Orders Count</span>
+            <span class="card-value">${totalPurchOrders}</span>
+          </div>
+          <div class="card">
+            <span class="card-title">Total Orders Value</span>
+            <span class="card-value">${formatFinancial(totalPurchValue)}</span>
+          </div>
+          <div class="card">
+            <span class="card-title">Total Paid to Vendors</span>
+            <span class="card-value" style="color: #2563eb;"><span class="double-underline">${formatFinancial(rangeMetrics.rangePurchExp)}</span></span>
+          </div>
+          <div class="card">
+            <span class="card-title">Outstanding Accounts Payable</span>
+            <span class="card-value" style="color: #ea580c;">${formatFinancial(rangeMetrics.rangePurchDue)}</span>
+          </div>
+        </div>
+
+        <h2>Vendor Purchase Bills Ledger (${periodStr})</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Bill #</th>
+              <th>Vendor / Supplier</th>
+              <th>Date</th>
+              <th>Payment Method</th>
+              <th>Status</th>
+              <th class="text-right">Total Invoice</th>
+              <th class="text-right">Amount Paid</th>
+              <th class="text-right">Remaining Due</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rangeMetrics.inRangePurchases.map((b: any) => `
+              <tr>
+                <td style="font-family: monospace; font-weight: 700;">${escapeHtml(b.billNumber || b.id || "N/A")}</td>
+                <td><strong>${escapeHtml(b.vendorName || "Supplier Bill")}</strong></td>
+                <td>${escapeHtml(b.date || "")}</td>
+                <td>${escapeHtml(b.paymentMethod || "Bank Transfer")}</td>
+                <td><span style="font-size: 9.5px; font-weight: 700; text-transform: uppercase;">${escapeHtml(b.paymentStatus || "Paid")}</span></td>
+                <td class="text-right font-mono">${formatFinancial(b.totalAmount || 0)}</td>
+                <td class="text-right font-mono font-bold" style="color: #2563eb;">${formatFinancial(b.amountPaid || 0)}</td>
+                <td class="text-right font-mono" style="color: ${(b.remainingDue || 0) > 0 ? '#ea580c' : '#475569'};">${formatFinancial(b.remainingDue || 0)}</td>
+              </tr>
+            `).join("")}
+            ${rangeMetrics.inRangePurchases.length === 0 ? '<tr><td colspan="8" class="text-center" style="color: #94a3b8;">No vendor bills recorded in selected period.</td></tr>' : ""}
+          </tbody>
+        </table>
+      `;
+    }
+
+    // 6. EXPENSES TAB REPORT
+    else if (reportType === "expenses") {
+      htmlBody = `
+        <div class="header">
+          <div>
+            <h1>${escapeHtml(displayClinicName)}</h1>
+            <p>OPERATIONAL EXPENSES AUDIT REPORT</p>
+            <div class="meta">Timeframe: ${periodStr} • Generated: ${todayStr} • ${escapeHtml(displayAddress)}</div>
+          </div>
+          <div class="badge">Expenses Ledger</div>
+        </div>
+
+        <div class="grid">
+          <div class="card">
+            <span class="card-title">Expense Records</span>
+            <span class="card-value">${rangeMetrics.inRangeExps.length}</span>
+          </div>
+          <div class="card">
+            <span class="card-title">Settled Overheads</span>
+            <span class="card-value" style="color: #dc2626;"><span class="double-underline">-${formatFinancial(rangeMetrics.rangeOpExp)}</span></span>
+          </div>
+          <div class="card">
+            <span class="card-title">Active Categories</span>
+            <span class="card-value">${Object.keys(rangeMetrics.rangeCategoryMap).length}</span>
+          </div>
+          <div class="card">
+            <span class="card-title">Audit Status</span>
+            <span class="card-value" style="color: #16a34a;">Verified</span>
+          </div>
+        </div>
+
+        <h2>Detailed Expenses Table (${periodStr})</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Title / Description</th>
+              <th>Category</th>
+              <th>Date</th>
+              <th>Method</th>
+              <th>Status</th>
+              <th class="text-right">Amount (PKR)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rangeMetrics.inRangeExps.map((e) => `
+              <tr>
+                <td><strong style="display: block;">${escapeHtml(e.title)}</strong><span style="font-size: 9.5px; color: #64748b;">Paid by: ${escapeHtml(e.paidBy || e.addedBy || "Clinic Admin")}</span></td>
+                <td>${escapeHtml(e.category)}</td>
+                <td>${escapeHtml(e.date)}</td>
+                <td>${escapeHtml(e.paymentMethod)}</td>
+                <td><span style="font-size: 9.5px; font-weight: 700; text-transform: uppercase;">${escapeHtml(e.status)}</span></td>
+                <td class="text-right font-mono font-bold" style="color: #dc2626;">-${formatFinancial(e.amountPaid !== undefined && e.amountPaid !== null ? e.amountPaid : e.amount)}</td>
+              </tr>
+            `).join("")}
+            ${rangeMetrics.inRangeExps.length === 0 ? '<tr><td colspan="6" class="text-center" style="color: #94a3b8;">No operating expenses in selected period.</td></tr>' : ""}
+          </tbody>
+        </table>
+      `;
+    }
+
+    // 7. PARTNER & ADMIN EXPENSES REPORT
+    else if (reportType === "partner-expenses") {
+      const partnerExps = expenses.filter((e) => {
+        const d = (e.date || "").trim().slice(0, 10);
+        if (reportStartDate && d < reportStartDate) return false;
+        if (reportEndDate && d > reportEndDate) return false;
+        return Boolean(e.paidBy);
+      });
+      const partnerTotal = partnerExps.reduce((acc, e) => acc + (e.actualAmount ?? e.amount ?? 0), 0);
+
+      htmlBody = `
+        <div class="header">
+          <div>
+            <h1>${escapeHtml(displayClinicName)}</h1>
+            <p>PARTNER & ADMIN EXPENSES AUDIT REPORT</p>
+            <div class="meta">Timeframe: ${periodStr} • Generated: ${todayStr} • ${escapeHtml(displayAddress)}</div>
+          </div>
+          <div class="badge">Partner Outflows</div>
+        </div>
+
+        <div class="grid-3">
+          <div class="card">
+            <span class="card-title">Partner Records</span>
+            <span class="card-value">${partnerExps.length}</span>
+          </div>
+          <div class="card">
+            <span class="card-title">Total Partner Outflows</span>
+            <span class="card-value" style="color: #dc2626;"><span class="double-underline">${formatFinancial(partnerTotal)}</span></span>
+          </div>
+          <div class="card">
+            <span class="card-title">Audit Record</span>
+            <span class="card-value">Verified</span>
+          </div>
+        </div>
+
+        <h2>Partner & Admin Expense Allocations (${periodStr})</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Title / Purpose</th>
+              <th>Paid / Disbursed By</th>
+              <th>Category</th>
+              <th>Date</th>
+              <th>Method</th>
+              <th class="text-right">Amount (PKR)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${partnerExps.map((e) => `
+              <tr>
+                <td><strong>${escapeHtml(e.title)}</strong></td>
+                <td><strong style="color: #2563eb;">${escapeHtml(e.paidBy || "Admin")}</strong></td>
+                <td>${escapeHtml(e.category)}</td>
+                <td>${escapeHtml(e.date)}</td>
+                <td>${escapeHtml(e.paymentMethod)}</td>
+                <td class="text-right font-mono font-bold">${formatFinancial(e.amount)}</td>
+              </tr>
+            `).join("")}
+            ${partnerExps.length === 0 ? '<tr><td colspan="6" class="text-center" style="color: #94a3b8;">No partner expenditures in selected period.</td></tr>' : ""}
+          </tbody>
+        </table>
+      `;
+    }
+
+    // 8. PARTNER EQUITY REPORT
+    else if (reportType === "equity") {
+      const partnersList = partnerEquity?.partners || [];
+      const totalContributed = partnersList.reduce((acc: number, p: any) => acc + (p.totalInvested ?? p.initialInvestment ?? 0), 0);
+      const totalDrawn = partnersList.reduce((acc: number, p: any) => acc + (p.totalWithdrawn || 0), 0);
+      const totalCurrentCapital = partnersList.reduce((acc: number, p: any) => acc + (p.currentCapital || 0), 0);
+
+      htmlBody = `
+        <div class="header">
+          <div>
+            <h1>${escapeHtml(displayClinicName)}</h1>
+            <p>PARTNER EQUITY & CAPITAL POSITION REPORT</p>
+            <div class="meta">As of: ${formatDateDisplay(reportEndDate)} • Generated: ${todayStr} • ${escapeHtml(displayAddress)}</div>
+          </div>
+          <div class="badge">Equity Audit</div>
+        </div>
+
+        <div class="grid">
+          <div class="card">
+            <span class="card-title">Contributed Capital</span>
+            <span class="card-value">${formatFinancial(totalContributed)}</span>
+          </div>
+          <div class="card">
+            <span class="card-title">Cumulative Drawings</span>
+            <span class="card-value" style="color: #dc2626;">-${formatFinancial(totalDrawn)}</span>
+          </div>
+          <div class="card">
+            <span class="card-title">Net Partners' Capital</span>
+            <span class="card-value" style="color: #16a34a;"><span class="double-underline">${formatFinancial(totalCurrentCapital)}</span></span>
+          </div>
+          <div class="card">
+            <span class="card-title">Active Partners</span>
+            <span class="card-value">${partnersList.length}</span>
+          </div>
+        </div>
+
+        <h2>Partner Ownership & Equity Position</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Partner Name</th>
+              <th>Equity Share (%)</th>
+              <th class="text-right">Contributed Capital</th>
+              <th class="text-right">Cumulative Withdrawn</th>
+              <th class="text-right">Net Equity Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${partnersList.map((p: any) => `
+              <tr>
+                <td><strong>${escapeHtml(p.partnerName)}</strong></td>
+                <td><span style="font-weight: 700; color: #2563eb;">${p.equityPercentage || 0}%</span></td>
+                <td class="text-right font-mono">${formatFinancial(p.totalInvested ?? p.initialInvestment ?? 0)}</td>
+                <td class="text-right font-mono" style="color: #dc2626;">(${formatFinancial(p.totalWithdrawn || 0)})</td>
+                <td class="text-right font-mono font-bold">${formatFinancial(p.currentCapital ?? 0)}</td>
+              </tr>
+            `).join("")}
+            ${partnersList.length === 0 ? '<tr><td colspan="5" class="text-center" style="color: #94a3b8;">No partner equity records registered.</td></tr>' : ""}
+          </tbody>
+        </table>
+      `;
+    }
+
+    // 9. COMPREHENSIVE FINANCIAL AUDIT REPORT (DEFAULT / AUDIT)
+    else {
+      // Balance sheet cumulative as of reportEndDate
+      const asOfActiveTxns = transactions.filter((t) => {
+        const status = (t.status || "").toLowerCase();
+        return (
+          (!t.date || t.date.trim().slice(0, 10) <= reportEndDate) &&
+          status !== "refunded" &&
+          status !== "cancelled"
+        );
+      });
+      const asOfSalesTxns = asOfActiveTxns.filter(
+        (t) => t.transactionType !== "Debt_Settlement" && t.serviceName !== "Client Debt Settlement"
+      );
+      const asOfDebtTxns = asOfActiveTxns.filter(
+        (t) => t.transactionType === "Debt_Settlement" || t.serviceName === "Client Debt Settlement"
+      );
+      const asOfCollectedSalesRev = asOfSalesTxns.reduce(
+        (acc, t) => acc + (t.amountPaid !== undefined && t.amountPaid !== null ? t.amountPaid : (t.status === "Pending" ? 0 : t.grandTotal)),
+        0
+      );
+      const asOfCollectedDebtRev = asOfDebtTxns.reduce(
+        (acc, t) => acc + (t.amountPaid !== undefined && t.amountPaid !== null ? t.amountPaid : t.grandTotal),
+        0
+      );
+      const asOfTotalCollectedRev = asOfCollectedSalesRev + asOfCollectedDebtRev;
+
+      const asOfPaidExps = expenses.filter((e) => {
+        const cat = (e.category || "").toLowerCase();
+        const id = (e.id || "").toUpperCase();
+        return (
+          (!e.date || e.date.trim().slice(0, 10) <= reportEndDate) &&
+          (e.status === "Paid" || (e.amountPaid && e.amountPaid > 0)) &&
+          cat !== "inventory purchase" &&
+          cat !== "products" &&
+          cat !== "partner drawing" &&
+          !id.startsWith("EXP-PUR-") &&
+          !id.startsWith("EXP-DRW-")
+        );
+      });
+      const asOfTotalOpExp = asOfPaidExps.reduce((acc, e) => acc + (e.amountPaid ?? e.amount), 0);
+
+      const asOfPaidPurchases = purchaseBills.filter(
+        (b: any) => (!b.date || b.date.trim().slice(0, 10) <= reportEndDate) && (b.amountPaid || 0) > 0
+      );
+      const asOfTotalPurchPaid = asOfPaidPurchases.reduce((acc, b: any) => acc + (b.amountPaid || 0), 0);
+
+      const cumRealizedProfit = asOfTotalCollectedRev - asOfTotalOpExp;
+      const accountsReceivable = clients.reduce((acc: number, c: any) => acc + (c.outstandingBalance || 0), 0);
+      const inventoryValuation = inventory.reduce((acc: number, item: any) => acc + ((item.quantity || 0) * (item.price || 0)), 0);
+      const totalContributedCapital = (partnerEquity?.partners || []).reduce((acc: number, p: any) => acc + (p.totalInvested ?? p.initialInvestment ?? 0), 0);
+      const cumulativeDrawings = (partnerEquity?.partners || []).reduce((acc: number, p: any) => acc + (p.totalWithdrawn || 0), 0);
+
+      const netCashDrawer = totalContributedCapital + asOfTotalCollectedRev - asOfTotalOpExp - asOfTotalPurchPaid - cumulativeDrawings;
+      const cashAndEquivalents = Math.max(0, netCashDrawer);
+      const totalCurrentAssets = cashAndEquivalents + accountsReceivable + inventoryValuation;
+      const totalAssets = totalCurrentAssets;
+
+      const accountsPayable = purchaseBills
+        .filter((b: any) => !b.date || b.date.trim().slice(0, 10) <= reportEndDate)
+        .reduce((acc: number, b: any) => acc + (b.remainingDue || 0), 0);
+
+      const accruedExpenses = expenses
+        .filter((e: any) => (!e.date || e.date.trim().slice(0, 10) <= reportEndDate) && (e.status || "").toLowerCase() !== "paid" && e.category !== "Partner Drawing")
+        .reduce((acc: number, e: any) => acc + (e.remainingAmount ?? e.amount ?? 0), 0);
+
+      const totalLiabilities = accountsPayable + accruedExpenses;
+      const retainedEarnings = cumRealizedProfit + accountsReceivable - accruedExpenses;
+      const totalEquity = totalContributedCapital + retainedEarnings - cumulativeDrawings;
+      const totalLiabilitiesAndEquity = totalLiabilities + totalEquity;
+
+      htmlBody = `
+        <div class="header">
+          <div>
+            <h1>${escapeHtml(displayClinicName)}</h1>
+            <p>STATEMENT OF FINANCIAL POSITION & AUDIT REPORT</p>
+            <div class="meta">Timeframe: ${periodStr} • Generated: ${todayStr} • ${escapeHtml(displayAddress)}</div>
+          </div>
+          <div class="badge">Audit Certified</div>
+        </div>
+
+        <div class="grid">
+          <div class="card">
+            <span class="card-title">Realized Inflow (Period)</span>
+            <span class="card-value">${formatFinancial(rangeMetrics.rangeTotalCollected)}</span>
+          </div>
+          <div class="card">
+            <span class="card-title">Operating Overheads (Period)</span>
+            <span class="card-value" style="color: #dc2626;">-${formatFinancial(rangeMetrics.rangeOpExp)}</span>
+          </div>
+          <div class="card">
+            <span class="card-title">Net Operating Profit</span>
+            <span class="card-value" style="color: #16a34a;"><span class="double-underline">${formatFinancial(rangeMetrics.rangeNetProfit)}</span></span>
+          </div>
+          <div class="card">
+            <span class="card-title">Stock Procurement Outflow</span>
+            <span class="card-value" style="color: #2563eb;">-${formatFinancial(rangeMetrics.rangePurchExp)}</span>
+          </div>
+        </div>
+
+        <h2>Statement of Financial Position (Balance Sheet as of ${formatDateDisplay(reportEndDate)})</h2>
+        <div style="font-size: 10px; color: #64748b; margin-top: -6px; margin-bottom: 14px;">
+          Cumulative Fiscal Position • Total Assets (${formatFinancial(totalAssets)}) = Liabilities & Equity (${formatFinancial(totalLiabilitiesAndEquity)})
+        </div>
+
+        <div class="grid-2">
+          <!-- ASSETS -->
+          <div class="card" style="background: #ffffff;">
+            <div style="display: flex; justify-content: space-between; border-bottom: 1.5px solid #0f172a; padding-bottom: 6px; margin-bottom: 10px;">
+              <strong style="text-transform: uppercase; font-size: 11px;">1. Clinic Assets</strong>
+              <span style="font-size: 9.5px; color: #64748b;">Owned Resources</span>
+            </div>
+            <table>
+              <tbody>
+                <tr>
+                  <td>Cash & Bank Liquidity Reserves</td>
+                  <td class="text-right font-mono">${formatFinancial(cashAndEquivalents)}</td>
+                </tr>
+                <tr>
+                  <td>Accounts Receivable (A/R Patient Dues)</td>
+                  <td class="text-right font-mono">${formatFinancial(accountsReceivable)}</td>
+                </tr>
+                <tr>
+                  <td>Merchandise & Inventory Stock Valuation</td>
+                  <td class="text-right font-mono">${formatFinancial(inventoryValuation)}</td>
+                </tr>
+                <tr style="font-weight: 800; background: #f8fafc;">
+                  <td>Total Current Assets</td>
+                  <td class="text-right font-mono double-underline">${formatFinancial(totalAssets)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- LIABILITIES & EQUITY -->
+          <div class="card" style="background: #ffffff;">
+            <div style="display: flex; justify-content: space-between; border-bottom: 1.5px solid #0f172a; padding-bottom: 6px; margin-bottom: 10px;">
+              <strong style="text-transform: uppercase; font-size: 11px;">2. Liabilities & Equity</strong>
+              <span style="font-size: 9.5px; color: #64748b;">Obligations & Net Worth</span>
+            </div>
+            <table>
+              <tbody>
+                <tr>
+                  <td>Accounts Payable (Vendor Unpaid Bills)</td>
+                  <td class="text-right font-mono">${formatFinancial(accountsPayable)}</td>
+                </tr>
+                <tr>
+                  <td>Accrued Operating Overheads</td>
+                  <td class="text-right font-mono">${formatFinancial(accruedExpenses)}</td>
+                </tr>
+                <tr style="font-weight: 700; background: #fafafa;">
+                  <td>Total Current Liabilities</td>
+                  <td class="text-right font-mono">${formatFinancial(totalLiabilities)}</td>
+                </tr>
+                <tr>
+                  <td>Contributed Capital</td>
+                  <td class="text-right font-mono">${formatFinancial(totalContributedCapital)}</td>
+                </tr>
+                <tr>
+                  <td>Retained Operating Earnings</td>
+                  <td class="text-right font-mono">${formatFinancial(retainedEarnings)}</td>
+                </tr>
+                <tr>
+                  <td>Less: Partner Cumulative Drawings</td>
+                  <td class="text-right font-mono" style="color: #dc2626;">(${formatFinancial(cumulativeDrawings)})</td>
+                </tr>
+                <tr style="font-weight: 800; background: #f8fafc;">
+                  <td>Total Liabilities & Partners' Equity</td>
+                  <td class="text-right font-mono double-underline">${formatFinancial(totalLiabilitiesAndEquity)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <h2>Recent Sales Transactions (${periodStr})</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Invoice ID</th>
+              <th>Client Name</th>
+              <th>Date</th>
+              <th>Method</th>
+              <th class="text-right">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rangeMetrics.inRangeTxns.map((t) => `
+              <tr>
+                <td style="font-weight: 700;">${escapeHtml(t.invoiceId || t.id)}</td>
+                <td style="font-weight: 600;">${escapeHtml(t.clientName || "Valued Client")}</td>
+                <td>${escapeHtml(t.date)}</td>
+                <td>${escapeHtml(t.paymentMethod)}</td>
+                <td class="text-right font-mono font-bold">${formatFinancial(t.grandTotal)}</td>
+              </tr>
+            `).join("")}
+            ${rangeMetrics.inRangeTxns.length === 0 ? '<tr><td colspan="5" class="text-center" style="color: #94a3b8;">No sales in selected period.</td></tr>' : ""}
+          </tbody>
+        </table>
+
+        <h2>Operational Expenses Breakdown (${periodStr})</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Title / Description</th>
+              <th>Category</th>
+              <th>Date</th>
+              <th>Method</th>
+              <th>Status</th>
+              <th class="text-right">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rangeMetrics.inRangeExps.map((e) => `
+              <tr>
+                <td><strong>${escapeHtml(e.title)}</strong></td>
+                <td>${escapeHtml(e.category)}</td>
+                <td>${escapeHtml(e.date)}</td>
+                <td>${escapeHtml(e.paymentMethod)}</td>
+                <td><span style="font-size: 9.5px; font-weight: 700; text-transform: uppercase;">${escapeHtml(e.status)}</span></td>
+                <td class="text-right font-mono font-bold" style="color: #dc2626;">-${formatFinancial(e.amountPaid !== undefined && e.amountPaid !== null ? e.amountPaid : e.amount)}</td>
+              </tr>
+            `).join("")}
+            ${rangeMetrics.inRangeExps.length === 0 ? '<tr><td colspan="6" class="text-center" style="color: #94a3b8;">No expenses in selected period.</td></tr>' : ""}
+          </tbody>
+        </table>
+
+        <h2>Product & Stock Purchases (${periodStr})</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Vendor / Order</th>
+              <th>Bill #</th>
+              <th>Date</th>
+              <th>Method</th>
+              <th>Status</th>
+              <th class="text-right">Amount Paid</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rangeMetrics.inRangePurchases.map((b: any) => `
+              <tr>
+                <td><strong>${escapeHtml(b.vendorName || "Vendor Bill")}</strong></td>
+                <td style="font-family: monospace;">${escapeHtml(b.billNumber || b.id || "Purchase Bill")}</td>
+                <td>${escapeHtml(b.date || "")}</td>
+                <td>${escapeHtml(b.paymentMethod || "Bank Transfer")}</td>
+                <td><span style="font-size: 9.5px; font-weight: 700; text-transform: uppercase;">${escapeHtml(b.paymentStatus || "Paid")}</span></td>
+                <td class="text-right font-mono font-bold" style="color: #2563eb;">-${formatFinancial(b.amountPaid || 0)}</td>
+              </tr>
+            `).join("")}
+            ${rangeMetrics.inRangePurchases.length === 0 ? '<tr><td colspan="6" class="text-center" style="color: #94a3b8;">No stock purchases in selected period.</td></tr>' : ""}
+          </tbody>
+        </table>
+      `;
+    }
+
+    const signaturesHtml = `
+      <div class="signatures">
+        <div>
+          <div class="sig-line">Prepared By (Finance / POS)</div>
+        </div>
+        <div>
+          <div class="sig-line">Internal Audit Review</div>
+        </div>
+        <div>
+          <div class="sig-line">Director / Managing Partner Approval</div>
+        </div>
+      </div>
+      <div class="footer-note">
+        Official Computer-Generated Fiscal Document • ${escapeHtml(displayClinicName)} • Confidential Record
+      </div>
+    `;
+
+    const fullDocumentHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>${escapeHtml(displayClinicName)} - ${reportType.toUpperCase()} REPORT (${periodStr})</title>
+          <style>${commonStyles}</style>
+        </head>
+        <body>
+          ${htmlBody}
+          ${signaturesHtml}
+        </body>
+      </html>
+    `;
+
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.width = "0px";
+    iframe.style.height = "0px";
+    iframe.style.border = "none";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!doc) {
+      alert("Failed to initialize printable document.");
+      return;
+    }
+
+    doc.write(fullDocumentHtml);
+    doc.close();
+    iframe.contentWindow?.focus();
+
+    setTimeout(() => {
+      iframe.contentWindow?.print();
+      document.body.removeChild(iframe);
+    }, 500);
+  };
+
   return (
     <div className="space-y-6 pb-10">
       {toast && (
@@ -1439,775 +2912,83 @@ export default function FinanceReportsPage() {
               </Button>
             )}
 
-          {activeTab === "reports" && (
-            <div className="flex items-center gap-2.5 flex-wrap shrink-0">
-              <div className="flex items-center gap-1.5 shrink-0">
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                  From:
-                </span>
-                <FinanceDatePicker
-                  label="report start date"
-                  value={reportStartDate}
-                  onChange={setReportStartDate}
-                />
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                  To:
-                </span>
-                <FinanceDatePicker
-                  label="report end date"
-                  value={reportEndDate}
-                  onChange={setReportEndDate}
-                />
-              </div>
-              <Button
-                onClick={() => {
-                  const activeTxns = transactions.filter((t) => {
-                    const status = (t.status || "").toLowerCase();
-                    return (
-                      t.date >= reportStartDate &&
-                      t.date <= reportEndDate &&
-                      status !== "refunded" &&
-                      status !== "cancelled"
-                    );
-                  });
-                  const salesTxns = activeTxns.filter(
-                    (t) =>
-                      t.transactionType !== "Debt_Settlement" &&
-                      t.serviceName !== "Client Debt Settlement",
-                  );
-                  const filteredExps = expenses.filter(
-                    (e) =>
-                      e.date >= reportStartDate &&
-                      e.date <= reportEndDate &&
-                      e.status === "Paid" &&
-                      (e.category as string) !== "Inventory Purchase" &&
-                      (e.category as string) !== "Products" &&
-                      (e.category as string) !== "Partner Drawing" &&
-                      !e.id?.startsWith("EXP-PUR-") &&
-                      !e.id?.startsWith("EXP-DRW-") &&
-                      !e.title?.toLowerCase().startsWith("vendor bill payment") &&
-                      !e.title?.toLowerCase().includes("partner drawing"),
-                  );
-                  const filteredPurchases = purchaseBills.filter(
-                    (b: any) =>
-                      b.date >= reportStartDate &&
-                      b.date <= reportEndDate &&
-                      (b.amountPaid || 0) > 0,
-                  );
-
-                  // Collected Cash & Bank Revenue (realized receipts from sales + debt settlements)
-                  const collectedSalesRev = salesTxns.reduce(
-                    (acc, t) => acc + (t.amountPaid !== undefined && t.amountPaid !== null ? t.amountPaid : (t.status === "Pending" ? 0 : t.grandTotal)),
-                    0,
-                  );
-                  const debtSettlements = filteredTxns.filter(
-                    (t) => t.serviceName === "Client Debt Settlement" || (t as any).transactionType === "Debt_Settlement"
-                  );
-                  const collectedDebtRev = debtSettlements.reduce(
-                    (acc, t) => acc + (t.amountPaid !== undefined && t.amountPaid !== null ? t.amountPaid : t.grandTotal),
-                    0,
-                  );
-                  const totalCollectedRev = collectedSalesRev + collectedDebtRev;
-                  const totalInvoicedRev = salesTxns.reduce(
-                    (acc, t) => acc + t.grandTotal,
-                    0,
-                  );
-                  const totalOpExp = filteredExps.reduce(
-                    (acc, e) => acc + e.amount,
-                    0,
-                  );
-                  const totalPurchExp = filteredPurchases.reduce(
-                    (acc, b) => acc + (b.amountPaid || 0),
-                    0,
-                  );
-                  // Align Net Operating Profit with Partner Equity: Collected Revenue - Operating Overheads
-                  const netOperatingProfit = totalCollectedRev - totalOpExp;
-                  // Net Operating Cash Flow accounts for physical inventory/stock asset procurement
-                  const netCashFlow = netOperatingProfit - totalPurchExp;
-
-                  // --- BALANCE SHEET VALUES (STATEMENT OF FINANCIAL POSITION AS OF reportEndDate) ---
-                  // Point-in-time cumulative calculations up to reportEndDate
-                  const asOfActiveTxns = transactions.filter((t) => {
-                    const status = (t.status || "").toLowerCase();
-                    return (
-                      (!t.date || t.date <= reportEndDate) &&
-                      status !== "refunded" &&
-                      status !== "cancelled"
-                    );
-                  });
-                  const asOfSalesTxns = asOfActiveTxns.filter(
-                    (t) =>
-                      t.transactionType !== "Debt_Settlement" &&
-                      t.serviceName !== "Client Debt Settlement",
-                  );
-                  const asOfDebtTxns = asOfActiveTxns.filter(
-                    (t) =>
-                      t.transactionType === "Debt_Settlement" ||
-                      t.serviceName === "Client Debt Settlement",
-                  );
-
-                  const asOfCollectedSalesRev = asOfSalesTxns.reduce(
-                    (acc, t) =>
-                      acc +
-                      (t.amountPaid !== undefined && t.amountPaid !== null
-                        ? t.amountPaid
-                        : t.status === "Pending"
-                          ? 0
-                          : t.grandTotal),
-                    0,
-                  );
-                  const asOfCollectedDebtRev = asOfDebtTxns.reduce(
-                    (acc, t) =>
-                      acc +
-                      (t.amountPaid !== undefined && t.amountPaid !== null
-                        ? t.amountPaid
-                        : t.grandTotal),
-                    0,
-                  );
-                  const asOfTotalCollectedRev = asOfCollectedSalesRev + asOfCollectedDebtRev;
-
-                  const asOfPaidExps = expenses.filter(
-                    (e) =>
-                      (!e.date || e.date <= reportEndDate) &&
-                      e.status === "Paid" &&
-                      (e.category as string) !== "Inventory Purchase" &&
-                      (e.category as string) !== "Products" &&
-                      (e.category as string) !== "Partner Drawing" &&
-                      !e.id?.startsWith("EXP-PUR-") &&
-                      !e.id?.startsWith("EXP-DRW-") &&
-                      !e.title?.toLowerCase().startsWith("vendor bill payment"),
-                  );
-                  const asOfTotalOpExp = asOfPaidExps.reduce(
-                    (acc, e) => acc + e.amount,
-                    0,
-                  );
-
-                  const asOfPaidPurchases = purchaseBills.filter(
-                    (b: any) =>
-                      (!b.date || b.date <= reportEndDate) &&
-                      (b.amountPaid || 0) > 0,
-                  );
-                  const asOfTotalPurchPaid = asOfPaidPurchases.reduce(
-                    (acc, b: any) => acc + (b.amountPaid || 0),
-                    0,
-                  );
-
-                  // Cumulative Realized Cash Operating Profit up to reportEndDate
-                  const cumRealizedProfit = asOfTotalCollectedRev - asOfTotalOpExp;
-
-                  // Accounts Receivable (patient credit balances as of reportEndDate)
-                  const accountsReceivable = clients.reduce(
-                    (acc: number, c: any) => acc + (c.outstandingBalance || 0),
-                    0,
-                  );
-
-                  const inventoryValuation = inventory.reduce(
-                    (acc: number, item: any) =>
-                      acc + ((item.quantity || 0) * (item.price || 0)),
-                    0,
-                  );
-
-                  const totalContributedCapital = (
-                    partnerEquity?.partners || []
-                  ).reduce(
-                    (acc: number, p: any) =>
-                      acc + (p.totalInvested ?? p.initialInvestment ?? 0),
-                    0,
-                  );
-
-                  const cumulativeDrawings = (
-                    partnerEquity?.partners || []
-                  ).reduce(
-                    (acc: number, p: any) => acc + (p.totalWithdrawn || 0),
-                    0,
-                  );
-
-                  // Liquid Cash & Bank Reserves = Contributed Capital + Collected Revenue - Paid Overheads - Stock Purchases Paid - Drawings
-                  const netCashDrawer =
-                    totalContributedCapital +
-                    asOfTotalCollectedRev -
-                    asOfTotalOpExp -
-                    asOfTotalPurchPaid -
-                    cumulativeDrawings;
-                  const cashAndEquivalents = Math.max(0, netCashDrawer);
-
-                  const totalCurrentAssets =
-                    cashAndEquivalents + accountsReceivable + inventoryValuation;
-                  const totalAssets = totalCurrentAssets;
-
-                  // Current Liabilities
-                  const accountsPayable = purchaseBills
-                    .filter((b: any) => !b.date || b.date <= reportEndDate)
-                    .reduce(
-                      (acc: number, b: any) => acc + (b.remainingDue || 0),
-                      0,
-                    );
-
-                  const accruedExpenses = expenses
-                    .filter(
-                      (e: any) =>
-                        (!e.date || e.date <= reportEndDate) &&
-                        (e.status || "").toLowerCase() !== "paid" &&
-                        e.category !== "Partner Drawing",
-                    )
-                    .reduce(
-                      (acc: number, e: any) =>
-                        acc + (e.remainingAmount ?? e.amount ?? 0),
-                      0,
-                    );
-
-                  const totalLiabilities = accountsPayable + accruedExpenses;
-
-                  // Retained Operating Earnings (Accrual basis = Realized Cash Profit + Client Receivables - Accrued Overheads)
-                  const retainedEarnings =
-                    cumRealizedProfit + accountsReceivable - accruedExpenses;
-                  const totalEquity =
-                    totalContributedCapital + retainedEarnings - cumulativeDrawings;
-                  const totalLiabilitiesAndEquity = totalLiabilities + totalEquity;
-
-                  let pdfCashRev = 0;
-                  let pdfCardRev = 0;
-                  let pdfOnlineRev = 0;
-                  let pdfCashCount = 0;
-                  let pdfCardCount = 0;
-                  let pdfOnlineCount = 0;
-
-                  for (const t of activeTxns) {
-                    const amt =
-                      t.amountPaid !== undefined && t.amountPaid !== null
-                        ? t.amountPaid
-                        : t.grandTotal;
-                    if (t.paymentSplits && t.paymentSplits.length > 0) {
-                      for (const split of t.paymentSplits) {
-                        const sMethod = (split.method || "").toLowerCase();
-                        const sAmt = Number(split.amount) || 0;
-                        if (sMethod === "cash") {
-                          pdfCashRev += sAmt;
-                          pdfCashCount++;
-                        } else if (
-                          sMethod === "card" ||
-                          sMethod.includes("pos")
-                        ) {
-                          pdfCardRev += sAmt;
-                          pdfCardCount++;
-                        } else {
-                          pdfOnlineRev += sAmt;
-                          pdfOnlineCount++;
-                        }
-                      }
-                    } else {
-                      const pm = (t.paymentMethod || "").toLowerCase();
-                      if (pm === "cash") {
-                        pdfCashRev += amt;
-                        pdfCashCount++;
-                      } else if (pm === "card" || pm.includes("pos")) {
-                        pdfCardRev += amt;
-                        pdfCardCount++;
-                      } else {
-                        pdfOnlineRev += amt;
-                        pdfOnlineCount++;
-                      }
-                    }
-                  }
-
-                  const formatFinancial = (val: number) => {
-                    const formatted = formatPKR(Math.abs(val), {
-                      decimals: false,
-                    });
-                    return val < 0 ? `(${formatted})` : formatted;
-                  };
-
-                  const iframe = document.createElement("iframe");
-                  iframe.style.position = "fixed";
-                  iframe.style.width = "0px";
-                  iframe.style.height = "0px";
-                  iframe.style.border = "none";
-                  document.body.appendChild(iframe);
-
-                  const doc =
-                    iframe.contentWindow?.document || iframe.contentDocument;
-                  if (!doc) {
-                    alert("Failed to generate document context.");
-                    return;
-                  }
-
-                  doc.write(`
-                    <html>
-                      <head>
-                        <title>Financial Audit Report (${reportStartDate} to ${reportEndDate})</title>
-                        <style>
-                          body {
-                            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                            color: #000000;
-                            padding: 40px;
-                            margin: 0;
-                            line-height: 1.5;
-                            background: white;
-                          }
-                          .header {
-                            border-bottom: 2px solid #000000;
-                            padding-bottom: 20px;
-                            margin-bottom: 30px;
-                            display: flex;
-                            justify-content: space-between;
-                            align-items: center;
-                          }
-                          .header h1 {
-                            margin: 0;
-                            font-size: 26px;
-                            font-weight: 900;
-                            text-transform: uppercase;
-                            letter-spacing: -0.5px;
-                            color: #000000;
-                          }
-                          .header p {
-                            margin: 5px 0 0 0;
-                            font-size: 13px;
-                            color: #333333;
-                            font-weight: 500;
-                          }
-                          .badge {
-                            border: 2px solid #000000;
-                            color: #000000;
-                            font-size: 10px;
-                            font-weight: 800;
-                            padding: 6px 12px;
-                            border-radius: 20px;
-                            text-transform: uppercase;
-                            letter-spacing: 1px;
-                          }
-                          .grid {
-                            display: flex;
-                            gap: 20px;
-                            margin-bottom: 25px;
-                          }
-                          .grid-item {
-                            flex: 1;
-                          }
-                          .card {
-                            background: #ffffff;
-                            border: 1px solid #000000;
-                            border-radius: 16px;
-                            padding: 20px;
-                          }
-                          .card-title {
-                            font-size: 10px;
-                            font-weight: 800;
-                            color: #666666;
-                            text-transform: uppercase;
-                            letter-spacing: 0.5px;
-                            display: block;
-                          }
-                          .card-value {
-                            font-size: 22px;
-                            font-weight: 900;
-                            margin-top: 6px;
-                            display: block;
-                            color: #000000;
-                          }
-                          h2 {
-                            font-size: 15px;
-                            font-weight: 800;
-                            text-transform: uppercase;
-                            letter-spacing: 0.5px;
-                            margin-top: 35px;
-                            margin-bottom: 15px;
-                            border-bottom: 2px solid #000000;
-                            padding-bottom: 8px;
-                            color: #000000;
-                          }
-                          table {
-                            width: 100%;
-                            border-collapse: collapse;
-                            font-size: 12px;
-                            margin-bottom: 30px;
-                          }
-                          th {
-                            background: #000000;
-                            color: #ffffff;
-                            font-weight: 700;
-                            text-transform: uppercase;
-                            font-size: 10px;
-                            padding: 12px;
-                            text-align: left;
-                            letter-spacing: 0.5px;
-                          }
-                          td {
-                            padding: 12px;
-                            border-bottom: 1px solid #000000;
-                            color: #000000;
-                          }
-                          .text-right { text-align: right; }
-                          .font-mono { font-family: monospace; font-weight: 700; }
-                          .double-underline {
-                            border-bottom: 3px double #000000;
-                            padding-bottom: 2px;
-                          }
-                          @media print {
-                            body {
-                              color: #000000 !important;
-                              background: #ffffff !important;
-                            }
-                            * {
-                              color: #000000 !important;
-                              border-color: #000000 !important;
-                            }
-                            th {
-                              background: #000000 !important;
-                              color: #ffffff !important;
-                              -webkit-print-color-adjust: exact;
-                              print-color-adjust: exact;
-                            }
-                          }
-                        </style>
-                      </head>
-                      <body>
-                        <div class="header">
-                          <div>
-                            <h1>DBS Aesthetic Clinic & Salon</h1>
-                            <p>Financial Audit Report • Timeframe: ${reportStartDate} to ${reportEndDate}</p>
-                          </div>
-                          <div class="badge">Audit Report</div>
-                        </div>
-
-                        <div class="grid">
-                          <div class="grid-item">
-                            <div class="card">
-                              <span class="card-title">Report Period</span>
-                              <span class="card-value">${reportStartDate} to ${reportEndDate}</span>
-                            </div>
-                          </div>
-                          <div class="grid-item">
-                            <div class="card" style="text-align: right;">
-                              <span class="card-title">Transactions Count</span>
-                              <span class="card-value">${filteredTxns.length} Sales Entries</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div class="grid">
-                          <div class="grid-item">
-                            <div class="card">
-                              <span class="card-title">Collected Revenue</span>
-                              <span class="card-value">${formatFinancial(totalCollectedRev)}</span>
-                            </div>
-                          </div>
-                          <div class="grid-item">
-                            <div class="card">
-                              <span class="card-title">Operating Overheads</span>
-                              <span class="card-value">${formatFinancial(-totalOpExp)}</span>
-                            </div>
-                          </div>
-                          <div class="grid-item">
-                            <div class="card">
-                              <span class="card-title">Net Operating Profit</span>
-                              <span class="card-value">
-                                <span class="double-underline">${formatFinancial(netOperatingProfit)}</span>
-                              </span>
-                            </div>
-                          </div>
-                          <div class="grid-item">
-                            <div class="card">
-                              <span class="card-title">Stock Outflows (Asset)</span>
-                              <span class="card-value">${formatFinancial(-totalPurchExp)}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <h2>Collections by Payment Channel</h2>
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>Payment Channel</th>
-                              <th>Account Tier / Destination</th>
-                              <th class="text-right">Invoices</th>
-                              <th class="text-right">Total Amount</th>
-                              <th class="text-right">Share (%)</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr>
-                              <td><strong>Cash Receipts</strong></td>
-                              <td>Front Desk Cash Drawer (#1010)</td>
-                              <td class="text-right">${pdfCashCount}</td>
-                              <td class="text-right font-mono font-bold">${formatFinancial(pdfCashRev)}</td>
-                              <td class="text-right font-mono">${totalCollectedRev > 0 ? ((pdfCashRev / totalCollectedRev) * 100).toFixed(1) : "0.0"}%</td>
-                            </tr>
-                            <tr>
-                              <td><strong>Card / POS Terminals</strong></td>
-                              <td>Terminal Swipes & Merchant Holding (#1020)</td>
-                              <td class="text-right">${pdfCardCount}</td>
-                              <td class="text-right font-mono font-bold">${formatFinancial(pdfCardRev)}</td>
-                              <td class="text-right font-mono">${totalCollectedRev > 0 ? ((pdfCardRev / totalCollectedRev) * 100).toFixed(1) : "0.0"}%</td>
-                            </tr>
-                            <tr>
-                              <td><strong>Online Payments</strong></td>
-                              <td>Online Gateway & Digital Checkouts</td>
-                              <td class="text-right">${pdfOnlineCount}</td>
-                              <td class="text-right font-mono font-bold">${formatFinancial(pdfOnlineRev)}</td>
-                              <td class="text-right font-mono">${totalCollectedRev > 0 ? ((pdfOnlineRev / totalCollectedRev) * 100).toFixed(1) : "0.0"}%</td>
-                            </tr>
-                            <tr>
-                              <td><strong>Uncollected Dues (A/R)</strong></td>
-                              <td>Accounts Receivable / Client Ledger</td>
-                              <td class="text-right">-</td>
-                              <td class="text-right font-mono font-bold">${formatFinancial(Math.max(0, totalInvoicedRev - (pdfCashRev + pdfCardRev + pdfOnlineRev)))}</td>
-                              <td class="text-right font-mono">${totalInvoicedRev > 0 ? ((Math.max(0, totalInvoicedRev - (pdfCashRev + pdfCardRev + pdfOnlineRev)) / totalInvoicedRev) * 100).toFixed(1) : "0.0"}%</td>
-                            </tr>
-                          </tbody>
-                        </table>
-
-                        <h2>Statement of Financial Position (Balance Sheet)</h2>
-                        <div style="font-size: 11px; color: #555555; margin-top: -10px; margin-bottom: 20px;">
-                          Cumulative to Date • Assets (${formatFinancial(totalAssets)}) = Liabilities & Equity (${formatFinancial(totalLiabilitiesAndEquity)})
-                        </div>
-
-                        <div class="grid" style="gap: 20px; margin-bottom: 30px; align-items: stretch;">
-                          <!-- ASSETS -->
-                          <div class="grid-item" style="border: 1.5px solid #000000; border-radius: 12px; padding: 18px; background: #ffffff;">
-                            <div style="display: flex; justify-content: space-between; border-bottom: 2px solid #000000; padding-bottom: 8px; margin-bottom: 12px;">
-                              <span style="font-size: 13px; font-weight: 900; text-transform: uppercase;">1. Clinic Assets</span>
-                              <span style="font-size: 11px; font-weight: 700; color: #666666;">Owned Resources</span>
-                            </div>
-
-                            <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #555555; margin-bottom: 6px; letter-spacing: 0.5px;">Current Assets</div>
-                            <table style="width: 100%; font-size: 11px; margin-bottom: 15px;">
-                              <tbody>
-                                <tr>
-                                  <td style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">
-                                    <strong style="display: block;">Cash & Bank Reserves</strong>
-                                    <span style="font-size: 9px; color: #666666;">Front desk drawer cash & bank liquidity</span>
-                                  </td>
-                                  <td class="text-right font-mono" style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">${formatFinancial(cashAndEquivalents)}</td>
-                                </tr>
-                                <tr>
-                                  <td style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">
-                                    <strong style="display: block;">Accounts Receivable (A/R)</strong>
-                                    <span style="font-size: 9px; color: #666666;">Patient credit & uncollected treatment balances</span>
-                                  </td>
-                                  <td class="text-right font-mono" style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">${formatFinancial(accountsReceivable)}</td>
-                                </tr>
-                                <tr>
-                                  <td style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">
-                                    <strong style="display: block;">Merchandise & Clinic Inventory</strong>
-                                    <span style="font-size: 9px; color: #666666;">Injectables, serums & retail stock on hand</span>
-                                  </td>
-                                  <td class="text-right font-mono" style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">${formatFinancial(inventoryValuation)}</td>
-                                </tr>
-                                <tr style="font-weight: 800; background: #fafafa;">
-                                  <td style="padding: 8px 6px; border-bottom: 2px solid #000000;">Total Current Assets</td>
-                                  <td class="text-right font-mono" style="padding: 8px 6px; border-bottom: 2px solid #000000;">${formatFinancial(totalCurrentAssets)}</td>
-                                </tr>
-                              </tbody>
-                            </table>
-
-                            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; font-weight: 900; font-size: 14px; border-top: 2px solid #000000;">
-                              <span>TOTAL ASSETS</span>
-                              <span class="double-underline font-mono">${formatFinancial(totalAssets)}</span>
-                            </div>
-                          </div>
-
-                          <!-- LIABILITIES & EQUITY -->
-                          <div class="grid-item" style="border: 1.5px solid #000000; border-radius: 12px; padding: 18px; background: #ffffff;">
-                            <div style="display: flex; justify-content: space-between; border-bottom: 2px solid #000000; padding-bottom: 8px; margin-bottom: 12px;">
-                              <span style="font-size: 13px; font-weight: 900; text-transform: uppercase;">2. Liabilities & Equity</span>
-                              <span style="font-size: 11px; font-weight: 700; color: #666666;">Obligations & Net Worth</span>
-                            </div>
-
-                            <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #555555; margin-bottom: 6px; letter-spacing: 0.5px;">Current Liabilities (What Clinic Owes)</div>
-                            <table style="width: 100%; font-size: 11px; margin-bottom: 15px;">
-                              <tbody>
-                                <tr>
-                                  <td style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">
-                                    <strong style="display: block;">Accounts Payable (A/P)</strong>
-                                    <span style="font-size: 9px; color: #666666;">Vendor wholesale orders remaining due</span>
-                                  </td>
-                                  <td class="text-right font-mono" style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">${formatFinancial(accountsPayable)}</td>
-                                </tr>
-                                <tr>
-                                  <td style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">
-                                    <strong style="display: block;">Accrued Clinic Overheads</strong>
-                                    <span style="font-size: 9px; color: #666666;">Pending utility, rent & operational bills</span>
-                                  </td>
-                                  <td class="text-right font-mono" style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">${formatFinancial(accruedExpenses)}</td>
-                                </tr>
-                                <tr style="font-weight: 800; background: #fafafa;">
-                                  <td style="padding: 8px 6px; border-bottom: 1.5px solid #000000;">Total Liabilities</td>
-                                  <td class="text-right font-mono" style="padding: 8px 6px; border-bottom: 1.5px solid #000000;">${formatFinancial(totalLiabilities)}</td>
-                                </tr>
-                              </tbody>
-                            </table>
-
-                            <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #555555; margin-bottom: 6px; letter-spacing: 0.5px;">Partners' Equity (Ownership Net Worth)</div>
-                            <table style="width: 100%; font-size: 11px; margin-bottom: 15px;">
-                              <tbody>
-                                <tr>
-                                  <td style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">
-                                    <strong style="display: block;">Contributed Capital</strong>
-                                    <span style="font-size: 9px; color: #666666;">Partner seed capital & direct contributions</span>
-                                  </td>
-                                  <td class="text-right font-mono" style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">${formatFinancial(totalContributedCapital)}</td>
-                                </tr>
-                                <tr>
-                                  <td style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">
-                                    <strong style="display: block;">Retained Operating Profit (Realized)</strong>
-                                    <span style="font-size: 9px; color: #666666;">Cumulative realized net cash from clinic operations</span>
-                                  </td>
-                                  <td class="text-right font-mono" style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">${formatFinancial(cumRealizedProfit)}</td>
-                                </tr>
-                                ${accruedExpenses > 0 ? `
-                                <tr>
-                                  <td style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">
-                                    <strong style="display: block;">Less: Accrued Overheads Recognized</strong>
-                                    <span style="font-size: 9px; color: #666666;">Pending overheads recognized as liabilities</span>
-                                  </td>
-                                  <td class="text-right font-mono text-red-600" style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">(${formatFinancial(accruedExpenses)})</td>
-                                </tr>
-                                ` : ''}
-                                ${accountsReceivable > 0 ? `
-                                <tr>
-                                  <td style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">
-                                    <strong style="display: block;">Add: Accounts Receivable (A/R)</strong>
-                                    <span style="font-size: 9px; color: #666666;">Earned treatment revenue recognized as assets</span>
-                                  </td>
-                                  <td class="text-right font-mono text-emerald-600" style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">+${formatFinancial(accountsReceivable)}</td>
-                                </tr>
-                                ` : ''}
-                                <tr>
-                                  <td style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">
-                                    <strong style="display: block;">Less: Cumulative Partner Drawings</strong>
-                                    <span style="font-size: 9px; color: #666666;">Total distributions taken by partners</span>
-                                  </td>
-                                  <td class="text-right font-mono text-red-600" style="padding: 7px 0; border-bottom: 1px solid #e2e8f0;">(${formatFinancial(cumulativeDrawings)})</td>
-                                </tr>
-                                <tr style="font-weight: 800; background: #fafafa;">
-                                  <td style="padding: 8px 6px; border-bottom: 2px solid #000000;">Total Partners' Equity</td>
-                                  <td class="text-right font-mono" style="padding: 8px 6px; border-bottom: 2px solid #000000;">${formatFinancial(totalEquity)}</td>
-                                </tr>
-                              </tbody>
-                            </table>
-
-                            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px; font-weight: 900; font-size: 14px; border-top: 2px solid #000000;">
-                              <span>TOTAL LIABILITIES & EQUITY</span>
-                              <span class="double-underline font-mono">${formatFinancial(totalLiabilitiesAndEquity)}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <h2>Recent Sales Transactions</h2>
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>Invoice ID</th>
-                              <th>Client Name</th>
-                              <th>Date</th>
-                              <th>Method</th>
-                              <th class="text-right">Amount</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            ${filteredTxns
-                      .map(
-                        (t) => `
-                              <tr>
-                                <td style="font-weight: bold;">${escapeHtml(t.invoiceId) || "N/A"}</td>
-                                <td style="font-weight: bold;">${escapeHtml(t.clientName) || "Valued Client"}</td>
-                                <td>${escapeHtml(t.date)}</td>
-                                <td>${escapeHtml(t.paymentMethod)}</td>
-                                <td class="text-right font-mono font-bold">${formatFinancial(t.grandTotal)}</td>
-                              </tr>
-                            `,
-                      )
-                      .join("")}
-                            ${filteredTxns.length === 0 ? '<tr><td colspan="5" style="text-align: center; color: #94a3b8;">No sales transactions in range.</td></tr>' : ""}
-                          </tbody>
-                        </table>
-
-                        <h2>Operational Expenses Breakdown</h2>
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>Category / Title</th>
-                              <th>Date</th>
-                              <th>Method</th>
-                              <th>Status</th>
-                              <th class="text-right">Amount</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            ${filteredExps
-                      .map(
-                        (e) => `
-                              <tr>
-                                <td>
-                                  <span style="font-weight: bold; display: block;">${escapeHtml(e.title)}</span>
-                                  <span style="font-size: 10px; color: #333333;">${escapeHtml(e.category)}</span>
-                                </td>
-                                <td>${escapeHtml(e.date)}</td>
-                                <td>${escapeHtml(e.paymentMethod)}</td>
-                                <td>${escapeHtml(e.status)}</td>
-                                <td class="text-right font-mono font-bold">${formatFinancial(-e.amount)}</td>
-                              </tr>
-                            `,
-                      )
-                      .join("")}
-                            ${filteredExps.length === 0 ? '<tr><td colspan="5" style="text-align: center; color: #94a3b8;">No operational expenses in range.</td></tr>' : ""}
-                          </tbody>
-                        </table>
-
-                        <h2>Product & Stock Purchases</h2>
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>Vendor / Order</th>
-                              <th>Date</th>
-                              <th>Method</th>
-                              <th>Status</th>
-                              <th class="text-right">Amount Paid</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            ${filteredPurchases
-                      .map(
-                        (b: any) => `
-                              <tr>
-                                <td>
-                                  <span style="font-weight: bold; display: block;">${escapeHtml(b.vendorName || "Vendor Bill")}</span>
-                                  <span style="font-size: 10px; color: #333333;">${escapeHtml(b.billNumber || b.id || "Purchase Bill")}</span>
-                                </td>
-                                <td>${escapeHtml(b.date || "")}</td>
-                                <td>${escapeHtml(b.paymentMethod || "Bank Transfer")}</td>
-                                <td>${escapeHtml(b.paymentStatus || "Paid")}</td>
-                                <td class="text-right font-mono font-bold">${formatFinancial(-(b.amountPaid || 0))}</td>
-                              </tr>
-                            `,
-                      )
-                      .join("")}
-                            ${filteredPurchases.length === 0 ? '<tr><td colspan="5" style="text-align: center; color: #94a3b8;">No purchases in range.</td></tr>' : ""}
-                          </tbody>
-                        </table>
-                      </body>
-                    </html>
-                  `);
-
-                  doc.close();
-                  iframe.contentWindow?.focus();
-
-                  setTimeout(() => {
-                    iframe.contentWindow?.print();
-                    document.body.removeChild(iframe);
-                  }, 500);
-                }}
-                variant="primary"
-                size="sm"
-                icon={<Download className="w-4 h-4" />}
-              >
-                PDF Report
-              </Button>
+          {/* Unified Date Constraints & Dynamic Report Export */}
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                From:
+              </span>
+              <FinanceDatePicker
+                label="report start date"
+                value={reportStartDate}
+                onChange={setReportStartDate}
+              />
             </div>
-          )}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                To:
+              </span>
+              <FinanceDatePicker
+                label="report end date"
+                value={reportEndDate}
+                onChange={setReportEndDate}
+              />
+            </div>
+
+            {/* Quick Date Presets */}
+            <div className="hidden sm:inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[11px] font-bold">
+              <button
+                type="button"
+                onClick={() => handlePreset("thisMonth")}
+                className={`px-2 py-1 rounded-md transition-colors ${
+                  isThisMonth
+                    ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-xs"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                }`}
+              >
+                This Month
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePreset("lastMonth")}
+                className="px-2 py-1 rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 transition-colors"
+              >
+                Last Month
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePreset("thisYear")}
+                className={`px-2 py-1 rounded-md transition-colors ${
+                  isThisYear
+                    ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-xs"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                }`}
+              >
+                This Year
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePreset("allTime")}
+                className={`px-2 py-1 rounded-md transition-colors ${
+                  isAllTime
+                    ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-xs"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                }`}
+              >
+                All
+              </button>
+            </div>
+
+            <Button
+              onClick={() => handleExportPDF()}
+              variant="primary"
+              size="sm"
+              icon={<Download className="w-4 h-4" />}
+              className="shrink-0 font-bold"
+            >
+              {getPdfButtonLabel()}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -3014,33 +3795,44 @@ export default function FinanceReportsPage() {
                       Executive Analytics & Audits
                     </span>
                     <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-0.5">
-                      {activeReport} Audit & Trajectory (2026)
+                      {activeReport} Audit & Trajectory
                     </h2>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      {activeReport === "Profit" && "Real-time monthly operating profit, overhead outflows, and profit margins."}
-                      {activeReport === "Expense" && "Month-by-month cash outflows across operating overheads and inventory purchases."}
-                      {activeReport === "Revenue" && "Monthly gross collections, payment tender breakdowns, and billing receipts."}
+                      {activeReport === "Profit" && "Real-time operating profit, overhead outflows, and profit margins for selected date range."}
+                      {activeReport === "Expense" && "Cash outflows across operating overheads and inventory purchases for selected date range."}
+                      {activeReport === "Revenue" && "Gross collections, payment tender breakdowns, and billing receipts for selected date range."}
+                      {activeReport === "Audit" && "Balance sheet status, receivables, payables, and period ledger audit."}
                     </p>
                   </div>
-                  <Badge variant="success" size="md">
-                    Verified Fiscal Data
-                  </Badge>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-300">
+                      Period: {formatDateDisplay(reportStartDate)} – {formatDateDisplay(reportEndDate)}
+                    </span>
+                    <Button
+                      onClick={() => handleExportPDF(activeReport.toLowerCase() as any)}
+                      variant="secondary"
+                      size="sm"
+                      icon={<Printer className="w-4 h-4" />}
+                    >
+                      Print {activeReport} PDF
+                    </Button>
+                  </div>
                 </div>
 
                 {/* 1. SEPARATE PROFIT REPORT: Graph, KPIs, and Monthly Table */}
                 {activeReport === "Profit" && (
                   <div className="space-y-6">
-                    {/* Top Profit KPI Cards */}
+                    {/* Top Profit KPI Cards (Date-Constrained) */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                       <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
                         <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                          Gross Revenue
+                          Collected Revenue
                         </span>
                         <span className="text-xl font-bold font-mono text-blue-600 dark:text-blue-400 mt-1 block">
-                          {formatPKR(totalRevenue)}
+                          {formatPKR(rangeMetrics.rangeTotalCollected)}
                         </span>
                         <span className="text-[11px] text-slate-400 mt-1 block">
-                          POS receipts & treatment billing
+                          Invoiced: {formatPKR(rangeMetrics.rangeGrossInvoiced, { decimals: false })}
                         </span>
                       </div>
                       <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
@@ -3048,21 +3840,21 @@ export default function FinanceReportsPage() {
                           Operating Overheads
                         </span>
                         <span className="text-xl font-bold font-mono text-rose-600 dark:text-rose-400 mt-1 block">
-                          -{formatPKR(operationalExpenseAmount)}
+                          -{formatPKR(rangeMetrics.rangeOpExp)}
                         </span>
                         <span className="text-[11px] text-slate-400 mt-1 block">
-                          Staff salaries, rent, utilities
+                          Salaries, rent & utilities in range
                         </span>
                       </div>
                       <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
                         <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                           Net Operating Profit
                         </span>
-                        <span className={`text-xl font-bold font-mono mt-1 block ${isOperatingProfit ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                          {isOperatingProfit ? "+" : "-"}{formatPKR(Math.abs(netOperatingProfit))}
+                        <span className={`text-xl font-bold font-mono mt-1 block ${rangeMetrics.rangeNetProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                          {rangeMetrics.rangeNetProfit >= 0 ? "+" : "-"}{formatPKR(Math.abs(rangeMetrics.rangeNetProfit))}
                         </span>
                         <span className="text-[11px] text-slate-400 mt-1 block">
-                          Realized operational surplus
+                          Surplus in selected period
                         </span>
                       </div>
                       <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
@@ -3070,10 +3862,10 @@ export default function FinanceReportsPage() {
                           Operating Margin
                         </span>
                         <span className="text-xl font-bold font-mono text-indigo-600 dark:text-indigo-400 mt-1 block">
-                          {netOperatingMargin.toFixed(1)}%
+                          {rangeMetrics.rangeMargin.toFixed(1)}%
                         </span>
                         <span className="text-[11px] text-slate-400 mt-1 block">
-                          Net operating profit / revenue
+                          Profit / collected revenue
                         </span>
                       </div>
                     </div>
@@ -3262,17 +4054,17 @@ export default function FinanceReportsPage() {
                 {/* 2. SEPARATE EXPENSE REPORT: Graph, KPIs, Monthly Table, and Category Table */}
                 {activeReport === "Expense" && (
                   <div className="space-y-6">
-                    {/* Top Expense KPI Cards */}
+                    {/* Top Expense KPI Cards (Date-Constrained) */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                       <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
                         <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                           Operational Overheads
                         </span>
                         <span className="text-xl font-bold font-mono text-rose-600 dark:text-rose-400 mt-1 block">
-                          {formatPKR(operationalExpenseAmount)}
+                          {formatPKR(rangeMetrics.rangeOpExp)}
                         </span>
                         <span className="text-[11px] text-slate-400 mt-1 block">
-                          Salaries, utilities, clinic rent
+                          Salaries, utilities, rent in range
                         </span>
                       </div>
                       <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
@@ -3280,7 +4072,7 @@ export default function FinanceReportsPage() {
                           Stock & Product Purchases
                         </span>
                         <span className="text-xl font-bold font-mono text-blue-600 dark:text-blue-400 mt-1 block">
-                          {formatPKR(purchaseExpenseAmount)}
+                          {formatPKR(rangeMetrics.rangePurchExp)}
                         </span>
                         <span className="text-[11px] text-slate-400 mt-1 block">
                           Vendor inventory procurement
@@ -3291,10 +4083,10 @@ export default function FinanceReportsPage() {
                           Total Combined Outflow
                         </span>
                         <span className="text-xl font-bold font-mono text-slate-900 dark:text-slate-100 mt-1 block">
-                          {formatPKR(totalExpenseAmount)}
+                          {formatPKR(rangeMetrics.rangeTotalExp)}
                         </span>
                         <span className="text-[11px] text-slate-400 mt-1 block">
-                          All operational + stock disbursements
+                          All period operational + stock outlays
                         </span>
                       </div>
                       <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
@@ -3302,10 +4094,10 @@ export default function FinanceReportsPage() {
                           Expense Records
                         </span>
                         <span className="text-xl font-bold font-mono text-indigo-600 dark:text-indigo-400 mt-1 block">
-                          {expenses.length} Records
+                          {rangeMetrics.inRangeExps.length + rangeMetrics.inRangePurchases.length} Records
                         </span>
                         <span className="text-[11px] text-slate-400 mt-1 block">
-                          Verified audit entries
+                          Entries in selected date range
                         </span>
                       </div>
                     </div>
@@ -3508,7 +4300,7 @@ export default function FinanceReportsPage() {
                               "Marketing",
                               "Other",
                             ].map((cat) => {
-                              const catExps = expenses.filter((e) => {
+                              const catExps = rangeMetrics.inRangeExps.filter((e) => {
                                 const c = (e.category || "").toLowerCase();
                                 const target = cat.toLowerCase();
                                 return c === target && !e.id?.startsWith("EXP-PUR-");
@@ -3526,7 +4318,7 @@ export default function FinanceReportsPage() {
                                 if (paid <= 0 && (e.status || "").toLowerCase() !== "paid") return sum;
                                 return sum + (paid > 0 ? paid : actual);
                               }, 0);
-                              const pct = operationalExpenseAmount > 0 ? (amt / operationalExpenseAmount) * 100 : 0;
+                              const pct = rangeMetrics.rangeOpExp > 0 ? (amt / rangeMetrics.rangeOpExp) * 100 : 0;
                               return (
                                 <tr key={cat}>
                                   <td className="py-2.5 px-4 font-bold flex items-center justify-between">
@@ -3560,7 +4352,7 @@ export default function FinanceReportsPage() {
                                 </button>
                               </td>
                               <td className="py-2.5 px-4 text-right font-mono font-bold text-blue-600 dark:text-blue-400">
-                                -{formatPKR(purchaseExpenseAmount)}
+                                -{formatPKR(rangeMetrics.rangePurchExp)}
                               </td>
                               <td className="py-2.5 px-4 text-right font-mono font-semibold text-blue-600">
                                 Separate Stock Ledger
@@ -3569,7 +4361,7 @@ export default function FinanceReportsPage() {
                             <tr className="bg-slate-100/60 dark:bg-slate-800/60 text-slate-900 dark:text-slate-100">
                               <td className="py-2.5 px-4 font-black">Total Combined Outflow (Operational + Purchases)</td>
                               <td className="py-2.5 px-4 text-right font-mono font-black text-rose-600">
-                                -{formatPKR(totalExpenseAmount)}
+                                -{formatPKR(rangeMetrics.rangeTotalExp)}
                               </td>
                               <td className="py-2.5 px-4 text-right font-mono font-black">
                                 100.0%
@@ -3585,17 +4377,17 @@ export default function FinanceReportsPage() {
                 {/* 3. SEPARATE REVENUE REPORT: Graph, KPIs, and Channel Breakdown */}
                 {activeReport === "Revenue" && (
                   <div className="space-y-6">
-                    {/* Top Revenue KPI Cards */}
+                    {/* Top Revenue KPI Cards (Date-Constrained) */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
                         <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                          Gross Revenue
+                          Gross Invoiced Revenue
                         </span>
                         <span className="text-xl font-bold font-mono text-slate-900 dark:text-slate-100 mt-1 block">
-                          {formatPKR(totalRevenue + totalDiscounts)}
+                          {formatPKR(rangeMetrics.rangeGrossInvoiced)}
                         </span>
                         <span className="text-[11px] text-slate-400 mt-1 block">
-                          Before discount subtractions
+                          Invoiced before discount subtractions
                         </span>
                       </div>
                       <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
@@ -3603,7 +4395,7 @@ export default function FinanceReportsPage() {
                           Total Discounts Granted
                         </span>
                         <span className="text-xl font-bold font-mono text-rose-600 mt-1 block">
-                          -{formatPKR(totalDiscounts)}
+                          -{formatPKR(rangeMetrics.rangeTotalDisc)}
                         </span>
                         <span className="text-[11px] text-slate-400 mt-1 block">
                           Promotional price adjustments
@@ -3614,10 +4406,10 @@ export default function FinanceReportsPage() {
                           Net Collected Revenue
                         </span>
                         <span className="text-xl font-bold font-mono text-emerald-600 mt-1 block">
-                          {formatPKR(totalRevenue)}
+                          {formatPKR(rangeMetrics.rangeTotalCollected)}
                         </span>
                         <span className="text-[11px] text-slate-400 mt-1 block">
-                          Actual receipts in clinic accounts
+                          Actual collections (Sales + Debt Settled)
                         </span>
                       </div>
                     </div>
@@ -3727,13 +4519,13 @@ export default function FinanceReportsPage() {
                                 Front Desk Cash Drawer (#1010)
                               </td>
                               <td className="py-3 px-4 text-center font-mono">
-                                {cashCount}
+                                {rangeMetrics.rangeCashCount}
                               </td>
                               <td className="py-3 px-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                                {formatPKR(cashRevenue)}
+                                {formatPKR(rangeMetrics.rangeCashRev)}
                               </td>
                               <td className="py-3 px-4 text-right font-mono font-semibold">
-                                {cashPct.toFixed(1)}%
+                                {rangeMetrics.rangeCashPct.toFixed(1)}%
                               </td>
                             </tr>
                             <tr>
@@ -3745,13 +4537,13 @@ export default function FinanceReportsPage() {
                                 Merchant POS Terminal (#1020)
                               </td>
                               <td className="py-3 px-4 text-center font-mono">
-                                {cardCount}
+                                {rangeMetrics.rangeCardCount}
                               </td>
                               <td className="py-3 px-4 text-right font-mono font-bold text-blue-600 dark:text-blue-400">
-                                {formatPKR(cardRevenue)}
+                                {formatPKR(rangeMetrics.rangeCardRev)}
                               </td>
                               <td className="py-3 px-4 text-right font-mono font-semibold">
-                                {cardPct.toFixed(1)}%
+                                {rangeMetrics.rangeCardPct.toFixed(1)}%
                               </td>
                             </tr>
                             <tr>
@@ -3763,15 +4555,210 @@ export default function FinanceReportsPage() {
                                 Digital Checkout & Gateways
                               </td>
                               <td className="py-3 px-4 text-center font-mono">
-                                {onlineCount}
+                                {rangeMetrics.rangeOnlineCount}
                               </td>
                               <td className="py-3 px-4 text-right font-mono font-bold text-blue-600 dark:text-blue-400">
-                                {formatPKR(onlineRevenue)}
+                                {formatPKR(rangeMetrics.rangeOnlineRev)}
                               </td>
                               <td className="py-3 px-4 text-right font-mono font-semibold">
-                                {onlinePct.toFixed(1)}%
+                                {rangeMetrics.rangeOnlinePct.toFixed(1)}%
                               </td>
                             </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. AUDIT REPORT: Balance Sheet, Receivables, Payables, Period Inflows & Outflows */}
+                {activeReport === "Audit" && (
+                  <div className="space-y-6">
+                    {/* Top Audit KPI Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Realized Period Inflow
+                        </span>
+                        <span className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-1 block">
+                          {formatPKR(rangeMetrics.rangeTotalCollected)}
+                        </span>
+                        <span className="text-[11px] text-slate-400 mt-1 block">
+                          Sales + debt settlements collected
+                        </span>
+                      </div>
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Total Period Outflow
+                        </span>
+                        <span className="text-xl font-bold font-mono text-rose-600 dark:text-rose-400 mt-1 block">
+                          -{formatPKR(rangeMetrics.rangeTotalExp)}
+                        </span>
+                        <span className="text-[11px] text-slate-400 mt-1 block">
+                          Overheads ({formatPKR(rangeMetrics.rangeOpExp, { decimals: false })}) + Stock ({formatPKR(rangeMetrics.rangePurchExp, { decimals: false })})
+                        </span>
+                      </div>
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Net Period Cash Flow
+                        </span>
+                        <span className={`text-xl font-bold font-mono mt-1 block ${rangeMetrics.rangeCashFlow >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                          {rangeMetrics.rangeCashFlow >= 0 ? "+" : "-"}{formatPKR(Math.abs(rangeMetrics.rangeCashFlow))}
+                        </span>
+                        <span className="text-[11px] text-slate-400 mt-1 block">
+                          Realized surplus after all disbursements
+                        </span>
+                      </div>
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Receivables & Payables
+                        </span>
+                        <span className="text-sm font-bold font-mono text-slate-900 dark:text-slate-100 mt-1 block">
+                          AR: {formatPKR(rangeMetrics.rangeUncollected, { decimals: false })}
+                        </span>
+                        <span className="text-[11px] font-mono text-amber-600 dark:text-amber-400 mt-0.5 block">
+                          AP (Vendor Dues): {formatPKR(rangeMetrics.rangePurchDue, { decimals: false })}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Executive Balance Sheet Snapshot */}
+                    <div className="p-5 bg-slate-50/50 dark:bg-slate-800/20 border border-slate-100 dark:border-slate-800/80 rounded-2xl space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700/60 pb-3">
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                            <Layers className="w-4 h-4 text-blue-500" />
+                            Balance Sheet & Solvency Status (As of {formatDateDisplay(reportEndDate)})
+                          </h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            Snapshot of liquid assets, accounts receivable, vendor obligations, and net equity.
+                          </p>
+                        </div>
+                        <Button
+                          onClick={() => handleExportPDF("audit")}
+                          variant="secondary"
+                          size="sm"
+                          icon={<Printer className="w-3.5 h-3.5" />}
+                        >
+                          Print Audit PDF
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                        {/* Current Assets */}
+                        <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5">
+                          <span className="font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider text-[11px] block border-b border-slate-100 dark:border-slate-800 pb-2">
+                            Current Assets
+                          </span>
+                          <div className="flex justify-between items-center py-1">
+                            <span className="text-slate-600 dark:text-slate-400">Cash & Bank Collections (Period Inflow)</span>
+                            <span className="font-mono font-bold text-emerald-600">{formatPKR(rangeMetrics.rangeTotalCollected)}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-1">
+                            <span className="text-slate-600 dark:text-slate-400">Accounts Receivable (Uncollected Client Dues)</span>
+                            <span className="font-mono font-bold text-slate-900 dark:text-slate-100">{formatPKR(rangeMetrics.rangeUncollected)}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-1">
+                            <span className="text-slate-600 dark:text-slate-400">Total Active Clients in Ledger</span>
+                            <span className="font-mono font-bold text-slate-900 dark:text-slate-100">{clients.length} Clients</span>
+                          </div>
+                        </div>
+
+                        {/* Current Liabilities & Equity */}
+                        <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5">
+                          <span className="font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider text-[11px] block border-b border-slate-100 dark:border-slate-800 pb-2">
+                            Liabilities & Net Capital
+                          </span>
+                          <div className="flex justify-between items-center py-1">
+                            <span className="text-slate-600 dark:text-slate-400">Accounts Payable (Vendor Procurement Dues)</span>
+                            <span className="font-mono font-bold text-amber-600">{formatPKR(rangeMetrics.rangePurchDue)}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-1">
+                            <span className="text-slate-600 dark:text-slate-400">Total Operating Disbursements</span>
+                            <span className="font-mono font-bold text-rose-600">-{formatPKR(rangeMetrics.rangeTotalExp)}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-1">
+                            <span className="text-slate-600 dark:text-slate-400">Net Retained Operating Surplus</span>
+                            <span className={`font-mono font-bold ${rangeMetrics.rangeNetProfit >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                              {rangeMetrics.rangeNetProfit >= 0 ? "+" : "-"}{formatPKR(Math.abs(rangeMetrics.rangeNetProfit))}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Period Activity Audit Table */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                          <Clock className="w-4 h-4 text-blue-500" />
+                          Audited Period Ledger Entries ({rangeMetrics.inRangeTxns.length} Invoices, {rangeMetrics.inRangeExps.length} Overheads, {rangeMetrics.inRangePurchases.length} Purchase Bills)
+                        </h4>
+                        <span className="text-xs font-semibold text-slate-500">
+                          {formatDateDisplay(reportStartDate)} – {formatDateDisplay(reportEndDate)}
+                        </span>
+                      </div>
+                      <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase text-[10px] font-bold text-slate-400 tracking-wider">
+                            <tr>
+                              <th className="py-2.5 px-4">Date</th>
+                              <th className="py-2.5 px-4">Audit Classification</th>
+                              <th className="py-2.5 px-4">Entity / Description</th>
+                              <th className="py-2.5 px-4 text-center">Status</th>
+                              <th className="py-2.5 px-4 text-right">Inflow (PKR)</th>
+                              <th className="py-2.5 px-4 text-right">Outflow (PKR)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
+                            {rangeMetrics.inRangeTxns.slice(0, 10).map((t) => (
+                              <tr key={t.id}>
+                                <td className="py-2.5 px-4 font-mono text-[11px]">{t.date}</td>
+                                <td className="py-2.5 px-4">
+                                  <Badge variant="primary" size="sm">Client Sale</Badge>
+                                </td>
+                                <td className="py-2.5 px-4 font-semibold">{t.clientName} - {t.serviceName}</td>
+                                <td className="py-2.5 px-4 text-center">
+                                  <Badge variant="success" size="sm">{t.status || "Paid"}</Badge>
+                                </td>
+                                <td className="py-2.5 px-4 text-right font-mono font-bold text-emerald-600">
+                                  +{formatPKR(t.amountPaid ?? t.grandTotal ?? 0)}
+                                </td>
+                                <td className="py-2.5 px-4 text-right font-mono text-slate-400">-</td>
+                              </tr>
+                            ))}
+                            {rangeMetrics.inRangeExps.slice(0, 5).map((e) => (
+                              <tr key={e.id}>
+                                <td className="py-2.5 px-4 font-mono text-[11px]">{e.date}</td>
+                                <td className="py-2.5 px-4">
+                                  <Badge variant="neutral" size="sm">Overhead Exp</Badge>
+                                </td>
+                                <td className="py-2.5 px-4 font-semibold">{e.title} ({e.category})</td>
+                                <td className="py-2.5 px-4 text-center">
+                                  <Badge variant="neutral" size="sm">{e.status || "Paid"}</Badge>
+                                </td>
+                                <td className="py-2.5 px-4 text-right font-mono text-slate-400">-</td>
+                                <td className="py-2.5 px-4 text-right font-mono font-bold text-rose-600">
+                                  -{formatPKR(e.actualAmount ?? e.amount ?? 0)}
+                                </td>
+                              </tr>
+                            ))}
+                            {rangeMetrics.inRangePurchases.slice(0, 5).map((b: any) => (
+                              <tr key={b.id}>
+                                <td className="py-2.5 px-4 font-mono text-[11px]">{b.date}</td>
+                                <td className="py-2.5 px-4">
+                                  <Badge variant="warning" size="sm">Stock Purchase</Badge>
+                                </td>
+                                <td className="py-2.5 px-4 font-semibold">{b.vendorName || "Vendor"} ({b.billNumber || b.id})</td>
+                                <td className="py-2.5 px-4 text-center">
+                                  <Badge variant="warning" size="sm">{b.paymentStatus || "Paid"}</Badge>
+                                </td>
+                                <td className="py-2.5 px-4 text-right font-mono text-slate-400">-</td>
+                                <td className="py-2.5 px-4 text-right font-mono font-bold text-blue-600">
+                                  -{formatPKR(b.amountPaid || 0)}
+                                </td>
+                              </tr>
+                            ))}
                           </tbody>
                         </table>
                       </div>
