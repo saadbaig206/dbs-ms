@@ -290,11 +290,16 @@ export default function DashboardPage() {
         cat === "purchases" ||
         cat === "purchase" ||
         cat === "partner drawing" ||
+        cat.includes("drawing") ||
+        cat.includes("withdraw") ||
         id.startsWith("EXP-PUR-") ||
         id.startsWith("EXP-DRW-") ||
         id.startsWith("PIT-") ||
         id.includes("-PUR-") ||
         title.includes("partner drawing") ||
+        title.includes("partner withdrawal") ||
+        title.includes("drawing") ||
+        title.includes("withdraw") ||
         title.startsWith("vendor bill") ||
         title.includes("purchase bill") ||
         title.includes("supplier order") ||

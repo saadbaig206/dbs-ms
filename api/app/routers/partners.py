@@ -2,6 +2,7 @@ import secrets
 from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy import delete, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -461,26 +462,19 @@ async def record_partner_drawing(
     )
     db.add(db_drawing)
 
-    # Log ExpenseItem so Treasury cash flows and drawer reports reflect equity payouts
-    exp_id = f"EXP-DRW-{secrets.token_hex(3).upper()}"
-    exp_item = ExpenseItem(
-        id=exp_id,
-        title=f"Partner Drawing: {profile.partner_name}",
-        category="Partner Drawing",
-        amount=drawing_in.amount,
-        actual_amount=drawing_in.amount,
-        amount_paid=drawing_in.amount,
-        remaining_amount=0.0,
-        date=drawing_in.date or datetime.now().strftime("%Y-%m-%d"),
-        status="Paid",
-        payment_method=drawing_in.payment_method or "Cash",
-        vendor_name=profile.partner_name,
-        branch_id=None,
-        added_by=active_user,
-        paid_by=active_user,
-        notes=f"Partner Drawing / Capital Distribution ({drawing_id})"
+    # Partner drawings are equity payouts (capital distributions), NOT operating expenses.
+    # Purge any legacy drawing expenses so expenses list and P&L remain clean.
+    await db.execute(
+        delete(ExpenseItem).where(
+            or_(
+                ExpenseItem.id.ilike("EXP-DRW-%"),
+                ExpenseItem.category.ilike("Partner Drawing%"),
+                ExpenseItem.category.ilike("%Withdraw%"),
+                ExpenseItem.title.ilike("%Partner Drawing%"),
+                ExpenseItem.title.ilike("%Partner Withdrawal%")
+            )
+        )
     )
-    db.add(exp_item)
 
     await db.commit()
     await db.refresh(db_drawing)

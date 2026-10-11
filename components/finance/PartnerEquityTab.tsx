@@ -167,7 +167,22 @@ export function PartnerEquityTab() {
     const totalAssets = totalCurrentAssets;
 
     const accountsPayable = purchaseBills.reduce((acc, b: any) => acc + (b.remainingDue || 0), 0);
-    const accruedExpenses = expenses.filter((e: any) => (e.status || "").toLowerCase() !== "paid" && e.category !== "Partner Drawing").reduce((acc, e: any) => acc + (e.remainingAmount ?? e.amount ?? 0), 0);
+    const accruedExpenses = expenses.filter((e: any) => {
+      const cat = (e.category || "").toLowerCase();
+      const title = (e.title || "").toLowerCase();
+      const id = (e.id || "").toUpperCase();
+      return (
+        (e.status || "").toLowerCase() !== "paid" &&
+        cat !== "partner drawing" &&
+        !cat.includes("drawing") &&
+        !cat.includes("withdraw") &&
+        !id.startsWith("EXP-DRW-") &&
+        !title.includes("partner drawing") &&
+        !title.includes("partner withdrawal") &&
+        !title.includes("drawing") &&
+        !title.includes("withdraw")
+      );
+    }).reduce((acc, e: any) => acc + (e.remainingAmount ?? e.amount ?? 0), 0);
     const totalLiabilities = accountsPayable + accruedExpenses;
     const retainedOperatingProfit = netProfit + accountsReceivable - accruedExpenses;
     const totalEquity = totalContributedCapital + retainedOperatingProfit - cumulativeDrawings;

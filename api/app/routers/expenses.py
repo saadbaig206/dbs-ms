@@ -26,10 +26,17 @@ async def list_expenses(
         or_(ExpenseItem.category.is_(None), ~ExpenseItem.category.ilike("Inventory Purchase")),
         ~ExpenseItem.category.ilike("Products%"),
         ~ExpenseItem.category.ilike("Purchase%"),
+        ~ExpenseItem.category.ilike("Partner Drawing%"),
+        ~ExpenseItem.category.ilike("%Drawing%"),
+        ~ExpenseItem.category.ilike("%Withdraw%"),
         ~ExpenseItem.id.ilike("EXP-PUR-%"),
+        ~ExpenseItem.id.ilike("EXP-DRW-%"),
         ~ExpenseItem.id.ilike("PIT-%"),
         ~ExpenseItem.title.ilike("Vendor Bill Payment:%"),
-        ~ExpenseItem.title.ilike("%Purchase Bill%")
+        ~ExpenseItem.title.ilike("%Purchase Bill%"),
+        ~ExpenseItem.title.ilike("%Partner Drawing%"),
+        ~ExpenseItem.title.ilike("%Partner Withdrawal%"),
+        ~ExpenseItem.title.ilike("%Drawing%")
     )
     if search:
         pattern = f"%{search}%"

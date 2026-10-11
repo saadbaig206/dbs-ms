@@ -94,13 +94,25 @@ export function PartnerExpensesTab() {
 
     // 1. Regular Clinic Operating Expenses
     expenses.forEach((exp) => {
+      const cat = (exp.category || "").toLowerCase();
+      const title = (exp.title || "").toLowerCase();
+      const id = (exp.id || "").toUpperCase();
       if (
-        exp.category === ("Partner Drawing" as any) ||
-        (exp.title && exp.title.toLowerCase().includes("partner drawing")) ||
-        exp.category === ("Inventory Purchase" as any) ||
-        exp.category === ("Products" as any) ||
-        exp.id?.startsWith("EXP-PUR-") ||
-        (exp.title && exp.title.toLowerCase().includes("vendor bill payment"))
+        cat === "partner drawing" ||
+        cat.includes("drawing") ||
+        cat.includes("withdraw") ||
+        id.startsWith("EXP-DRW-") ||
+        title.includes("partner drawing") ||
+        title.includes("partner withdrawal") ||
+        title.includes("drawing") ||
+        title.includes("withdraw") ||
+        cat === "inventory purchase" ||
+        cat === "products" ||
+        cat === "purchases" ||
+        id.startsWith("EXP-PUR-") ||
+        id.startsWith("PIT-") ||
+        title.includes("vendor bill payment") ||
+        title.includes("purchase bill")
       ) {
         return;
       }

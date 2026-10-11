@@ -851,11 +851,16 @@ export default function FinanceReportsPage() {
         cat === "purchases" ||
         cat === "purchase" ||
         cat === "partner drawing" ||
+        cat.includes("drawing") ||
+        cat.includes("withdraw") ||
         id.startsWith("EXP-PUR-") ||
         id.startsWith("EXP-DRW-") ||
         id.startsWith("PIT-") ||
         id.includes("-PUR-") ||
         title.includes("partner drawing") ||
+        title.includes("partner withdrawal") ||
+        title.includes("drawing") ||
+        title.includes("withdraw") ||
         title.startsWith("vendor bill") ||
         title.includes("purchase bill") ||
         title.includes("supplier order") ||
@@ -1077,11 +1082,16 @@ export default function FinanceReportsPage() {
         cat === "purchases" ||
         cat === "purchase" ||
         cat === "partner drawing" ||
+        cat.includes("drawing") ||
+        cat.includes("withdraw") ||
         id.startsWith("EXP-PUR-") ||
         id.startsWith("EXP-DRW-") ||
         id.startsWith("PIT-") ||
         id.includes("-PUR-") ||
         title.includes("partner drawing") ||
+        title.includes("partner withdrawal") ||
+        title.includes("drawing") ||
+        title.includes("withdraw") ||
         title.startsWith("vendor bill") ||
         title.includes("purchase bill") ||
         title.includes("supplier order") ||
@@ -1212,6 +1222,18 @@ export default function FinanceReportsPage() {
         title.includes("supplier order") ||
         Boolean(e.productName);
       if (isPurchase) return false;
+
+      // Exclude partner drawings & withdrawals from operational expenses list
+      const isPartnerDrawing =
+        cat === "partner drawing" ||
+        cat.includes("drawing") ||
+        cat.includes("withdraw") ||
+        id.startsWith("EXP-DRW-") ||
+        title.includes("partner drawing") ||
+        title.includes("partner withdrawal") ||
+        title.includes("drawing") ||
+        title.includes("withdraw");
+      if (isPartnerDrawing) return false;
 
       const query = expSearch.toLowerCase().trim();
 
@@ -1455,11 +1477,16 @@ export default function FinanceReportsPage() {
         cat === "purchases" ||
         cat === "purchase" ||
         cat === "partner drawing" ||
+        cat.includes("drawing") ||
+        cat.includes("withdraw") ||
         id.startsWith("EXP-PUR-") ||
         id.startsWith("EXP-DRW-") ||
         id.startsWith("PIT-") ||
         id.includes("-PUR-") ||
         title.includes("partner drawing") ||
+        title.includes("partner withdrawal") ||
+        title.includes("drawing") ||
+        title.includes("withdraw") ||
         title.startsWith("vendor bill") ||
         title.includes("purchase bill") ||
         title.includes("supplier order") ||
@@ -2371,6 +2398,19 @@ export default function FinanceReportsPage() {
         const d = (e.date || "").trim().slice(0, 10);
         if (reportStartDate && d < reportStartDate) return false;
         if (reportEndDate && d > reportEndDate) return false;
+        const cat = (e.category || "").toLowerCase();
+        const title = (e.title || "").toLowerCase();
+        const id = (e.id || "").toUpperCase();
+        if (
+          cat === "partner drawing" ||
+          cat.includes("drawing") ||
+          cat.includes("withdraw") ||
+          id.startsWith("EXP-DRW-") ||
+          title.includes("partner drawing") ||
+          title.includes("partner withdrawal") ||
+          title.includes("drawing") ||
+          title.includes("withdraw")
+        ) return false;
         return Boolean(e.paidBy);
       });
       const partnerTotal = partnerExps.reduce((acc, e) => acc + (e.actualAmount ?? e.amount ?? 0), 0);
@@ -2522,14 +2562,21 @@ export default function FinanceReportsPage() {
       const asOfPaidExps = expenses.filter((e) => {
         const cat = (e.category || "").toLowerCase();
         const id = (e.id || "").toUpperCase();
+        const title = (e.title || "").toLowerCase();
         return (
           (!e.date || e.date.trim().slice(0, 10) <= reportEndDate) &&
           (e.status === "Paid" || (e.amountPaid && e.amountPaid > 0)) &&
           cat !== "inventory purchase" &&
           cat !== "products" &&
           cat !== "partner drawing" &&
+          !cat.includes("drawing") &&
+          !cat.includes("withdraw") &&
           !id.startsWith("EXP-PUR-") &&
-          !id.startsWith("EXP-DRW-")
+          !id.startsWith("EXP-DRW-") &&
+          !title.includes("partner drawing") &&
+          !title.includes("partner withdrawal") &&
+          !title.includes("drawing") &&
+          !title.includes("withdraw")
         );
       });
       const asOfTotalOpExp = asOfPaidExps.reduce((acc, e) => acc + (e.amountPaid ?? e.amount), 0);
@@ -2555,7 +2602,23 @@ export default function FinanceReportsPage() {
         .reduce((acc: number, b: any) => acc + (b.remainingDue || 0), 0);
 
       const accruedExpenses = expenses
-        .filter((e: any) => (!e.date || e.date.trim().slice(0, 10) <= reportEndDate) && (e.status || "").toLowerCase() !== "paid" && e.category !== "Partner Drawing")
+        .filter((e: any) => {
+          const cat = (e.category || "").toLowerCase();
+          const id = (e.id || "").toUpperCase();
+          const title = (e.title || "").toLowerCase();
+          return (
+            (!e.date || e.date.trim().slice(0, 10) <= reportEndDate) &&
+            (e.status || "").toLowerCase() !== "paid" &&
+            cat !== "partner drawing" &&
+            !cat.includes("drawing") &&
+            !cat.includes("withdraw") &&
+            !id.startsWith("EXP-DRW-") &&
+            !title.includes("partner drawing") &&
+            !title.includes("partner withdrawal") &&
+            !title.includes("drawing") &&
+            !title.includes("withdraw")
+          );
+        })
         .reduce((acc: number, e: any) => acc + (e.remainingAmount ?? e.amount ?? 0), 0);
 
       const totalLiabilities = accountsPayable + accruedExpenses;

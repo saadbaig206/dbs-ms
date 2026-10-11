@@ -61,6 +61,31 @@ export const RevenueChart: React.FC<RevenueChartProps> = ({ transactions = [], e
 
   // Populate expenses
   expenses.forEach((e) => {
+    const cat = (e.category || "").toLowerCase();
+    const title = (e.title || "").toLowerCase();
+    const id = (e.id || "").toUpperCase();
+    if (
+      cat === "inventory purchase" ||
+      cat === "products" ||
+      cat === "purchases" ||
+      cat === "purchase" ||
+      cat === "partner drawing" ||
+      cat.includes("drawing") ||
+      cat.includes("withdraw") ||
+      id.startsWith("EXP-PUR-") ||
+      id.startsWith("EXP-DRW-") ||
+      id.startsWith("PIT-") ||
+      id.includes("-PUR-") ||
+      title.includes("partner drawing") ||
+      title.includes("partner withdrawal") ||
+      title.includes("drawing") ||
+      title.includes("withdraw") ||
+      title.startsWith("vendor bill") ||
+      title.includes("purchase bill") ||
+      title.includes("supplier order") ||
+      Boolean((e as any).productName)
+    ) return;
+
     if (e.status === 'Paid') {
       const d = new Date(e.date);
       if (d.getFullYear() === currentYear) {
@@ -192,6 +217,31 @@ export const ExpenseBreakdownChart: React.FC<ExpenseBreakdownProps> = ({ expense
   const breakdownMap: Record<string, number> = {};
   
   expenses.forEach((e) => {
+    const cat = (e.category || "").toLowerCase();
+    const title = (e.title || "").toLowerCase();
+    const id = (e.id || "").toUpperCase();
+    if (
+      cat === "inventory purchase" ||
+      cat === "products" ||
+      cat === "purchases" ||
+      cat === "purchase" ||
+      cat === "partner drawing" ||
+      cat.includes("drawing") ||
+      cat.includes("withdraw") ||
+      id.startsWith("EXP-PUR-") ||
+      id.startsWith("EXP-DRW-") ||
+      id.startsWith("PIT-") ||
+      id.includes("-PUR-") ||
+      title.includes("partner drawing") ||
+      title.includes("partner withdrawal") ||
+      title.includes("drawing") ||
+      title.includes("withdraw") ||
+      title.startsWith("vendor bill") ||
+      title.includes("purchase bill") ||
+      title.includes("supplier order") ||
+      Boolean((e as any).productName)
+    ) return;
+
     if (e.status === 'Paid') {
       breakdownMap[e.category] = (breakdownMap[e.category] || 0) + e.amount;
     }
